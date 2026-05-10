@@ -18,7 +18,15 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=True,  # 区分大小写
+        env_nested_delimiter="__",  # 使用双下划线作为嵌套分隔符
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings
+    ):
+        """自定义配置源，让 .env 文件优先于系统环境变量"""
+        return (dotenv_settings, init_settings)  # 只使用 .env 文件和默认值，忽略系统环境变量
 
     # ================================================= #
     # ******************* 项目环境 ****************** #
