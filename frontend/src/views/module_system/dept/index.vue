@@ -1,4 +1,4 @@
-<!-- 部门配置 -->
+<!-- 门店配置 -->
 <template>
   <div class="app-container">
     <PageSearch
@@ -55,14 +55,14 @@
             <el-table-column
               v-if="contentCols.find((col) => col.prop === 'name')?.show"
               key="name"
-              label="部门名称"
+              label="门店名称"
               prop="name"
               min-width="120"
             />
             <el-table-column
               v-if="contentCols.find((col) => col.prop === 'code')?.show"
               key="code"
-              label="部门编码"
+              label="门店编码"
               prop="code"
               min-width="120"
             />
@@ -173,13 +173,13 @@
     >
       <template v-if="dialogVisible.type === 'detail'">
         <el-descriptions :column="4" border>
-          <el-descriptions-item label="部门名称" :span="2">
+          <el-descriptions-item label="门店名称" :span="2">
             {{ detailFormData.name }}
           </el-descriptions-item>
-          <el-descriptions-item label="部门编码" :span="2">
+          <el-descriptions-item label="门店编码" :span="2">
             {{ detailFormData.code }}
           </el-descriptions-item>
-          <el-descriptions-item label="上级部门" :span="2">
+          <el-descriptions-item label="上级门店" :span="2">
             {{ detailFormData.parent_name }}
           </el-descriptions-item>
           <el-descriptions-item label="状态" :span="2">
@@ -210,21 +210,21 @@
           label-width="auto"
           label-position="right"
         >
-          <el-form-item label="部门名称" prop="name">
-            <el-input v-model="formData.name" placeholder="请输入部门名称" :maxlength="50" />
+          <el-form-item label="门店名称" prop="name">
+            <el-input v-model="formData.name" placeholder="请输入门店名称" :maxlength="50" />
           </el-form-item>
-          <el-form-item label="部门编码" prop="code">
+          <el-form-item label="门店编码" prop="code">
             <el-input
               v-model="formData.code"
-              placeholder="字母开头，2-16位字母/数字/下划线"
-              :maxlength="16"
+              placeholder="1-32位字母/数字/下划线，支持纯数字"
+              :maxlength="32"
               show-word-limit
             />
           </el-form-item>
-          <el-form-item label="上级部门" prop="parent_id">
+          <el-form-item label="上级门店" prop="parent_id">
             <el-tree-select
               v-model="formData.parent_id"
-              placeholder="请选择上级部门"
+              placeholder="请选择上级门店"
               :data="deptOptions"
               filterable
               check-strictly
@@ -301,9 +301,9 @@ const searchConfig = reactive<ISearchConfig>({
   formItems: [
     {
       prop: "name",
-      label: "部门名称",
+      label: "门店名称",
       type: "input",
-      attrs: { placeholder: "请输入部门名称", clearable: true },
+      attrs: { placeholder: "请输入门店名称", clearable: true },
     },
     {
       prop: "status",
@@ -341,8 +341,8 @@ const contentCols = reactive<
 >([
   { prop: "selection", label: "选择框", show: true },
   { prop: "index", label: "序号", show: true },
-  { prop: "name", label: "部门名称", show: true },
-  { prop: "code", label: "部门编码", show: true },
+  { prop: "name", label: "门店名称", show: true },
+  { prop: "code", label: "门店编码", show: true },
   { prop: "order", label: "排序", show: true },
   { prop: "status", label: "状态", show: true },
   { prop: "description", label: "描述", show: true },
@@ -402,15 +402,15 @@ const dialogVisible = reactive({
   type: "create" as "create" | "update" | "detail",
 });
 
-const CODE_PATTERN = /^[A-Za-z][A-Za-z0-9_]{1,15}$/;
+const CODE_PATTERN = /^[A-Za-z0-9_]{1,32}$/;
 
 const rules = reactive({
-  name: [{ required: true, message: "请输入部门名称", trigger: "blur" }],
+  name: [{ required: true, message: "请输入门店名称", trigger: "blur" }],
   code: [
-    { required: true, message: "请输入部门编码", trigger: "blur" },
+    { required: true, message: "请输入门店编码", trigger: "blur" },
     {
       pattern: CODE_PATTERN,
-      message: "字母开头，2-16位字母/数字/下划线",
+      message: "1-32位字母/数字/下划线，支持纯数字",
       trigger: "blur",
     },
   ],
@@ -454,14 +454,14 @@ async function handleOpenDialog(
   if (id) {
     const response = await DeptAPI.detailDept(id);
     if (type === "detail") {
-      dialogVisible.title = "部门详情";
+      dialogVisible.title = "门店详情";
       Object.assign(detailFormData.value, response.data.data);
     } else if (type === "update") {
-      dialogVisible.title = "修改部门";
+      dialogVisible.title = "修改门店";
       Object.assign(formData, response.data.data);
     }
   } else {
-    dialogVisible.title = "新增部门";
+    dialogVisible.title = "新增门店";
     formData.id = undefined;
     if (parentId) {
       formData.parent_id = parentId;

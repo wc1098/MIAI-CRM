@@ -5,6 +5,70 @@
     "status": "0",
     "order": 1,
     "data_scope": 4,
-    "description": "初始化角色"
+    "description": "老板/系统管理员，拥有全品牌最高权限"
+  },
+  {
+    "name": "总部运营",
+    "code": "HQ_OPS",
+    "status": "0",
+    "order": 2,
+    "data_scope": 4,
+    "description": "全品牌运营配置、小程序、活动、大屏、素材与品牌公海管理"
+  },
+  {
+    "name": "财务/收款复核",
+    "code": "FINANCE",
+    "status": "0",
+    "order": 3,
+    "data_scope": 4,
+    "description": "合同、订单、收款、退款、对账与支付异常处理"
+  },
+  {
+    "name": "店长",
+    "code": "STORE_MGR",
+    "status": "0",
+    "order": 4,
+    "data_scope": 3,
+    "description": "本门店经营管理、分配回收、复核与服务调度"
+  },
+  {
+    "name": "销售",
+    "code": "SALES",
+    "status": "0",
+    "order": 5,
+    "data_scope": 1,
+    "description": "线索转化、客户跟进、邀约到店、面谈签约与收款提交"
+  },
+  {
+    "name": "服务红娘",
+    "code": "MATCHMAKER",
+    "status": "0",
+    "order": 6,
+    "data_scope": 1,
+    "description": "VIP 服务、深访、备选库、推荐、约见、反馈与关单"
+  },
+  {
+    "name": "前台/接待",
+    "code": "RECEPTION",
+    "status": "0",
+    "order": 7,
+    "data_scope": 2,
+    "description": "到店登记、现场签到辅助与房间状态维护"
+  },
+  {
+    "name": "大屏管理员",
+    "code": "SCREEN_ADMIN",
+    "status": "0",
+    "order": 8,
+    "data_scope": 2,
+    "description": "门店大屏设备、素材、播放列表与房间状态配置"
+  },
+  {
+    "name": "审核员",
+    "code": "AUDITOR",
+    "status": "0",
+    "order": 9,
+    "data_scope": 2,
+    "description": "认证审核、资料补充审核、附件审核与内容处理"
   }
 ]

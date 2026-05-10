@@ -79,10 +79,10 @@ class UserModel(ModelMixin, TenantMixin, UserMixin):
     ]
 
     username: Mapped[str] = mapped_column(
-        String(64), nullable=False, unique=True, comment="用户名/登录账号"
+        String(64), nullable=False, unique=True, comment="账号/登录账号"
     )
     password: Mapped[str] = mapped_column(String(255), nullable=False, comment="密码哈希")
-    name: Mapped[str] = mapped_column(String(32), nullable=False, comment="昵称")
+    name: Mapped[str] = mapped_column(String(32), nullable=False, comment="姓名")
     mobile: Mapped[str | None] = mapped_column(
         String(11), nullable=True, unique=True, comment="手机号"
     )

@@ -20,20 +20,20 @@ from .schema import (
 
 class DeptService:
     """
-    部门管理模块服务层
+    门店管理模块服务层
     """
 
     @classmethod
     async def get_dept_detail_service(cls, auth: AuthSchema, id: int) -> dict:
         """
-        获取部门详情。
+        获取门店详情。
 
         参数:
         - auth (AuthSchema): 认证对象。
-        - id (int): 部门 ID。
+        - id (int): 门店 ID。
 
         返回:
-        - dict: 部门详情对象。
+        - dict: 门店详情对象。
         """
         dept = await DeptCRUD(auth).get_by_id_crud(id=id)
         result = DeptOutSchema.model_validate(dept).model_dump()
@@ -51,7 +51,7 @@ class DeptService:
         order_by: list[dict] | None = None,
     ) -> list[dict]:
         """
-        获取部门树形列表。
+        获取门店树形列表。
 
         参数:
         - auth (AuthSchema): 认证对象。
@@ -59,7 +59,7 @@ class DeptService:
         - order_by (list[dict] | None): 排序参数。
 
         返回:
-        - list[dict]: 部门树形列表对象。
+        - list[dict]: 门店树形列表对象。
         """
         # 使用树形结构查询，预加载children关系
         dept_list = await DeptCRUD(auth).get_tree_list_crud(
@@ -73,21 +73,21 @@ class DeptService:
     @classmethod
     async def create_dept_service(cls, auth: AuthSchema, data: DeptCreateSchema) -> dict:
         """
-        创建部门。
+        创建门店。
 
         参数:
         - auth (AuthSchema): 认证对象。
-        - data (DeptCreateSchema): 部门创建对象。
+        - data (DeptCreateSchema): 门店创建对象。
 
         返回:
-        - dict: 新创建的部门对象。
+        - dict: 新创建的门店对象。
 
         异常:
-        - CustomException: 当部门已存在时抛出。
+        - CustomException: 当门店已存在时抛出。
         """
         dept = await DeptCRUD(auth).get(name=data.name)
         if dept:
-            raise CustomException(msg="创建失败，该部门已存在")
+            raise CustomException(msg="创建失败，该门店已存在")
         obj = await DeptCRUD(auth).get(code=data.code)
         if obj:
             raise CustomException(msg="创建失败，编码已存在")
@@ -97,39 +97,39 @@ class DeptService:
     @classmethod
     async def update_dept_service(cls, auth: AuthSchema, id: int, data: DeptUpdateSchema) -> dict:
         """
-        更新部门。
+        更新门店。
 
         参数:
         - auth (AuthSchema): 认证对象。
-        - id (int): 部门 ID。
-        - data (DeptUpdateSchema): 部门更新对象。
+        - id (int): 门店 ID。
+        - data (DeptUpdateSchema): 门店更新对象。
 
         返回:
-        - dict: 更新后的部门对象。
+        - dict: 更新后的门店对象。
 
         异常:
-        - CustomException: 当部门不存在或名称重复时抛出。
+        - CustomException: 当门店不存在或名称重复时抛出。
         """
         dept = await DeptCRUD(auth).get_by_id_crud(id=id)
         if not dept:
-            raise CustomException(msg="更新失败，该部门不存在")
+            raise CustomException(msg="更新失败，该门店不存在")
         exist_dept = await DeptCRUD(auth).get(name=data.name)
         if exist_dept and exist_dept.id != id:
-            raise CustomException(msg="更新失败，部门名称重复")
+            raise CustomException(msg="更新失败，门店名称重复")
         exist_code = await DeptCRUD(auth).get(code=data.code)
         if exist_code and exist_code.id != id:
-            raise CustomException(msg="更新失败，部门编码已存在")
+            raise CustomException(msg="更新失败，门店编码已存在")
         dept = await DeptCRUD(auth).update(id=id, data=data)
         return DeptOutSchema.model_validate(dept).model_dump()
 
     @classmethod
     async def delete_dept_service(cls, auth: AuthSchema, ids: list[int]) -> None:
         """
-        删除部门。
+        删除门店。
 
         参数:
         - auth (AuthSchema): 认证对象。
-        - ids (list[int]): 部门 ID 列表。
+        - ids (list[int]): 门店 ID 列表。
 
         返回:
         - None
@@ -140,17 +140,17 @@ class DeptService:
         if len(ids) < 1:
             raise CustomException(msg="删除失败，删除对象不能为空")
 
-        # 获取所有部门列表，用于构建树形关系
+        # 获取所有门店列表，用于构建树形关系
         all_depts = await DeptCRUD(auth).get_list_crud()
 
-        # 构建子部门ID映射
+        # 构建子门店ID映射
         child_id_map = get_child_id_map(model_list=all_depts)
 
-        # 收集所有需要删除的部门ID，包括直接指定的ID和它们的所有子部门ID
+        # 收集所有需要删除的门店ID，包括直接指定的ID和它们的所有子门店ID
         delete_ids_set = set()
 
         for id in ids:
-            # 递归获取该ID的所有子部门ID
+            # 递归获取该ID的所有子门店ID
             all_descendants = get_child_recursion(id=id, id_map=child_id_map)
             delete_ids_set.update(all_descendants)
 
@@ -163,7 +163,7 @@ class DeptService:
     @classmethod
     async def batch_set_available_service(cls, auth: AuthSchema, data: BatchSetAvailable) -> None:
         """
-        批量设置部门可用状态。
+        批量设置门店可用状态。
 
         参数:
         - auth (AuthSchema): 认证对象。

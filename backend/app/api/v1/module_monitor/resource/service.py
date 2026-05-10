@@ -13,7 +13,8 @@ from app.config.setting import settings
 from app.core.exceptions import CustomException
 from app.core.logger import log
 from app.utils.excel_util import ExcelUtil
-from app.utils.upload_util import DANGEROUS_EXTENSIONS, MIME_TYPE_MAPPING
+from app.utils.storage_config import StorageConfig
+from app.utils.upload_util import DANGEROUS_EXTENSIONS, MIME_TYPE_MAPPING, UploadUtil
 
 from .schema import (
     ResourceCopySchema,
@@ -632,6 +633,16 @@ class ResourceService:
         """
         if not file or not file.filename:
             raise CustomException(msg="请选择要上传的文件")
+
+        storage_driver = await StorageConfig.get_storage_driver()
+        if storage_driver == "aliyun_oss":
+            filename, _, file_url = await UploadUtil.upload_file(file=file, base_url=base_url or "")
+            return ResourceUploadSchema(
+                filename=filename,
+                file_url=file_url,
+                file_size=file.size or 0,
+                upload_time=datetime.now(),
+            ).model_dump(mode="json")
 
         original_filename = file.filename
 

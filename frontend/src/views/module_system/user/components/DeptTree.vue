@@ -2,7 +2,7 @@
 <template>
   <el-card shadow="hover">
     <div class="dept-tree-toolbar">
-      <el-input v-model="deptName" placeholder="部门名称" class="dept-tree-search">
+      <el-input v-model="deptName" placeholder="门店名称" class="dept-tree-search">
         <template #prefix>
           <el-icon>
             <Search />
@@ -56,7 +56,7 @@ const props = defineProps({
 
 const deptOptions = ref<OptionType[]>([]); // 部门列表
 const deptTreeRef = ref<TreeInstance>(); // 部门树
-const deptName = ref(); // 部门名称
+const deptName = ref(); // 门店名称
 /** 与「全部展开」状态同步，用于按钮提示（手动展开单节点后可能不完全一致） */
 const treeExpanded = ref(true);
 

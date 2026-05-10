@@ -158,5 +158,51 @@ def upgrade(
     typer.echo("所有迁移已应用。")
 
 
+@fastapiadmin_cli.command(
+    name="sync-permissions",
+    help="同步婚恋业务权限矩阵和系统参数, 运行 python main.py sync-permissions --env=dev",
+)
+def sync_permissions(
+    env: Annotated[
+        EnvironmentEnum, typer.Option("--env", help="运行环境 (dev, prod)")
+    ] = EnvironmentEnum.DEV,
+) -> None:
+    """
+    幂等同步角色、菜单与角色菜单授权。
+
+    参数:
+    - env (EnvironmentEnum): 运行环境。
+
+    返回:
+    - None
+    """
+    import asyncio
+
+    os.environ["ENVIRONMENT"] = env.value
+    from app.config.setting import get_settings
+    from app.core.database import async_db_session
+    from app.scripts.permission_matrix import (
+        sync_permission_matrix,
+        validate_permission_matrix,
+    )
+    from app.scripts.system_params import sync_system_params, validate_system_params
+
+    get_settings.cache_clear()
+    validate_stats = validate_permission_matrix()
+    typer.echo(f"权限矩阵静态校验通过: {validate_stats}")
+    param_validate_stats = validate_system_params()
+    typer.echo(f"系统参数静态校验通过: {param_validate_stats}")
+
+    async def _sync() -> None:
+        async with async_db_session() as session:
+            async with session.begin():
+                stats = await sync_permission_matrix(session)
+                typer.echo(f"权限矩阵同步完成: {stats}")
+                param_stats = await sync_system_params(session)
+                typer.echo(f"系统参数同步完成: {param_stats}")
+
+    asyncio.run(_sync())
+
+
 if __name__ == "__main__":
     fastapiadmin_cli()

@@ -218,7 +218,12 @@
             <el-input v-model="formData.config_key" placeholder="请输入配置键" :maxlength="50" />
           </el-form-item>
           <el-form-item label="配置值" prop="config_value">
-            <el-input v-model="formData.config_value" placeholder="请输入配置值" :maxlength="100" />
+            <el-input
+              v-model="formData.config_value"
+              :rows="6"
+              type="textarea"
+              placeholder="请输入配置值"
+            />
           </el-form-item>
           <el-form-item label="系统内置" prop="config_type">
             <el-radio-group v-model="formData.config_type">

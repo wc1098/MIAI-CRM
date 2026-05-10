@@ -11,6 +11,8 @@ from fastapi import UploadFile
 from app.config.setting import settings
 from app.core.exceptions import CustomException
 from app.core.logger import log
+from app.utils.aliyun_oss_util import AliyunOSSUtil
+from app.utils.storage_config import StorageConfig
 
 DANGEROUS_EXTENSIONS = {
     ".py",
@@ -415,9 +417,29 @@ class UploadUtil:
         cls.validate_file_content_type(content, extension)
 
         safe_filename = cls.generate_safe_filename(original_filename, extension)
+        date_path = datetime.now().strftime("%Y/%m/%d")
+        storage_driver = await StorageConfig.get_storage_driver()
 
         try:
-            dir_path = settings.UPLOAD_FILE_PATH.joinpath(datetime.now().strftime("%Y/%m/%d"))
+            if storage_driver == "aliyun_oss":
+                config = await StorageConfig.get_aliyun_oss_config()
+                object_key = AliyunOSSUtil.build_object_key(
+                    config.object_prefix,
+                    date_path,
+                    safe_filename,
+                )
+                file_url = await AliyunOSSUtil.upload_bytes(
+                    config=config,
+                    object_key=object_key,
+                    content=content,
+                    content_type=file.content_type,
+                )
+                return safe_filename, Path(object_key), file_url
+
+            if storage_driver != "local":
+                raise CustomException(msg=f"不支持的资源存储类型: {storage_driver}")
+
+            dir_path = settings.UPLOAD_FILE_PATH.joinpath(date_path)
             dir_path.mkdir(parents=True, exist_ok=True)
 
             filepath = dir_path.joinpath(safe_filename)

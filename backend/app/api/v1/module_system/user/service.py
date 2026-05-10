@@ -130,14 +130,14 @@ class UserService:
         - dict: 创建后的用户详情字典
         """
         if not data.username:
-            raise CustomException(msg="用户名不能为空")
+            raise CustomException(msg="账号不能为空")
         # 检查是否试图创建超级管理员
         if data.is_superuser:
             raise CustomException(msg="不允许创建超级管理员")
-        # 检查用户名是否存在
+        # 检查账号是否存在
         user = await UserCRUD(auth).get_by_username_crud(username=data.username)
         if user:
-            raise CustomException(msg="已存在相同用户名称的账号")
+            raise CustomException(msg="账号已存在")
 
         # 检查部门是否存在
         if data.dept_id:
@@ -187,7 +187,7 @@ class UserService:
         if user.is_superuser:
             raise CustomException(msg="超级管理员不允许修改")
 
-        # 检查用户名是否重复
+        # 检查账号是否重复
         exist_user = await UserCRUD(auth).get_by_username_crud(username=data.username)
         if exist_user and exist_user.id != id:
             raise CustomException(msg="已存在相同的账号")
@@ -482,7 +482,7 @@ class UserService:
         返回:
         - Dict: 注册后的用户详情字典
         """
-        # 检查用户名是否存在
+        # 检查账号是否存在
         username_ok = await UserCRUD(auth).get_by_username_crud(username=data.username)
         if username_ok:
             raise CustomException(msg="账号已存在")
@@ -549,7 +549,7 @@ class UserService:
         header_dict = {
             "部门编号": "dept_id",
             "账号": "username",
-            "昵称": "name",
+            "姓名": "name",
             "邮箱": "email",
             "手机号": "mobile",
             "性别": "gender",
@@ -666,7 +666,7 @@ class UserService:
         header_list = [
             "部门编号",
             "账号",
-            "昵称",
+            "姓名",
             "邮箱",
             "手机号",
             "性别",
@@ -701,9 +701,9 @@ class UserService:
         mapping_dict = {
             "id": "用户编号",
             "avatar": "头像",
-            "username": "用户名称",
-            "name": "用户昵称",
-            "dept_name": "部门",
+            "username": "账号",
+            "name": "姓名",
+            "dept_name": "门店",
             "email": "邮箱",
             "mobile": "手机号",
             "gender": "性别",

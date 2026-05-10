@@ -3,22 +3,22 @@ version: '3.8'
 services:
   postgres:
     image: pgvector/pgvector:pg17
-    container_name: miailove-postgres
+    container_name: miaicrm-postgres
     restart: no
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: Anping520
-      POSTGRES_DB: miailove
+      POSTGRES_DB: miaicrm
     ports:
       - "5432:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     networks:
-      - miailove-network
+      - miaicrm-network
 
   redis:
     image: redis:7-alpine
-    container_name: miailove-redis
+    container_name: miaicrm-redis
     restart: no
     command: redis-server --appendonly yes --requirepass Anping520
     ports:
@@ -26,8 +26,8 @@ services:
     volumes:
       - ./data/redis:/data
     networks:
-      - miailove-network
+      - miaicrm-network
 
 networks:
-  miailove-network:
+  miaicrm-network:
     driver: bridge

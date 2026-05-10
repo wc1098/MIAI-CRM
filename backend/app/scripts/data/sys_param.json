@@ -126,5 +126,85 @@
     "config_type": true,
     "status": "0",
     "description": "初始化数据"
+  },
+  {
+    "config_name": "资源存储驱动",
+    "config_key": "storage.default_driver",
+    "config_value": "aliyun_oss",
+    "config_type": true,
+    "status": "0",
+    "description": "资源上传默认存储驱动，可选 local / aliyun_oss"
+  },
+  {
+    "config_name": "阿里云OSS AccessKeyId",
+    "config_key": "storage.aliyun_oss.access_key_id",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "阿里云OSS访问密钥ID"
+  },
+  {
+    "config_name": "阿里云OSS AccessKeySecret",
+    "config_key": "storage.aliyun_oss.access_key_secret",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "阿里云OSS访问密钥Secret"
+  },
+  {
+    "config_name": "阿里云OSS Endpoint",
+    "config_key": "storage.aliyun_oss.endpoint",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "阿里云OSS访问域名，例如 https://oss-cn-hangzhou.aliyuncs.com"
+  },
+  {
+    "config_name": "阿里云OSS Bucket",
+    "config_key": "storage.aliyun_oss.bucket",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "阿里云OSS Bucket名称"
+  },
+  {
+    "config_name": "阿里云OSS公开访问域名",
+    "config_key": "storage.aliyun_oss.public_base_url",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "可选，CDN或自定义域名；为空时自动使用 Bucket + Endpoint 生成URL"
+  },
+  {
+    "config_name": "阿里云OSS对象前缀",
+    "config_key": "storage.aliyun_oss.object_prefix",
+    "config_value": "uploads",
+    "config_type": true,
+    "status": "0",
+    "description": "上传对象Key前缀"
+  },
+  {
+    "config_name": "云支付应用ID",
+    "config_key": "cloudpay.b_app_id",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "云支付分配给开发者的应用ID"
+  },
+  {
+    "config_name": "云支付请求私钥",
+    "config_key": "cloudpay.private_key",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "云支付请求报文RSA2加签私钥，PKCS#8格式"
+  },
+  {
+    "config_name": "云支付响应公钥",
+    "config_key": "cloudpay.public_key",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "云支付返回报文RSA2验签公钥"
   }
 ]

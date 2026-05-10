@@ -12,6 +12,7 @@ backend/.idea
 backend/.DS_Store
 backend/venv
 backend/.venv
+backend/.venv3.13
 backend/.mypy_cache
 backend/.pytest_cache
 backend/logs
@@ -34,7 +35,7 @@ devops/nginx/fastapp/dist
 devops/nginx/fastdocs/dist
 devops/nginx/frontend/dist
 devops/nginx/ssl
-
+database/data/*
 # 本地配置覆盖文件（不提交到版本控制）
 backend/env/.env.dev
 backend/env/.env.prod
@@ -80,7 +81,7 @@ build/
 .turbo/
 .vite/
 
-# ============ 编辑器 / IDE ============
+# ============ 编辑�?/ IDE ============
 .vscode/
 .cursor/
 .idea/
@@ -96,7 +97,7 @@ Thumbs.db
 .settings/
 *.iml
 
-# ============ 开发工具 ============
+# ============ 开发工�?============
 .env.local
 .env.*.local
 .env.development.local

@@ -1,0 +1,4 @@
+[plugin]
+summary = "云支付"
+version = "0.1.0"
+description = "云支付交易接口集成"

@@ -13,20 +13,20 @@ if TYPE_CHECKING:
 
 class DeptModel(ModelMixin):
     """
-    部门模型
+    门店模型
     """
 
     __tablename__: str = "sys_dept"
-    __table_args__: dict[str, str] = {"comment": "部门表"}
+    __table_args__: dict[str, str] = {"comment": "门店表"}
     __loader_options__: list[str] = []
     __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DEPT_BASED
 
-    name: Mapped[str] = mapped_column(String(64), nullable=False, comment="部门名称")
+    name: Mapped[str] = mapped_column(String(64), nullable=False, comment="门店名称")
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=999, comment="显示排序")
     code: Mapped[str] = mapped_column(
-        String(16), nullable=False, unique=True, comment="部门编码"
+        String(32), nullable=False, unique=True, comment="门店编码"
     )
-    leader: Mapped[str | None] = mapped_column(String(32), default=None, comment="部门负责人")
+    leader: Mapped[str | None] = mapped_column(String(32), default=None, comment="门店负责人")
     phone: Mapped[str | None] = mapped_column(String(11), default=None, comment="手机")
     email: Mapped[str | None] = mapped_column(String(64), default=None, comment="邮箱")
 
@@ -36,7 +36,7 @@ class DeptModel(ModelMixin):
         ForeignKey("sys_dept.id", ondelete="SET NULL", onupdate="CASCADE"),
         default=None,
         index=True,
-        comment="父级部门ID",
+        comment="上级门店ID",
     )
     # 关联关系
     parent: Mapped["DeptModel | None"] = relationship(

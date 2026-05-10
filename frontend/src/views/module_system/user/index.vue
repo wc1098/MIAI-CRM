@@ -84,7 +84,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column label="账号" prop="username" min-width="100" />
-                <el-table-column label="用户名" prop="name" min-width="100" />
+                <el-table-column label="姓名" prop="name" min-width="100" />
                 <el-table-column label="状态" prop="status" min-width="100">
                   <template #default="scope">
                     <el-tag :type="scope.row.status === '0' ? 'success' : 'danger'">
@@ -92,7 +92,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="部门" prop="dept" min-width="100">
+                <el-table-column label="门店" prop="dept" min-width="100">
                   <template #default="scope">
                     {{ scope.row.dept ? scope.row.dept.name : "" }}
                   </template>
@@ -183,7 +183,7 @@
           <el-descriptions-item label="账号" :span="2">
             {{ detailFormData.username }}
           </el-descriptions-item>
-          <el-descriptions-item label="用户名" :span="2">
+          <el-descriptions-item label="姓名" :span="2">
             {{ detailFormData.name }}
           </el-descriptions-item>
           <el-descriptions-item label="性别" :span="2">
@@ -191,7 +191,7 @@
             <el-tag v-else-if="detailFormData.gender === '1'" type="warning">女</el-tag>
             <el-tag v-else type="info">未知</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="部门" :span="2">
+          <el-descriptions-item label="门店" :span="2">
             {{ detailFormData.dept ? detailFormData.dept.name : "" }}
           </el-descriptions-item>
           <el-descriptions-item label="角色" :span="2">
@@ -259,8 +259,8 @@
             />
           </el-form-item>
 
-          <el-form-item label="用户名" prop="name">
-            <el-input v-model="formData.name" placeholder="请输入用户名" />
+          <el-form-item label="姓名" prop="name">
+            <el-input v-model="formData.name" placeholder="请输入姓名" />
           </el-form-item>
 
           <el-form-item label="性别" prop="gender">
@@ -279,10 +279,10 @@
             <el-input v-model="formData.email" placeholder="请输入邮箱" maxlength="50" />
           </el-form-item>
 
-          <el-form-item label="部门" prop="dept_id">
+          <el-form-item label="门店" prop="dept_id">
             <el-tree-select
               v-model="formData.dept_id"
-              placeholder="请选择上级部门"
+              placeholder="请选择门店"
               :data="deptOptions"
               :props="{ children: 'children', label: 'label', disabled: 'disabled' }"
               filterable
@@ -454,9 +454,9 @@ const searchConfig = reactive<ISearchConfig>({
     },
     {
       prop: "name",
-      label: "用户名",
+      label: "姓名",
       type: "input",
-      attrs: { placeholder: "请输入用户名", clearable: true },
+      attrs: { placeholder: "请输入姓名", clearable: true },
     },
     {
       prop: "status",
@@ -495,9 +495,9 @@ const contentCols = reactive<
   { prop: "index", label: "序号", show: true },
   { prop: "avatar", label: "头像", show: true },
   { prop: "username", label: "账号", show: true },
-  { prop: "name", label: "用户名", show: true },
+  { prop: "name", label: "姓名", show: true },
   { prop: "status", label: "状态", show: true },
-  { prop: "dept", label: "部门", show: true },
+  { prop: "dept", label: "门店", show: true },
   { prop: "gender", label: "性别", show: true },
   { prop: "created_time", label: "创建时间", show: true },
   { prop: "updated_time", label: "更新时间", show: true },
@@ -608,7 +608,7 @@ const dialogVisible = reactive({
 
 const rules = reactive({
   username: [{ required: true, message: "请输入账号", trigger: "blur" }],
-  name: [{ required: true, message: "请输入用户名", trigger: "blur" }],
+  name: [{ required: true, message: "请输入姓名", trigger: "blur" }],
   password: [{ required: true, message: "请输入密码", trigger: "blur" }],
   gender: [{ required: false, message: "请选择性别", trigger: "blur" }],
   email: [
@@ -631,7 +631,7 @@ const rules = reactive({
 
 const exportColumns = [
   { prop: "username", label: "账号" },
-  { prop: "name", label: "名称" },
+  { prop: "name", label: "姓名" },
   { prop: "status", label: "状态" },
   { prop: "gender", label: "性别" },
   { prop: "email", label: "邮箱" },

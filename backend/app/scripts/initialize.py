@@ -16,6 +16,8 @@ from app.api.v1.module_system.user.model import UserModel, UserRolesModel
 from app.config.path_conf import SCRIPT_DIR
 from app.core.database import async_db_session, create_tables
 from app.core.logger import log
+from app.scripts.permission_matrix import sync_permission_matrix
+from app.scripts.system_params import sync_system_params
 
 
 class InitializeData:
@@ -119,6 +121,11 @@ class InitializeData:
             except Exception as e:
                 log.error(f"❌️ 初始化 {table_name} 表数据失败: {e!s}")
                 raise
+
+        stats = await sync_permission_matrix(db)
+        log.info(f"✅️ 权限矩阵同步完成: {stats}")
+        param_stats = await sync_system_params(db)
+        log.info(f"✅️ 系统参数同步完成: {param_stats}")
 
     def __create_objects_with_children(self, data: list[dict], model_class: type) -> list:
         """

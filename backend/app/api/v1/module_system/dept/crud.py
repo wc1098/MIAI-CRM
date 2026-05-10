@@ -8,11 +8,11 @@ from .schema import DeptCreateSchema, DeptUpdateSchema
 
 
 class DeptCRUD(CRUDBase[DeptModel, DeptCreateSchema, DeptUpdateSchema]):
-    """部门模块数据层"""
+    """门店模块数据层"""
 
     def __init__(self, auth: AuthSchema) -> None:
         """
-        初始化部门数据层。
+        初始化门店数据层。
 
         参数:
         - auth (AuthSchema): 认证信息模型（含 DB 会话等上下文）。
@@ -25,14 +25,14 @@ class DeptCRUD(CRUDBase[DeptModel, DeptCreateSchema, DeptUpdateSchema]):
 
     async def get_by_id_crud(self, id: int, preload: list | None = None) -> DeptModel | None:
         """
-        根据 id 获取部门信息。
+        根据 id 获取门店信息。
 
         参数:
-        - id (int): 部门 ID。
+        - id (int): 门店 ID。
         - preload (list | None): 预加载关系，未提供时使用模型默认项
 
         返回:
-        - DeptModel | None: 部门信息，未找到返回 None。
+        - DeptModel | None: 门店信息，未找到返回 None。
         """
         obj = await self.get(id=id, preload=preload)
         if not obj:
@@ -46,7 +46,7 @@ class DeptCRUD(CRUDBase[DeptModel, DeptCreateSchema, DeptUpdateSchema]):
         preload: list | None = None,
     ) -> Sequence[DeptModel]:
         """
-        获取部门列表。
+        获取门店列表。
 
         参数:
         - search (dict | None): 搜索条件。
@@ -54,7 +54,7 @@ class DeptCRUD(CRUDBase[DeptModel, DeptCreateSchema, DeptUpdateSchema]):
         - preload (list | None): 预加载关系，未提供时使用模型默认项
 
         返回:
-        - Sequence[DeptModel]: 部门列表。
+        - Sequence[DeptModel]: 门店列表。
         """
         return await self.list(search=search, order_by=order_by, preload=preload)
 
@@ -65,7 +65,7 @@ class DeptCRUD(CRUDBase[DeptModel, DeptCreateSchema, DeptUpdateSchema]):
         preload: list | None = None,
     ) -> Sequence[DeptModel]:
         """
-        获取部门树形列表。
+        获取门店树形列表。
 
         参数:
         - search (dict | None): 搜索条件。
@@ -73,7 +73,7 @@ class DeptCRUD(CRUDBase[DeptModel, DeptCreateSchema, DeptUpdateSchema]):
         - preload (list | None): 预加载关系，未提供时使用模型默认项
 
         返回:
-        - Sequence[DeptModel]: 部门树形列表。
+        - Sequence[DeptModel]: 门店树形列表。
         """
         return await self.tree_list(
             search=search,
@@ -84,10 +84,10 @@ class DeptCRUD(CRUDBase[DeptModel, DeptCreateSchema, DeptUpdateSchema]):
 
     async def set_available_crud(self, ids: list[int], status: str) -> None:
         """
-        批量设置部门可用状态。
+        批量设置门店可用状态。
 
         参数:
-        - ids (list[int]): 部门 ID 列表。
+        - ids (list[int]): 门店 ID 列表。
         - status (str): 可用状态。
 
         返回:
@@ -97,13 +97,13 @@ class DeptCRUD(CRUDBase[DeptModel, DeptCreateSchema, DeptUpdateSchema]):
 
     async def get_name_crud(self, id: int) -> str | None:
         """
-        根据 id 获取部门名称。
+        根据 id 获取门店名称。
 
         参数:
-        - id (int): 部门 ID。
+        - id (int): 门店 ID。
 
         返回:
-        - str | None: 部门名称，未找到返回 None。
+        - str | None: 门店名称，未找到返回 None。
         """
         obj = await self.get(id=id)
         return obj.name if obj else None

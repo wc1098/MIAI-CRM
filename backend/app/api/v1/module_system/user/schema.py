@@ -20,7 +20,7 @@ from app.core.validator import DateTimeStr, email_validator, mobile_validator
 class CurrentUserUpdateSchema(BaseModel):
     """基础用户信息"""
 
-    name: str | None = Field(default=None, description="名称")
+    name: str | None = Field(default=None, description="姓名")
     mobile: str | None = Field(default=None, description="手机号")
     email: EmailStr | None = Field(default=None, description="邮箱")
     gender: str | None = Field(default=None, description="性别")
@@ -96,14 +96,14 @@ class CurrentUserUpdateSchema(BaseModel):
         - ValueError: 字段长度超限时抛出。
         """
         if self.name and len(self.name) > 32:
-            raise ValueError("名称长度不能超过32个字符")
+            raise ValueError("姓名长度不能超过32个字符")
         return self
 
 
 class UserRegisterSchema(BaseModel):
     """注册"""
 
-    name: str | None = Field(default=None, description="名称")
+    name: str | None = Field(default=None, description="姓名")
     mobile: str | None = Field(default=None, description="手机号")
     username: str = Field(..., description="账号")
     password: str = Field(..., description="密码哈希值")
@@ -165,7 +165,7 @@ class UserRegisterSchema(BaseModel):
         - ValueError: 任一字段长度超限时抛出。
         """
         if self.name and len(self.name) > 32:
-            raise ValueError("名称长度不能超过32个字符")
+            raise ValueError("姓名长度不能超过32个字符")
         if self.username and len(self.username) > 32:
             raise ValueError("账号长度不能超过32个字符")
         if self.description and len(self.description) > 255:
@@ -178,7 +178,7 @@ class UserRegisterSchema(BaseModel):
 class UserForgetPasswordSchema(BaseModel):
     """忘记密码"""
 
-    username: str = Field(..., max_length=32, description="用户名")
+    username: str = Field(..., max_length=32, description="账号")
     new_password: str = Field(..., max_length=128, description="新密码")
     mobile: str | None = Field(default=None, description="手机号")
 
@@ -219,7 +219,7 @@ class UserCreateSchema(CurrentUserUpdateSchema):
 
     model_config = ConfigDict(from_attributes=True)
 
-    username: str | None = Field(default=None, max_length=32, description="用户名")
+    username: str | None = Field(default=None, max_length=32, description="账号")
     password: str | None = Field(default=None, max_length=128, description="密码哈希值")
     status: str = Field(default="0", description="是否可用")
     description: str | None = Field(default=None, max_length=255, description="备注")
@@ -252,8 +252,8 @@ class UserOutSchema(UserUpdateSchema, BaseSchema, UserBySchema, TenantBySchema):
     github_login: str | None = Field(default=None, max_length=32, description="Github登录")
     wx_login: str | None = Field(default=None, max_length=32, description="微信登录")
     qq_login: str | None = Field(default=None, max_length=32, description="QQ登录")
-    dept_name: str | None = Field(default=None, description="部门名称")
-    dept: CommonSchema | None = Field(default=None, description="部门")
+    dept_name: str | None = Field(default=None, description="门店名称")
+    dept: CommonSchema | None = Field(default=None, description="门店")
     positions: list[CommonSchema] | None = Field(default=[], description="岗位")
     roles: list[RoleOutSchema] | None = Field(default=[], description="角色")
     menus: list[MenuOutSchema] | None = Field(default=[], description="菜单")
@@ -264,15 +264,15 @@ class UserQueryParam:
 
     def __init__(
         self,
-        username: str | None = Query(None, description="用户名"),
-        name: str | None = Query(None, description="名称"),
+        username: str | None = Query(None, description="账号"),
+        name: str | None = Query(None, description="姓名"),
         mobile: str | None = Query(None, description="手机号", pattern=r"^1[3-9]\d{9}$"),
         email: str | None = Query(
             None,
             description="邮箱",
             pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$",
         ),
-        dept_id: int | None = Query(None, description="部门ID"),
+        dept_id: int | None = Query(None, description="门店ID"),
         tenant_id: int | None = Query(None, description="租户ID（仅平台管理员可筛选）"),
         status: str | None = Query(None, description="是否可用"),
         created_time: list[DateTimeStr] | None = Query(
