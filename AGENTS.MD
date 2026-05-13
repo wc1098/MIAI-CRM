@@ -43,9 +43,11 @@ python main.py sync-permissions --env=dev
 - `backend/app/scripts/initialize.py`：初始化数据库表与基础数据。
 - `backend/app/scripts/permission_matrix.py`：权限矩阵、岗位、角色、菜单与角色授权的幂等同步逻辑。
 - `backend/app/scripts/system_params.py`：系统参数种子数据的幂等同步逻辑。
+- `backend/app/scripts/crm_channels.py`：CRM渠道内置数据的幂等同步逻辑。
 - `backend/app/utils/upload_util.py`：统一上传入口，按参数管理中的资源存储驱动切换本地/阿里云 OSS。
 - `backend/app/utils/storage_config.py`：从 `sys_param` 读取资源存储配置。
 - `backend/app/plugin/module_cloudpay/`：云支付插件模块，包含交易接口与异步通知基座。
+- `backend/app/plugin/module_crm/`：CRM业务插件模块，当前包含渠道管理基座。
 - `backend/app/core/discover.py`：动态插件路由发现。
 - `backend/app/core/dependencies.py`：DB/Redis 依赖、JWT 用户加载、RBAC 权限校验。
 - `backend/app/core/permission.py`：框架数据权限过滤。
@@ -123,6 +125,7 @@ module_xxx:feature:action
 - `screen:device:bind`
 - `report:business:export_full`
 - `finance:payment:pay`
+- `crm:channel:query`
 
 云支付接口权限：
 
@@ -133,6 +136,12 @@ module_xxx:feature:action
 ## 后端命令
 
 从 `backend/` 目录执行：
+
+当前 Windows 本地后端虚拟环境为 `backend/.venv3.13`，后端校验、脚本、迁移、服务启动优先使用：
+
+```bash
+.\.venv3.13\Scripts\python.exe
+```
 
 ```bash
 uv sync
@@ -151,6 +160,14 @@ python main.py run --env=dev
 ```bash
 python main.py sync-permissions --env=dev
 ```
+
+在本地 Windows 环境优先使用虚拟环境执行：
+
+```bash
+.\.venv3.13\Scripts\python.exe main.py sync-permissions --env=dev
+```
+
+该命令也会幂等补齐 CRM 内置渠道数据，内置渠道来自 `backend/app/scripts/data/crm_channel.json`。
 
 数据库迁移只用于模型结构变更，首次启动通常不需要手动执行：
 
@@ -231,9 +248,21 @@ pnpm run lint
 - 项目运行配置优先放在「系统管理 - 参数管理」中统一维护，对应种子数据在 `backend/app/scripts/data/sys_param.json`，增量补齐通过 `python main.py sync-permissions --env=dev` 执行。
 - 资源存储默认使用阿里云 OSS，配置键统一使用 `storage.*` 前缀；如需临时回退本地存储，将 `storage.default_driver` 改为 `local`。
 - 云支付配置统一放在参数管理，配置键为 `cloudpay.b_app_id`、`cloudpay.private_key`、`cloudpay.public_key`；`sys_param.config_value` 已扩容为 `Text` 以保存密钥。
+- 微信小程序配置统一放在参数管理，配置键为 `miniprogram.wechat.app_id`、`miniprogram.wechat.app_secret`。
 - 云支付交易接口前缀为 `/api/v1/cloudpay/trade`，包含 `/pay`、`/precreate`、`/create`、`/query`、`/refund`、`/refund-query`。
 - 云支付异步通知固定路径为 `/api/v1/cloudpay/notify/trade`；当前只做验签、日志记录、返回纯文本 `success`，暂不更新本地业务订单状态。
 - 云支付支付、预创建、小程序创建接口如果调用方未传 `notify_url`，后端会自动使用当前请求域名生成 `/api/v1/cloudpay/notify/trade` 并透传给云支付。
+- CRM 渠道管理位于「CRM管理 > 渠道管理」，接口前缀 `/api/v1/crm/channel`，用于维护获客入口/数据来源入口；活动报名、认证支付、联系红娘等注册后动作不作为渠道，后续进入 `SourceEvent`。
+- 当前内置 CRM 渠道为 `MINIAPP_REGISTER`、`MANUAL_CREATE`、`IMPORT`、`EXTERNAL_PUSH`。
+- CRM 渠道类型使用系统字典 `crm_channel_type` 管理，不要在前后端硬编码为不可扩展枚举；默认字典项会随 `sync-permissions` 补齐。
+- CRM 线索管理已确认口径：必填字段为手机号、姓名、性别；扩展字段包含微信号、出生日期、身高、民族、职业、年收入、婚况、学历、籍贯、常驻地、房产信息、购车信息、照片相册。
+- CRM 线索菜单规划为「全量线索 / 门店公海 / 销售私海」；销售是否可见并领取门店公海由门店级配置控制，默认关闭。
+- CRM 线索类型为待分配、新线索、二手线索、无效线索、已转建档客户；当前没有“重新激活”概念，释放或自动回上级库后重新分配即二手线索。
+- CRM 线索领取或分配后默认 7 天没有跟进自动回门店公海；无效、释放、转建档客户都通过过程记录完成并写生命周期审计。
+- CRM 线索联系方式规则：未在自己线索库中不能看到完整联系方式，只返回脱敏手机号/微信号；品牌管理员和门店管理员可批量模板导入，重复手机号跳过并返回失败原因。
+- 建档客户模块下一阶段再细化；当前“转建档客户”只作为线索终态和过程动作。
+- 本地 Alembic 如出现表已存在但版本未对齐，可先确认表结构已存在，再使用 `stamp` 对齐到对应 revision；本次本地库已对齐到 `20260512_1000`。Windows PowerShell 运行迁移前建议设置 `$env:PYTHONIOENCODING='utf-8'`。
+- Alembic 模型自动发现需跳过 `.venv*` 目录，否则本地 `.venv3.13` 会被误扫进模型导入路径。
 - 优先在 `backend/app/plugin/` 做二开业务，除非确实需要修改核心系统行为。
 - 后端 API 保持现有统一响应结构。
 - 受保护接口继续使用 `AuthPermission`，权限码必须与菜单/按钮权限保持一致。

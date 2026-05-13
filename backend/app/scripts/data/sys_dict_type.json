@@ -58,5 +58,71 @@
     "dict_type": "sys_list_class",
     "status": "0",
     "description": "表格回显样式列表"
+  },
+  {
+    "dict_name": "CRM渠道类型",
+    "dict_type": "crm_channel_type",
+    "status": "0",
+    "description": "CRM渠道类型列表"
+  },
+  {
+    "dict_name": "CRM线索类型",
+    "dict_type": "crm_lead_type",
+    "status": "0",
+    "description": "CRM线索类型列表"
+  },
+  {
+    "dict_name": "CRM线索池类型",
+    "dict_type": "crm_lead_pool_type",
+    "status": "0",
+    "description": "CRM线索池类型列表"
+  },
+  {
+    "dict_name": "CRM跟进方式",
+    "dict_type": "crm_follow_method",
+    "status": "0",
+    "description": "CRM跟进方式列表"
+  },
+  {
+    "dict_name": "CRM线索过程动作",
+    "dict_type": "crm_lead_process_action",
+    "status": "0",
+    "description": "CRM线索过程动作列表"
+  },
+  {
+    "dict_name": "CRM婚况",
+    "dict_type": "crm_marital_status",
+    "status": "0",
+    "description": "CRM婚况列表"
+  },
+  {
+    "dict_name": "CRM学历",
+    "dict_type": "crm_education",
+    "status": "0",
+    "description": "CRM学历列表"
+  },
+  {
+    "dict_name": "CRM年收入",
+    "dict_type": "crm_annual_income",
+    "status": "0",
+    "description": "CRM年收入列表"
+  },
+  {
+    "dict_name": "CRM房产信息",
+    "dict_type": "crm_house_status",
+    "status": "0",
+    "description": "CRM房产信息列表"
+  },
+  {
+    "dict_name": "CRM购车信息",
+    "dict_type": "crm_car_status",
+    "status": "0",
+    "description": "CRM购车信息列表"
+  },
+  {
+    "dict_name": "CRM民族",
+    "dict_type": "crm_ethnicity",
+    "status": "0",
+    "description": "CRM民族列表"
   }
 ]

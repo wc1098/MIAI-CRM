@@ -206,5 +206,29 @@
     "config_type": true,
     "status": "0",
     "description": "云支付返回报文RSA2验签公钥"
+  },
+  {
+    "config_name": "微信小程序AppID",
+    "config_key": "miniprogram.wechat.app_id",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "微信小程序AppID，用于小程序登录、手机号授权、订阅消息等能力"
+  },
+  {
+    "config_name": "微信小程序AppSecret",
+    "config_key": "miniprogram.wechat.app_secret",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "微信小程序AppSecret，请妥善保管，后端调用微信接口时使用"
+  },
+  {
+    "config_name": "小程序注册推送线索池",
+    "config_key": "miniprogram.register.push_lead",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "小程序注册后是否自动创建或更新CRM总部线索池线索"
   }
 ]

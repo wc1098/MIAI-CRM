@@ -23,6 +23,50 @@ class DeptService:
     门店管理模块服务层
     """
 
+    @staticmethod
+    def _is_root_parent(parent_id: int | None) -> bool:
+        return parent_id is None or parent_id == 0
+
+    @classmethod
+    async def _get_root_depts(cls, auth: AuthSchema):
+        unscoped_auth = AuthSchema(db=auth.db, user=auth.user, check_data_scope=False)
+        return await DeptCRUD(unscoped_auth).get_list_crud(search={"parent_id": ("None", None)})
+
+    @classmethod
+    async def _validate_parent_for_create(cls, auth: AuthSchema, data: DeptCreateSchema) -> None:
+        if cls._is_root_parent(data.parent_id):
+            data.parent_id = None
+            if await cls._get_root_depts(auth):
+                raise CustomException(msg="系统只允许一个顶级品牌组织，请在品牌下新增门店")
+            return
+
+        parent = await DeptCRUD(auth).get_by_id_crud(id=data.parent_id)
+        if not parent:
+            raise CustomException(msg="创建失败，上级门店不存在")
+
+    @classmethod
+    async def _validate_parent_for_update(
+        cls, auth: AuthSchema, id: int, data: DeptUpdateSchema
+    ) -> None:
+        if cls._is_root_parent(data.parent_id):
+            data.parent_id = None
+            root_depts = await cls._get_root_depts(auth)
+            if any(dept.id != id for dept in root_depts):
+                raise CustomException(msg="系统只允许一个顶级品牌组织，请在品牌下新增门店")
+            return
+
+        if data.parent_id == id:
+            raise CustomException(msg="更新失败，上级门店不能选择自身")
+
+        parent = await DeptCRUD(auth).get_by_id_crud(id=data.parent_id)
+        if not parent:
+            raise CustomException(msg="更新失败，上级门店不存在")
+
+        all_depts = await DeptCRUD(auth).get_list_crud()
+        child_id_map = get_child_id_map(model_list=all_depts)
+        if data.parent_id in get_child_recursion(id=id, id_map=child_id_map):
+            raise CustomException(msg="更新失败，上级门店不能选择当前门店的下级门店")
+
     @classmethod
     async def get_dept_detail_service(cls, auth: AuthSchema, id: int) -> dict:
         """
@@ -91,6 +135,7 @@ class DeptService:
         obj = await DeptCRUD(auth).get(code=data.code)
         if obj:
             raise CustomException(msg="创建失败，编码已存在")
+        await cls._validate_parent_for_create(auth=auth, data=data)
         dept = await DeptCRUD(auth).create(data=data)
         return DeptOutSchema.model_validate(dept).model_dump()
 
@@ -119,6 +164,7 @@ class DeptService:
         exist_code = await DeptCRUD(auth).get(code=data.code)
         if exist_code and exist_code.id != id:
             raise CustomException(msg="更新失败，门店编码已存在")
+        await cls._validate_parent_for_update(auth=auth, id=id, data=data)
         dept = await DeptCRUD(auth).update(id=id, data=data)
         return DeptOutSchema.model_validate(dept).model_dump()
 

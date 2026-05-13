@@ -10,7 +10,6 @@ from app.api.v1.module_system.position.model import PositionModel
 from app.api.v1.module_system.role.model import RoleMenusModel, RoleModel
 from app.config.path_conf import SCRIPT_DIR
 
-
 ROLE_FILE = SCRIPT_DIR / "sys_role.json"
 MENU_FILE = SCRIPT_DIR / "sys_menu.json"
 ROLE_MENU_FILE = SCRIPT_DIR / "sys_role_menu_permissions.json"

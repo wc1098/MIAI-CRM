@@ -102,10 +102,8 @@ export const usePermissionStore = defineStore("permission", () => {
   async function generateRoutes(): Promise<RouteRecordRaw[]> {
     try {
       const userStore = useUserStore();
-      // 确保获取用户信息和路由列表
-      if (!userStore.hasGetRoute) {
-        await userStore.getUserInfo();
-      }
+      // 动态路由生成时刷新一次用户菜单，避免后台菜单调整后继续使用持久化的旧路由。
+      await userStore.getUserInfo();
 
       const data = generator(normalizeMenuNestedPaths(userStore.routeList));
 

@@ -15,7 +15,7 @@
           :perm-create="['module_system:dept:create']"
           :perm-delete="['module_system:dept:delete']"
           :perm-patch="['module_system:dept:patch']"
-          @add="handleOpenDialog('create')"
+          @add="handleOpenDialog('create', undefined, getBrandRootId())"
           @delete="onToolbar('delete')"
           @more="handleMoreClick"
         />
@@ -62,7 +62,7 @@
             <el-table-column
               v-if="contentCols.find((col) => col.prop === 'code')?.show"
               key="code"
-              label="门店编码"
+              label="云支付门店编码"
               prop="code"
               min-width="120"
             />
@@ -428,6 +428,11 @@ const initialFormData: DeptForm = {
   description: undefined,
 };
 
+function getBrandRootId() {
+  const root = deptOptions.value[0];
+  return typeof root?.value === "number" ? root.value : undefined;
+}
+
 function handleRowDelete(id: number) {
   contentRef.value?.handleDelete(id);
 }
@@ -461,7 +466,7 @@ async function handleOpenDialog(
       Object.assign(formData, response.data.data);
     }
   } else {
-    dialogVisible.title = "新增门店";
+    dialogVisible.title = parentId ? "新增门店" : "创建品牌组织";
     formData.id = undefined;
     if (parentId) {
       formData.parent_id = parentId;

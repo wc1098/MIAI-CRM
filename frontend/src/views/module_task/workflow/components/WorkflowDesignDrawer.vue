@@ -754,12 +754,13 @@ const handleClose = () => {
 };
 
 // 历史记录管理
-const history = ref<{ nodes: Node[]; edges: Edge[] }[]>([]);
+type FlowHistorySnapshot = { nodes: unknown[]; edges: unknown[] };
+const history = ref<FlowHistorySnapshot[]>([]);
 const historyIndex = ref(-1);
 
 function saveToHistory(nodesData: Node[], edgesData: Edge[]) {
   history.value = history.value.slice(0, historyIndex.value + 1);
-  history.value.push({ nodes: nodesData, edges: edgesData });
+  history.value.push({ nodes: [...nodesData], edges: [...edgesData] });
   historyIndex.value = history.value.length - 1;
 }
 

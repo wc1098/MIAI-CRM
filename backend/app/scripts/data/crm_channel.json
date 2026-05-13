@@ -1,0 +1,46 @@
+[
+  {
+    "channel_code": "MINIAPP_REGISTER",
+    "channel_name": "小程序注册",
+    "channel_type": "miniprogram",
+    "source_system": "miniapp",
+    "external_code": null,
+    "landing_url": null,
+    "sort": 1,
+    "status": "0",
+    "description": "小程序注册入口。活动报名、认证支付、名片分享注册等后续作为来源事件或场景参数记录。"
+  },
+  {
+    "channel_code": "MANUAL_CREATE",
+    "channel_name": "人工录入",
+    "channel_type": "manual",
+    "source_system": "admin",
+    "external_code": null,
+    "landing_url": null,
+    "sort": 2,
+    "status": "0",
+    "description": "后台人工录入入口。"
+  },
+  {
+    "channel_code": "IMPORT",
+    "channel_name": "批量导入",
+    "channel_type": "import",
+    "source_system": "admin",
+    "external_code": null,
+    "landing_url": null,
+    "sort": 3,
+    "status": "0",
+    "description": "后台批量导入入口。"
+  },
+  {
+    "channel_code": "EXTERNAL_PUSH",
+    "channel_name": "外部系统推送",
+    "channel_type": "external",
+    "source_system": "external",
+    "external_code": null,
+    "landing_url": null,
+    "sort": 4,
+    "status": "0",
+    "description": "外部系统推送预留入口，第一版不开放推送线索接口。"
+  }
+]

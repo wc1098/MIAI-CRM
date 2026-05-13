@@ -105,7 +105,7 @@ class ImportUtil:
         model_files = []
         for root, dirs, files in os.walk(project_root):
             # 过滤排除目录
-            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            dirs[:] = [d for d in dirs if d not in exclude_dirs and not d.startswith(".venv")]
 
             for file in files:
                 if file in model_dir_patterns:
