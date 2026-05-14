@@ -87,6 +87,7 @@ class MpPersonOutSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    display_no: str | None = None
     name: str
     gender: str
     primary_mobile: str

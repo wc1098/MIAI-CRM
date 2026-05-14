@@ -51,6 +51,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
         await DictDataService().init_dict_service(redis=app.state.redis)
         log.info("✅ Redis数据字典初始化完成")
         await SchedulerUtil.init_scheduler(redis=app.state.redis)
+        from app.plugin.module_profile_ai.service import PersonAiProfileService
+
+        PersonAiProfileService.register_scheduler()
         log.info("✅ 定时任务调度器初始化完成")
         await FastAPILimiter.init(
             redis=app.state.redis,
@@ -154,7 +157,7 @@ def register_routers(app: FastAPI) -> None:
     # 获取动态路由实例
     app.include_router(
         router=get_dynamic_router(),
-        dependencies=[Depends(RateLimiter(times=5, seconds=10))],
+        dependencies=[Depends(RateLimiter(times=30, seconds=10))],
     )
 
 

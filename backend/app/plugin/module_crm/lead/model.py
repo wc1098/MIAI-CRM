@@ -17,6 +17,7 @@ class CrmPersonModel(ModelMixin, UserMixin):
     __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
 
     brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    display_no: Mapped[str | None] = mapped_column(String(7), nullable=True, unique=True, index=True, comment="对外展示编号")
     name: Mapped[str] = mapped_column(String(64), nullable=False, comment="姓名")
     gender: Mapped[str] = mapped_column(String(1), nullable=False, default="2", index=True, comment="性别")
     primary_mobile: Mapped[str] = mapped_column(String(20), nullable=False, unique=True, index=True, comment="手机号")

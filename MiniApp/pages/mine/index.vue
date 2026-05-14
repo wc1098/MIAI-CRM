@@ -19,6 +19,7 @@
 <script>
 import { getPerson, getUser, setSession } from '../../utils/storage.js'
 import { mpMe } from '../../api/mpAuth.js'
+import { ensureMpSession } from '../../utils/mpSession.js'
 
 export default {
 	data() {
@@ -43,6 +44,7 @@ export default {
 		},
 		async loadMe() {
 			try {
+				await ensureMpSession()
 				const result = await mpMe()
 				setSession(result)
 				this.user = result.user || {}

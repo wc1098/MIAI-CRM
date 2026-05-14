@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Any
@@ -11,6 +12,8 @@ from app.api.v1.module_system.auth.schema import AuthSchema
 from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.user.model import UserModel
 from app.core.exceptions import CustomException
+from app.plugin.module_mp.auth.model import MiniProgramUserModel
+from app.plugin.module_profile_ai.service import PersonAiProfileService
 from app.utils.excel_util import ExcelUtil
 
 from ..channel.model import CrmChannelModel
@@ -113,6 +116,61 @@ class LeadService:
         return f"{wechat[:2]}****{wechat[-2:]}"
 
     @classmethod
+    async def _generate_person_display_no(cls, auth: AuthSchema) -> str:
+        for _ in range(50):
+            display_no = str(1000000 + secrets.randbelow(9000000))
+            exists = (
+                await auth.db.execute(
+                    select(CrmPersonModel.id).where(
+                        CrmPersonModel.display_no == display_no,
+                        CrmPersonModel.is_deleted == False,
+                    )
+                )
+            ).scalar()
+            if not exists:
+                return display_no
+        raise CustomException(msg="人员展示编号生成失败，请稍后重试")
+
+    @classmethod
+    async def _ensure_person_display_no(cls, auth: AuthSchema, person: CrmPersonModel) -> None:
+        if not person.display_no:
+            person.display_no = await cls._generate_person_display_no(auth)
+
+    @classmethod
+    async def _sync_person_to_miniprogram_user(cls, auth: AuthSchema, person: CrmPersonModel) -> MiniProgramUserModel:
+        """创建或补全后台预置的小程序待绑定用户。"""
+
+        result = await auth.db.execute(
+            select(MiniProgramUserModel).where(
+                MiniProgramUserModel.mobile == person.primary_mobile,
+                MiniProgramUserModel.is_deleted == False,
+            )
+        )
+        user = result.scalars().first()
+        first_photo = (person.photo_urls or [None])[0]
+        if user:
+            if not user.person_id:
+                user.person_id = person.id
+            if not user.nickname:
+                user.nickname = person.name
+            if not user.avatar_url and first_photo:
+                user.avatar_url = first_photo
+            return user
+
+        user = MiniProgramUserModel(
+            brand_id=person.brand_id,
+            person_id=person.id,
+            openid=None,
+            mobile=person.primary_mobile,
+            nickname=person.name,
+            avatar_url=first_photo,
+            registered_at=None,
+        )
+        auth.db.add(user)
+        await auth.db.flush()
+        return user
+
+    @classmethod
     def _can_view_contact(cls, auth: AuthSchema, lead: CrmLeadProfileModel) -> bool:
         if cls._is_brand_admin(auth) or cls._is_store_mgr(auth):
             return True
@@ -167,6 +225,7 @@ class LeadService:
         channel_names = await cls._channel_names(auth)
         user_names = await cls._user_names(auth, {lead.owner_sales_id for lead in leads if lead.owner_sales_id})
         dept_names = await cls._dept_names(auth, {lead.store_id for lead in leads if lead.store_id})
+        ai_profile_map = await PersonAiProfileService.admin_info_map(auth.db, {lead.person_id for lead in leads})
         data = []
         for lead in leads:
             item = LeadOutSchema.model_validate(lead).model_dump()
@@ -188,6 +247,7 @@ class LeadService:
             if not can_view:
                 item["person"]["primary_mobile"] = item["mobile_masked"]
                 item["person"]["wechat"] = item["wechat_masked"]
+            item["ai_profile"] = ai_profile_map.get(lead.person_id, {"profile": None, "latest_task": None})
             data.append(item)
         return data
 
@@ -480,6 +540,7 @@ class LeadService:
             car_status=data.car_status,
             photo_urls=data.photo_urls,
         )
+        await cls._ensure_person_display_no(auth, person)
         cls._stamp_create(auth, person)
         auth.db.add(person)
         await auth.db.flush()
@@ -510,6 +571,21 @@ class LeadService:
             "create",
             {"pool_type": pool_type, "store_id": store_id, "owner_sales_id": owner_sales_id},
             data.description,
+        )
+        if data.sync_to_miniprogram:
+            mp_user = await cls._sync_person_to_miniprogram_user(auth, person)
+            await cls._write_lifecycle(
+                auth,
+                lead,
+                "sync_mp_user",
+                {"mp_user_id": mp_user.id, "person_id": person.id, "mobile": person.primary_mobile},
+                "后台新增线索同步为小程序待绑定用户",
+            )
+        await PersonAiProfileService.enqueue_miai_impression(
+            db=auth.db,
+            person_id=person.id,
+            source_type="admin_update",
+            source_id=lead.id,
         )
         await auth.db.flush()
         await auth.db.refresh(lead)
@@ -549,8 +625,8 @@ class LeadService:
         for field, value in data.model_dump(exclude={"source_channel_code", "description"}).items():
             target = "primary_mobile" if field == "mobile" else field
             setattr(lead.person, target, value)
-        lead.source_channel_code = data.source_channel_code
-        lead.description = data.description
+        old_source_channel_code = lead.source_channel_code
+        old_description = lead.description
         cls._stamp_update(auth, lead.person)
         cls._stamp_update(auth, lead)
         new = data.model_dump(exclude={"source_channel_code", "description"})
@@ -559,8 +635,20 @@ class LeadService:
             for field in new
             if old.get(field) != new.get(field)
         }
+        if data.source_channel_code != old_source_channel_code:
+            changes["source_channel_code"] = {"from": old_source_channel_code, "to": data.source_channel_code}
+        lead.source_channel_code = data.source_channel_code
+        lead.description = data.description
+        if data.description != old_description:
+            changes["description"] = {"from": old_description, "to": data.description}
         if changes:
             await cls._write_lifecycle(auth, lead, "edit", changes, data.description)
+            await PersonAiProfileService.enqueue_miai_impression(
+                db=auth.db,
+                person_id=lead.person_id,
+                source_type="admin_update",
+                source_id=lead.id,
+            )
         await auth.db.flush()
         await auth.db.refresh(lead)
         return (await cls._decorate_list(auth, [lead]))[0]

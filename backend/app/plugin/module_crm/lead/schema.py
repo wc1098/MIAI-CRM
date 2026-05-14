@@ -84,6 +84,7 @@ class LeadCreateSchema(LeadPersonPayload):
     source_channel_code: str | None = Field(default="MANUAL_CREATE", max_length=64, description="来源渠道编码")
     store_id: int | None = Field(default=None, description="归属门店ID")
     owner_sales_id: int | None = Field(default=None, description="归属销售ID")
+    sync_to_miniprogram: bool = Field(default=False, description="是否同步为待绑定小程序用户")
     description: str | None = Field(default=None, max_length=255, description="备注")
 
     @field_validator("source_channel_code")
@@ -167,6 +168,7 @@ class PersonOutSchema(BaseSchema, UserBySchema):
     model_config = ConfigDict(from_attributes=True)
 
     brand_id: int
+    display_no: str | None = None
     name: str
     gender: str
     primary_mobile: str
@@ -203,6 +205,7 @@ class LeadOutSchema(BaseSchema, UserBySchema):
     assigned_at: DateTimeStr | None = None
     last_recycled_at: DateTimeStr | None = None
     converted_customer_at: DateTimeStr | None = None
+    description: str | None = None
     person: PersonOutSchema
     source_channel_name: str | None = None
     store: CommonSchema | None = None
@@ -210,6 +213,7 @@ class LeadOutSchema(BaseSchema, UserBySchema):
     mobile_masked: str | None = None
     wechat_masked: str | None = None
     can_view_contact: bool = False
+    ai_profile: dict | None = None
 
 
 class LeadProcessOutSchema(BaseSchema, UserBySchema):

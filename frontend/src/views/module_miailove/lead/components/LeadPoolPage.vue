@@ -60,7 +60,7 @@
           </template>
         </el-table-column>
         <el-table-column label="来源" min-width="140">
-          <template #default="{ row }">{{ row.source_channel_name || row.source_channel_code || "-" }}</template>
+          <template #default="{ row }">{{ sourceLabel(row) }}</template>
         </el-table-column>
         <el-table-column prop="latest_follow_at" label="最后跟进时间" min-width="170" />
         <el-table-column label="归属人" min-width="120">
@@ -175,6 +175,24 @@
                   </el-select>
                 </el-form-item>
               </el-col>
+              <el-col v-if="!editingId" :span="8">
+                <el-form-item>
+                  <template #label>
+                    <span class="label-with-tip">
+                      同步小程序
+                      <el-tooltip content="开启后创建待绑定小程序用户，用户后续用同手机号注册会自动关联。" placement="top">
+                        <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                      </el-tooltip>
+                    </span>
+                  </template>
+                  <el-switch
+                    v-model="form.sync_to_miniprogram"
+                    active-text="是"
+                    inactive-text="否"
+                    inline-prompt
+                  />
+                </el-form-item>
+              </el-col>
               <el-col :span="8"><el-form-item label="归属门店"><el-input :model-value="autoStoreName" disabled /></el-form-item></el-col>
               <el-col :span="8"><el-form-item label="归属人"><el-input :model-value="autoOwnerName" disabled /></el-form-item></el-col>
               <el-col :span="24">
@@ -209,12 +227,35 @@
             <el-descriptions-item label="线索ID">{{ detail.id }}</el-descriptions-item>
             <el-descriptions-item label="线索类型">{{ leadTypeLabel(detail.lead_type) }}</el-descriptions-item>
             <el-descriptions-item label="归属池">{{ poolTypeLabel(detail.pool_type) }}</el-descriptions-item>
-            <el-descriptions-item label="来源">{{ detail.source_channel_name || detail.source_channel_code }}</el-descriptions-item>
+            <el-descriptions-item label="来源">{{ sourceLabel(detail) }}</el-descriptions-item>
             <el-descriptions-item label="归属门店">{{ detail.store?.name || "-" }}</el-descriptions-item>
             <el-descriptions-item label="归属人">{{ detail.owner_sales?.name || "-" }}</el-descriptions-item>
             <el-descriptions-item label="最近跟进">{{ detail.latest_follow_at || "-" }}</el-descriptions-item>
             <el-descriptions-item label="下次跟进">{{ detail.next_follow_at || "-" }}</el-descriptions-item>
           </el-descriptions>
+          <div class="detail-section">
+            <div class="section-title">觅AI印象</div>
+            <div class="ai-profile-box">
+              <div class="ai-profile-head">
+                <el-tag :type="aiStatusTag(detail.ai_profile?.latest_task?.status || detail.ai_profile?.profile?.generation_status)">
+                  {{ aiStatusLabel(detail.ai_profile?.latest_task?.status || detail.ai_profile?.profile?.generation_status) }}
+                </el-tag>
+                <span v-if="detail.ai_profile?.profile?.source_type" class="ai-profile-meta">
+                  来源：{{ aiSourceLabel(detail.ai_profile.profile.source_type) }}
+                </span>
+                <span v-if="detail.ai_profile?.latest_task?.retry_count" class="ai-profile-meta">
+                  重试：{{ detail.ai_profile.latest_task.retry_count }} 次
+                </span>
+              </div>
+              <div v-if="detail.ai_profile?.profile?.content" class="ai-profile-content">
+                {{ detail.ai_profile.profile.content }}
+              </div>
+              <el-empty v-else description="暂无觅AI印象" :image-size="72" />
+              <div v-if="detail.ai_profile?.latest_task?.last_error" class="ai-profile-error">
+                最近错误：{{ detail.ai_profile.latest_task.last_error }}
+              </div>
+            </div>
+          </div>
         </el-tab-pane>
 
         <el-tab-pane label="过程记录" name="process" v-if="detail">
@@ -313,7 +354,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { Plus } from "@element-plus/icons-vue";
+import { Plus, QuestionFilled } from "@element-plus/icons-vue";
 import { ElMessage, type FormInstance, type UploadFile, type UploadRequestOptions, type UploadUserFile } from "element-plus";
 import LeadAPI, {
   type LeadDetail,
@@ -346,6 +387,7 @@ const processLeadId = ref<number>();
 const formRef = ref<FormInstance>();
 const importResult = ref<LeadImportResult>();
 const currentUser = ref<UserInfo>();
+const optionsLoaded = ref(false);
 const mobileCheckMessage = ref("");
 const photoFileList = ref<UploadUserFile[]>([]);
 const hometownValue = ref<string[]>([]);
@@ -362,6 +404,7 @@ const defaultForm = (): LeadForm => ({
   gender: "0",
   photo_urls: [],
   source_channel_code: "MANUAL_CREATE",
+  sync_to_miniprogram: false,
 });
 
 const form = reactive<LeadForm>(defaultForm());
@@ -431,6 +474,13 @@ const actionOptions = [
   { label: "转建档客户", value: "convert_customer" },
 ];
 const phrases = ["已电话沟通，客户有初步意向。", "微信已添加，等待客户回复。", "客户暂时不方便，约定下次联系。", "客户无明确需求，后续观察。"];
+const sourceFallbackLabels: Record<string, string> = {
+  "1": "小程序注册用户",
+  MINIAPP_REGISTER: "小程序注册",
+  MANUAL_CREATE: "人工录入",
+  IMPORT: "批量导入",
+  EXTERNAL_PUSH: "外部推送",
+};
 const rules = {
   mobile: [{ required: true, message: "请输入手机号", trigger: "blur" }],
   name: [{ required: true, message: "请输入姓名", trigger: "blur" }],
@@ -482,6 +532,8 @@ function fillForm(data: LeadDetail) {
     car_status: data.person.car_status,
     photo_urls: data.person.photo_urls || [],
     source_channel_code: data.source_channel_code,
+    sync_to_miniprogram: false,
+    description: data.description,
     store_id: data.store_id,
     owner_sales_id: data.owner_sales_id,
   });
@@ -507,6 +559,7 @@ function resetQuery() {
 }
 
 async function openDetail(id: number) {
+  await ensureOptionsLoaded();
   resetForm();
   editingId.value = id;
   const res = await LeadAPI.detailLead(id);
@@ -519,7 +572,8 @@ async function openEdit(id: number) {
   await openDetail(id);
 }
 
-function openCreate() {
+async function openCreate() {
+  await ensureOptionsLoaded();
   resetForm();
   detailVisible.value = true;
 }
@@ -536,6 +590,8 @@ async function submitForm() {
   if (!editingId.value) {
     delete payload.store_id;
     delete payload.owner_sales_id;
+  } else {
+    delete payload.sync_to_miniprogram;
   }
   if (editingId.value) {
     await LeadAPI.updateLead(editingId.value, payload);
@@ -643,6 +699,16 @@ function syncAddressFields() {
   form.residence = residenceValue.value.join("/") || undefined;
 }
 
+let optionsPromise: Promise<void> | null = null;
+
+async function ensureOptionsLoaded() {
+  if (optionsLoaded.value) return;
+  if (!optionsPromise) {
+    optionsPromise = loadOptions();
+  }
+  await optionsPromise;
+}
+
 async function loadOptions() {
   const [channelRes, deptRes, userRes, currentUserRes] = await Promise.all([
     ChannelAPI.listChannel({ page_no: 1, page_size: 100 }),
@@ -655,6 +721,7 @@ async function loadOptions() {
   deptOptions.value = flattenDept(deptRes.data.data || []);
   userOptions.value = (userRes.data.data.items || []).map((item: any) => ({ label: item.name || item.username || String(item.id), value: item.id }));
   await loadDictOptions();
+  optionsLoaded.value = true;
 }
 
 async function loadDictOptions() {
@@ -689,6 +756,48 @@ function leadTypeLabel(value: string) {
   return leadTypeOptions.find((item) => item.value === value)?.label || value;
 }
 
+function sourceLabel(row?: Pick<LeadTable, "source_channel_name" | "source_channel_code">) {
+  if (!row) return "-";
+  if (row.source_channel_name) return row.source_channel_name;
+  const code = row.source_channel_code || "";
+  if (!code) return "-";
+  return channelOptions.value.find((item) => item.value === code)?.label || sourceFallbackLabels[code] || code;
+}
+
+function aiStatusLabel(value?: string) {
+  return (
+    {
+      pending: "等待生成",
+      processing: "生成中",
+      success: "已生成",
+      failed: "生成失败，等待重试",
+      cancelled: "已取消",
+    } as Record<string, string>
+  )[value || ""] || "暂无任务";
+}
+
+function aiStatusTag(value?: string) {
+  return (
+    {
+      pending: "info",
+      processing: "warning",
+      success: "success",
+      failed: "danger",
+      cancelled: "info",
+    } as const
+  )[value || ""] || "info";
+}
+
+function aiSourceLabel(value?: string) {
+  return (
+    {
+      register: "小程序注册",
+      admin_update: "后台资料维护",
+      deep_interview: "红娘深访",
+    } as Record<string, string>
+  )[value || ""] || value || "-";
+}
+
 function leadTypeTag(value: string) {
   const tags = {
     pending: "info",
@@ -705,7 +814,26 @@ function poolTypeLabel(value: string) {
 }
 
 function actionLabel(value: string) {
-  return actionOptions.find((item) => item.value === value)?.label || ({ create: "新增", edit: "编辑", assign: "分配", claim: "领取", auto_reclaim: "自动回公海" } as Record<string, string>)[value] || value;
+  return (
+    actionOptions.find((item) => item.value === value)?.label ||
+    ({
+      create: "新增线索",
+      edit: "编辑资料",
+      assign: "分配线索",
+      claim: "领取线索",
+      auto_reclaim: "自动回公海",
+      sync_mp_user: "同步小程序用户",
+      source_event: "来源事件",
+      register: "小程序注册",
+      event_register: "活动报名",
+      event_checkin: "活动签到",
+      follow: "普通跟进",
+      invalid: "标记无效",
+      release: "释放线索",
+      convert_customer: "转建档客户",
+    } as Record<string, string>)[value] ||
+    value
+  );
 }
 
 function formatChange(value?: Record<string, unknown>) {
@@ -760,6 +888,59 @@ onMounted(() => {
   padding: 12px 0 4px;
 }
 
+.detail-section {
+  margin-top: 18px;
+}
+
+.section-title {
+  margin-bottom: 12px;
+  color: var(--el-text-color-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ai-profile-box {
+  padding: 16px 18px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.ai-profile-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ai-profile-meta {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.ai-profile-content {
+  min-height: 132px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-profile-error {
+  margin-top: 10px;
+  color: var(--el-color-danger);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .timeline-content {
   margin-left: 8px;
 }
@@ -775,5 +956,16 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   margin: 16px 0;
+}
+
+.label-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tip-icon {
+  color: var(--el-text-color-secondary);
+  cursor: help;
 }
 </style>

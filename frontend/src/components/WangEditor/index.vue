@@ -89,12 +89,11 @@ const handleCreated = (editor: any) => {
   editorRef.value = editor;
 };
 
-// 处理内容变化 - 获取纯文本而不是HTML
+// 处理内容变化 - 保存 HTML，便于小程序 rich-text 直接渲染。
 const handleChange = (editor: any) => {
   editorRef.value = editor;
   if (editorRef.value) {
-    const text = editorRef.value.getText();
-    modelValue.value = text;
+    modelValue.value = editorRef.value.getHtml();
   }
 };
 

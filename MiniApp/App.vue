@@ -1,7 +1,12 @@
 <script>
+	import { ensureMpSession } from './utils/mpSession.js'
+
 	export default {
 		onLaunch: function() {
 			console.log('App Launch')
+			ensureMpSession().catch((error) => {
+				console.warn('小程序静默登录失败', error)
+			})
 		},
 		onShow: function() {
 			console.log('App Show')

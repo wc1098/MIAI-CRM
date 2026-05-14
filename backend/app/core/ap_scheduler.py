@@ -78,6 +78,7 @@ class SchedulerUtil:
     定时任务相关方法
     """
 
+    SILENT_JOB_IDS = {"person_ai_profile_task_worker"}
     redis_instance: Redis | None = None
     # 临时存储 job_name，用于在 EVENT_JOB_SUBMITTED 时获取
     # 格式可以是: str (任务名称) 或 tuple[str, str] (原任务ID, 任务名称)
@@ -138,6 +139,8 @@ class SchedulerUtil:
         处理任务提交事件
         """
         job_id = str(event.job_id)
+        if job_id in cls.SILENT_JOB_IDS:
+            return
         job = cls.get_job(job_id=job_id)
 
         if job:
@@ -187,6 +190,8 @@ class SchedulerUtil:
         处理任务执行成功事件
         """
         job_id = str(event.job_id)
+        if job_id in cls.SILENT_JOB_IDS:
+            return
         retval = getattr(event, "retval", None)
         scheduled_run_time = getattr(event, "scheduled_run_time", None)
 
@@ -222,6 +227,8 @@ class SchedulerUtil:
         处理任务执行失败事件
         """
         job_id = str(event.job_id)
+        if job_id in cls.SILENT_JOB_IDS:
+            return
         exception = getattr(event, "exception", None)
         traceback = getattr(event, "traceback", None)
         scheduled_run_time = getattr(event, "scheduled_run_time", None)
@@ -259,6 +266,8 @@ class SchedulerUtil:
         处理任务错过执行时间事件
         """
         job_id = str(event.job_id)
+        if job_id in cls.SILENT_JOB_IDS:
+            return
         job = cls.get_job(job_id=job_id)
 
         log.warning(f"任务 {job_id} 错过执行时间")
@@ -296,6 +305,8 @@ class SchedulerUtil:
         - 只有周期性任务在移除时才需要更新日志状态
         """
         job_id = str(event.job_id)
+        if job_id in cls.SILENT_JOB_IDS:
+            return
         jobstore = getattr(event, "jobstore", "unknown")
 
         log.info(f"任务 {job_id} 从 {jobstore} 存储器中移除")
@@ -320,6 +331,8 @@ class SchedulerUtil:
         处理任务添加事件
         """
         job_id = str(event.job_id)
+        if job_id in cls.SILENT_JOB_IDS:
+            return
         jobstore = event.jobstore
         job = cls.get_job(job_id=job_id)
 
@@ -345,6 +358,8 @@ class SchedulerUtil:
         处理任务修改事件
         """
         job_id = str(event.job_id)
+        if job_id in cls.SILENT_JOB_IDS:
+            return
         jobstore = event.jobstore
         job = cls.get_job(job_id=job_id)
 
@@ -448,6 +463,8 @@ class SchedulerUtil:
         处理任务达到最大实例数事件
         """
         job_id = str(event.job_id)
+        if job_id in cls.SILENT_JOB_IDS:
+            return
         log.warning(f"任务 {job_id} 已达到最大实例数限制，无法启动新实例")
 
     @classmethod

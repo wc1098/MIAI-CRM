@@ -11,13 +11,24 @@
     "description": "小程序注册入口。活动报名、认证支付、名片分享注册等后续作为来源事件或场景参数记录。"
   },
   {
+    "channel_code": "MINIAPP_EVENT",
+    "channel_name": "小程序活动",
+    "channel_type": "miniprogram",
+    "source_system": "miniapp",
+    "external_code": null,
+    "landing_url": null,
+    "sort": 2,
+    "status": "0",
+    "description": "小程序活动报名、签到等活动来源事件。"
+  },
+  {
     "channel_code": "MANUAL_CREATE",
     "channel_name": "人工录入",
     "channel_type": "manual",
     "source_system": "admin",
     "external_code": null,
     "landing_url": null,
-    "sort": 2,
+    "sort": 3,
     "status": "0",
     "description": "后台人工录入入口。"
   },
@@ -28,7 +39,7 @@
     "source_system": "admin",
     "external_code": null,
     "landing_url": null,
-    "sort": 3,
+    "sort": 4,
     "status": "0",
     "description": "后台批量导入入口。"
   },
@@ -39,7 +50,7 @@
     "source_system": "external",
     "external_code": null,
     "landing_url": null,
-    "sort": 4,
+    "sort": 5,
     "status": "0",
     "description": "外部系统推送预留入口，第一版不开放推送线索接口。"
   }

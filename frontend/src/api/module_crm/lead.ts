@@ -136,6 +136,39 @@ export interface LeadPerson extends BaseType {
   photo_urls?: string[];
 }
 
+export interface AiProfileBrief {
+  id?: number;
+  profile_type?: string;
+  source_type?: string;
+  source_id?: number;
+  priority?: number;
+  content?: string;
+  model_name?: string;
+  generation_status?: string;
+  is_effective?: boolean;
+  generated_at?: string;
+  last_error?: string;
+  updated_time?: string;
+}
+
+export interface AiProfileTaskBrief {
+  id?: number;
+  profile_type?: string;
+  source_type?: string;
+  source_id?: number;
+  priority?: number;
+  status?: string;
+  retry_count?: number;
+  next_retry_at?: string;
+  last_error?: string;
+  updated_time?: string;
+}
+
+export interface AiProfileInfo {
+  profile?: AiProfileBrief | null;
+  latest_task?: AiProfileTaskBrief | null;
+}
+
 export interface LeadTable extends BaseType {
   brand_id?: number;
   person_id?: number;
@@ -150,12 +183,14 @@ export interface LeadTable extends BaseType {
   assigned_at?: string;
   last_recycled_at?: string;
   converted_customer_at?: string;
+  description?: string;
   person: LeadPerson;
   store?: CommonType;
   owner_sales?: CommonType;
   mobile_masked?: string;
   wechat_masked?: string;
   can_view_contact?: boolean;
+  ai_profile?: AiProfileInfo;
 }
 
 export interface LeadDetail extends LeadTable {
@@ -183,6 +218,7 @@ export interface LeadForm {
   source_channel_code?: string;
   store_id?: number;
   owner_sales_id?: number;
+  sync_to_miniprogram?: boolean;
   description?: string;
 }
 

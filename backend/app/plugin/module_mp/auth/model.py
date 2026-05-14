@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import ModelMixin
@@ -22,7 +22,7 @@ class MiniProgramUserModel(ModelMixin):
         index=True,
         comment="关联人员ID",
     )
-    openid: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True, comment="微信openid")
+    openid: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True, index=True, comment="微信openid")
     unionid: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True, comment="微信unionid")
     session_key: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="微信session_key")
     mobile: Mapped[str | None] = mapped_column(String(20), nullable=True, unique=True, index=True, comment="微信手机号")
@@ -54,7 +54,7 @@ class UserAgreementAcceptanceModel(ModelMixin):
     agreement_title: Mapped[str] = mapped_column(String(128), nullable=False, comment="协议标题快照")
     accepted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now, index=True, comment="同意时间")
     ip: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="IP")
-    device_info: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="设备信息")
+    device_info: Mapped[str | None] = mapped_column(Text, nullable=True, comment="设备信息")
 
 
 class SourceEventModel(ModelMixin):

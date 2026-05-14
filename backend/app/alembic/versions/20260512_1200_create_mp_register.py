@@ -103,7 +103,7 @@ def upgrade() -> None:
             sa.Column("agreement_title", sa.String(length=128), nullable=False, comment="协议标题快照"),
             sa.Column("accepted_at", sa.DateTime(), nullable=False, comment="同意时间"),
             sa.Column("ip", sa.String(length=64), nullable=True, comment="IP"),
-            sa.Column("device_info", sa.String(length=255), nullable=True, comment="设备信息"),
+            sa.Column("device_info", sa.Text(), nullable=True, comment="设备信息"),
             *_base_columns(),
             sa.ForeignKeyConstraint(["user_id"], ["mini_program_user.id"], ondelete="CASCADE", onupdate="CASCADE"),
         )

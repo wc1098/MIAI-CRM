@@ -1,4 +1,5 @@
 import request from "@/utils/request";
+import type { AiProfileInfo } from "@/api/module_crm/lead";
 
 const API_PATH = "/mp/admin/user";
 
@@ -62,4 +63,5 @@ export interface MpUserTable extends BaseType {
   lead_id?: number;
   source_event_count: number;
   person?: MpUserPerson;
+  ai_profile?: AiProfileInfo;
 }

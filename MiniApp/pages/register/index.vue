@@ -1,5 +1,10 @@
 <template>
 	<view class="register-page">
+		<view v-if="checkingRegistered" class="checking-card">
+			<text class="checking-title">正在确认注册状态</text>
+			<text class="checking-desc">已注册用户会自动返回，不需要重复填写资料。</text>
+		</view>
+		<block v-else>
 		<view class="top">
 			<view class="brand-row">
 				<view class="brand">
@@ -47,10 +52,12 @@
 					<text class="verified">{{ form.login_code ? '已准备' : '待登录' }}</text>
 				</view>
 			</view>
-			<label class="agreement">
+			<view class="agreement">
 				<checkbox :checked="form.agreement_accepted" color="#C15B65" @tap="toggleAgreement" />
-				<text>我已阅读并同意《觅AI用户注册协议》。平台会严格保护隐私。</text>
-			</label>
+				<text>我已阅读并同意</text>
+				<text class="agreement-link" @tap.stop="openAgreement">《觅AI用户注册协议》</text>
+				<text>。平台会严格保护隐私。</text>
+			</view>
 		</view>
 
 		<view v-if="currentStep === 1" class="panel">
@@ -67,7 +74,7 @@
 					</view>
 				</view>
 				<view class="field-row input-row"><text class="label">微信号</text><input v-model.trim="form.wechat" class="field-input right" placeholder="请输入微信号" /></view>
-				<picker mode="date" :value="form.birth_date" :end="today" @change="pickBirthDate"><view class="field-row"><text class="label">出生日期</text><text class="value">{{ form.birth_date || '请选择' }} ›</text></view></picker>
+				<picker mode="date" :value="birthPickerValue" :end="today" @change="pickBirthDate"><view class="field-row"><text class="label">出生日期</text><text class="value">{{ form.birth_date || '请选择' }} ›</text></view></picker>
 				<view class="field-row input-row"><text class="label">身高</text><input v-model.number="form.height_cm" class="field-input right" type="number" placeholder="cm" /></view>
 				<picker :range="ethnicityOptions" range-key="label" @change="pickOption('ethnicity', ethnicityOptions, $event)"><view class="field-row"><text class="label">民族</text><text class="value">{{ optionLabel('ethnicity', ethnicityOptions) || '请选择' }} ›</text></view></picker>
 				<view class="field-row input-row"><text class="label">职业</text><input v-model.trim="form.occupation" class="field-input right" placeholder="请输入职业" /></view>
@@ -105,13 +112,23 @@
 				<text class="section-desc">请上传清晰、自然、包含本人正脸的真实照片。第一张照片将作为系统头像 / 主展示照。</text>
 			</view>
 			<view class="photo-grid">
-				<view v-for="(item, index) in form.photo_urls" :key="item" class="photo filled">
-					<image class="photo-img" :src="item" mode="aspectFill"></image>
-					<text v-if="index === 0" class="badge">主展示照</text>
-				</view>
-				<view v-if="form.photo_urls.length < 9" class="photo add-photo" @tap="choosePhotos">
-					<text class="plus">＋</text>
-					<text>补充照片</text>
+				<view
+					v-for="(slot, index) in photoSlots"
+					:key="slot.label"
+					class="photo"
+					:class="{ filled: slot.url, empty: !slot.url }"
+					@tap="slot.url ? previewPhoto(index) : choosePhotos()"
+				>
+					<image v-if="slot.url" class="photo-img" :src="slot.url" mode="aspectFill"></image>
+					<text v-if="slot.badge" class="badge">{{ slot.badge }}</text>
+					<view v-if="slot.url" class="photo-mask">
+						<text>{{ slot.label }}</text>
+						<text>已上传</text>
+					</view>
+					<template v-else>
+						<text class="plus">＋</text>
+						<text>{{ slot.label }}</text>
+					</template>
 				</view>
 			</view>
 			<view class="hint"><text>隐</text><text>照片会上传到系统存储，不使用微信头像，也不会同步微信头像。</text></view>
@@ -140,12 +157,14 @@
 			<button v-if="currentStep > 0" class="bottom-btn" @click="prevStep">上一步</button>
 			<button class="bottom-btn primary" :loading="submitting || uploading" @click="handlePrimaryAction">{{ primaryButtonText }}</button>
 		</view>
+		</block>
 	</view>
 </template>
 
 <script>
 import { mpRegister, mpRegisterOptions, uploadRegisterPhoto } from '../../api/mpAuth.js'
 import { setSession } from '../../utils/storage.js'
+import { ensureMpSession } from '../../utils/mpSession.js'
 
 export default {
 	data() {
@@ -153,9 +172,15 @@ export default {
 			currentStep: 0,
 			submitting: false,
 			uploading: false,
+			checkingRegistered: true,
+			redirectUrl: '',
 			phoneMasked: '',
+			phoneAuthorizedAt: 0,
+			phoneCodeMaxAge: 4 * 60 * 1000,
 			toastText: '',
+			defaultBirthDate: '1990-01-01',
 			defaultRegion: ['河南省', '郑州市', '金水区'],
+			photoGuideLabels: ['本人正脸', '生活照', '补充照片', '旅行/日常', '兴趣瞬间', '自然半身'],
 			steps: ['账号确认', '基础资料', '婚恋资料', '真实照片', '确认提交'],
 			stepMetas: [
 				{ title: '认真遇见，先从真实资料开始', desc: '完成微信授权后，我们将用于创建你的平台身份，帮助他人更安心地了解你。' },
@@ -203,15 +228,15 @@ export default {
 				name: '',
 				gender: '',
 				wechat: '',
-				birth_date: '1990-01-01',
+				birth_date: '',
 				height_cm: '',
 				ethnicity: '',
 				occupation: '',
 				annual_income: '',
 				marital_status: '',
 				education: '',
-				hometown: '河南省 / 郑州市 / 金水区',
-				residence: '河南省 / 郑州市 / 金水区',
+				hometown: '',
+				residence: '',
 				house_status: '',
 				car_status: '',
 				photo_urls: [],
@@ -222,6 +247,9 @@ export default {
 		today() {
 			const d = new Date()
 			return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`
+		},
+		birthPickerValue() {
+			return this.form.birth_date || this.defaultBirthDate
 		},
 		stepMeta() {
 			return this.stepMetas[this.currentStep]
@@ -239,6 +267,13 @@ export default {
 		},
 		mainPhoto() {
 			return this.form.photo_urls[0] || ''
+		},
+		photoSlots() {
+			return this.photoGuideLabels.map((label, index) => ({
+				label,
+				url: this.form.photo_urls[index] || '',
+				badge: index === 0 ? '主展示照' : '',
+			}))
 		},
 		ageText() {
 			if (!this.form.birth_date) return ''
@@ -266,11 +301,39 @@ export default {
 			]
 		},
 	},
-	onLoad() {
+	onLoad(options) {
+		this.redirectUrl = options && options.redirect ? decodeURIComponent(options.redirect) : ''
+		this.guardRegisteredUser()
 		this.refreshLoginCode()
 		this.fetchRegisterOptions()
 	},
 	methods: {
+		goAfterRegistered() {
+			if (this.redirectUrl) {
+				const url = this.redirectUrl.startsWith('/') ? this.redirectUrl : `/${this.redirectUrl}`
+				if (url.startsWith('/pages/mine/') || url.startsWith('/pages/activity/index') || url.startsWith('/pages/plaza/') || url.startsWith('/pages/subscription/') || url.startsWith('/pages/certification/')) {
+					uni.switchTab({ url })
+				} else {
+					uni.redirectTo({ url })
+				}
+			} else {
+				uni.switchTab({ url: '/pages/mine/index' })
+			}
+		},
+		async guardRegisteredUser() {
+			this.checkingRegistered = true
+			try {
+				const result = await ensureMpSession()
+				if (result && result.person) {
+					this.goAfterRegistered()
+					return
+				}
+			} catch (error) {
+				console.warn('注册页免登检查失败', error)
+			} finally {
+				this.checkingRegistered = false
+			}
+		},
 		showToast(title) {
 			this.toastText = title
 			clearTimeout(this.toastTimer)
@@ -296,16 +359,25 @@ export default {
 			if (Array.isArray(options) && options.length) this[target] = options
 		},
 		refreshLoginCode() {
-			uni.login({
-				provider: 'weixin',
-				success: (res) => { this.form.login_code = res.code || '' },
-				fail: () => { this.form.login_code = 'mock:dev-openid' },
+			return new Promise((resolve) => {
+				uni.login({
+					provider: 'weixin',
+					success: (res) => {
+						this.form.login_code = res.code || ''
+						resolve(this.form.login_code)
+					},
+					fail: () => {
+						this.form.login_code = 'mock:dev-openid'
+						resolve(this.form.login_code)
+					},
+				})
 			})
 		},
 		getPhoneNumber(event) {
 			const detail = event.detail || {}
 			if (detail.code) {
 				this.form.phone_code = detail.code
+				this.phoneAuthorizedAt = Date.now()
 				this.phoneMasked = '已授权微信手机号'
 				return
 			}
@@ -313,6 +385,9 @@ export default {
 		},
 		toggleAgreement() {
 			this.form.agreement_accepted = !this.form.agreement_accepted
+		},
+		openAgreement() {
+			uni.navigateTo({ url: '/pages/agreement/register' })
 		},
 		pickOption(field, options, event) {
 			const item = options[Number(event.detail.value)]
@@ -334,13 +409,22 @@ export default {
 		},
 		async choosePhotos() {
 			if (this.uploading) return
+			const remainingCount = this.photoGuideLabels.length - this.form.photo_urls.length
+			if (remainingCount <= 0) return
 			uni.chooseImage({
-				count: 9 - this.form.photo_urls.length,
+				count: remainingCount,
 				sizeType: ['compressed'],
 				sourceType: ['album', 'camera'],
 				success: async (res) => {
 					await this.uploadChosenPhotos(res.tempFilePaths || [])
 				},
+			})
+		},
+		previewPhoto(index) {
+			if (!this.form.photo_urls[index]) return
+			uni.previewImage({
+				current: index,
+				urls: this.form.photo_urls,
 			})
 		},
 		async uploadChosenPhotos(paths) {
@@ -369,6 +453,21 @@ export default {
 			}
 			return true
 		},
+		validatePhoneAuthorization() {
+			if (!this.form.phone_code) {
+				this.showToast('请授权微信手机号')
+				return false
+			}
+			if (!this.phoneAuthorizedAt || Date.now() - this.phoneAuthorizedAt > this.phoneCodeMaxAge) {
+				this.form.phone_code = ''
+				this.phoneMasked = ''
+				this.phoneAuthorizedAt = 0
+				this.currentStep = 0
+				this.showToast('手机号授权已过期，请重新授权')
+				return false
+			}
+			return true
+		},
 		validateCurrentStep() {
 			if (this.currentStep === 0) {
 				if (!this.form.agreement_accepted) {
@@ -376,7 +475,7 @@ export default {
 					return false
 				}
 				return this.required(this.form.login_code, '请先完成微信登录')
-					&& this.required(this.form.phone_code, '请授权微信手机号')
+					&& this.validatePhoneAuthorization()
 					&& this.required(this.form.nickname, '请填写昵称')
 			}
 			if (this.currentStep === 1) {
@@ -417,9 +516,10 @@ export default {
 			this.currentStep -= 1
 		},
 		async submitRegister() {
-			if (!this.validateCurrentStep() || this.submitting) return
+			if (!this.validateCurrentStep() || !this.validatePhoneAuthorization() || this.submitting) return
 			this.submitting = true
 			try {
+				await this.refreshLoginCode()
 				const photos = this.form.photo_urls.slice()
 				const payload = {
 					...this.form,
@@ -431,10 +531,16 @@ export default {
 				setSession(result)
 				uni.showToast({ title: '注册成功', icon: 'success' })
 				setTimeout(() => {
-					uni.switchTab({ url: '/pages/mine/index' })
+					this.goAfterRegistered()
 				}, 600)
 			} catch (error) {
 				this.showToast(error.message || '注册失败')
+				if ((error.message || '').includes('手机号') && (error.message || '').includes('code')) {
+					this.form.phone_code = ''
+					this.phoneMasked = ''
+					this.phoneAuthorizedAt = 0
+					this.currentStep = 0
+				}
 				this.refreshLoginCode()
 			} finally {
 				this.submitting = false
@@ -451,6 +557,39 @@ export default {
 	min-height: 100vh;
 	padding: 28rpx 28rpx 260rpx;
 	padding-bottom: calc(260rpx + env(safe-area-inset-bottom));
+}
+
+.checking-card {
+	align-items: center;
+	background: #fff;
+	border: 1rpx solid #eadfd6;
+	border-radius: 22rpx;
+	box-shadow: 0 12rpx 30rpx rgba(82, 54, 45, 0.08);
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 16rpx;
+	justify-content: center;
+	margin-top: 220rpx;
+	padding: 48rpx 32rpx;
+}
+
+.checking-title,
+.checking-desc {
+	display: block;
+	text-align: center;
+}
+
+.checking-title {
+	color: #2e2522;
+	font-size: 34rpx;
+	font-weight: 800;
+}
+
+.checking-desc {
+	color: #7a6f69;
+	font-size: 26rpx;
+	line-height: 1.6;
 }
 
 .top {
@@ -726,10 +865,17 @@ export default {
 	border-radius: 20rpx;
 	color: #3d3532;
 	display: flex;
+	flex-wrap: wrap;
 	font-size: 26rpx;
 	gap: 14rpx;
 	line-height: 1.52;
 	padding: 22rpx;
+}
+
+.agreement-link {
+	color: #c15b65;
+	font-weight: 850;
+	text-decoration: underline;
 }
 
 .segmented,
@@ -779,7 +925,6 @@ export default {
 
 .photo {
 	aspect-ratio: 1;
-	background: #efe6de;
 	border: 1rpx solid #eaded7;
 	border-radius: 20rpx;
 	box-sizing: border-box;
@@ -794,13 +939,24 @@ export default {
 	text-align: center;
 }
 
+.photo.empty {
+	background: #fbf7f1;
+	color: #754347;
+}
+
+.photo.filled {
+	background: #8b726a;
+	border-color: rgba(117, 67, 71, 0.18);
+	color: #fff;
+}
+
 .photo-img {
 	height: 100%;
 	width: 100%;
 }
 
 .badge {
-	background: rgba(70, 31, 38, 0.8);
+	background: rgba(70, 31, 38, 0.82);
 	border-radius: 999rpx;
 	color: #fff;
 	font-size: 20rpx;
@@ -809,6 +965,28 @@ export default {
 	padding: 8rpx 12rpx;
 	position: absolute;
 	top: 12rpx;
+	z-index: 2;
+}
+
+.photo-mask {
+	align-items: center;
+	background: linear-gradient(180deg, rgba(61, 53, 50, 0.16), rgba(61, 53, 50, 0.58));
+	bottom: 0;
+	box-sizing: border-box;
+	color: #fff;
+	display: flex;
+	flex-direction: column;
+	font-size: 24rpx;
+	font-weight: 850;
+	gap: 6rpx;
+	justify-content: center;
+	left: 0;
+	line-height: 1.25;
+	padding: 28rpx 10rpx 18rpx;
+	position: absolute;
+	right: 0;
+	top: 0;
+	text-shadow: 0 2rpx 6rpx rgba(61, 53, 50, 0.35);
 }
 
 .plus {

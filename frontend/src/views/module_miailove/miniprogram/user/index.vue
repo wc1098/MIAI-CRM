@@ -54,7 +54,7 @@
           <template #default="{ row }">{{ row.lead_id || "-" }}</template>
         </el-table-column>
         <el-table-column label="来源事件" width="100">
-          <template #default="{ row }">{{ row.source_event_count }}</template>
+          <template #default="{ row }">{{ eventCountLabel(row.source_event_count) }}</template>
         </el-table-column>
         <el-table-column label="注册状态" width="110">
           <template #default="{ row }">
@@ -97,7 +97,7 @@
           <el-descriptions-item label="注册时间">{{ detail.registered_at || "-" }}</el-descriptions-item>
           <el-descriptions-item label="最近登录">{{ detail.last_login_at || "-" }}</el-descriptions-item>
           <el-descriptions-item label="当前线索ID">{{ detail.lead_id || "-" }}</el-descriptions-item>
-          <el-descriptions-item label="来源事件数">{{ detail.source_event_count }}</el-descriptions-item>
+          <el-descriptions-item label="来源事件数">{{ eventCountLabel(detail.source_event_count) }}</el-descriptions-item>
         </el-descriptions>
 
         <el-descriptions class="detail-section" title="CRM资料" :column="2" border>
@@ -107,16 +107,40 @@
           <el-descriptions-item label="微信号">{{ detail.person?.wechat || "-" }}</el-descriptions-item>
           <el-descriptions-item label="出生日期">{{ detail.person?.birth_date || "-" }}</el-descriptions-item>
           <el-descriptions-item label="身高">{{ detail.person?.height_cm ? `${detail.person.height_cm} cm` : "-" }}</el-descriptions-item>
-          <el-descriptions-item label="民族">{{ detail.person?.ethnicity || "-" }}</el-descriptions-item>
+          <el-descriptions-item label="民族">{{ dictLabel("ethnicity", detail.person?.ethnicity) }}</el-descriptions-item>
           <el-descriptions-item label="职业">{{ detail.person?.occupation || "-" }}</el-descriptions-item>
-          <el-descriptions-item label="年收入">{{ detail.person?.annual_income || "-" }}</el-descriptions-item>
-          <el-descriptions-item label="婚况">{{ detail.person?.marital_status || "-" }}</el-descriptions-item>
-          <el-descriptions-item label="学历">{{ detail.person?.education || "-" }}</el-descriptions-item>
+          <el-descriptions-item label="年收入">{{ dictLabel("annualIncome", detail.person?.annual_income) }}</el-descriptions-item>
+          <el-descriptions-item label="婚况">{{ dictLabel("maritalStatus", detail.person?.marital_status) }}</el-descriptions-item>
+          <el-descriptions-item label="学历">{{ dictLabel("education", detail.person?.education) }}</el-descriptions-item>
           <el-descriptions-item label="籍贯">{{ detail.person?.hometown || "-" }}</el-descriptions-item>
           <el-descriptions-item label="常驻地">{{ detail.person?.residence || "-" }}</el-descriptions-item>
-          <el-descriptions-item label="房产信息">{{ detail.person?.house_status || "-" }}</el-descriptions-item>
-          <el-descriptions-item label="购车信息">{{ detail.person?.car_status || "-" }}</el-descriptions-item>
+          <el-descriptions-item label="房产信息">{{ dictLabel("houseStatus", detail.person?.house_status) }}</el-descriptions-item>
+          <el-descriptions-item label="购车信息">{{ dictLabel("carStatus", detail.person?.car_status) }}</el-descriptions-item>
         </el-descriptions>
+
+        <div class="detail-section">
+          <div class="section-title">觅AI印象</div>
+          <div class="ai-profile-box">
+            <div class="ai-profile-head">
+              <el-tag :type="aiStatusTag(detail.ai_profile?.latest_task?.status || detail.ai_profile?.profile?.generation_status)">
+                {{ aiStatusLabel(detail.ai_profile?.latest_task?.status || detail.ai_profile?.profile?.generation_status) }}
+              </el-tag>
+              <span v-if="detail.ai_profile?.profile?.source_type" class="ai-profile-meta">
+                来源：{{ aiSourceLabel(detail.ai_profile.profile.source_type) }}
+              </span>
+              <span v-if="detail.ai_profile?.latest_task?.retry_count" class="ai-profile-meta">
+                重试：{{ detail.ai_profile.latest_task.retry_count }} 次
+              </span>
+            </div>
+            <div v-if="detail.ai_profile?.profile?.content" class="ai-profile-content">
+              {{ detail.ai_profile.profile.content }}
+            </div>
+            <el-empty v-else description="暂无觅AI印象" :image-size="72" />
+            <div v-if="detail.ai_profile?.latest_task?.last_error" class="ai-profile-error">
+              最近错误：{{ detail.ai_profile.latest_task.last_error }}
+            </div>
+          </div>
+        </div>
 
         <div class="detail-section">
           <div class="section-title">照片相册</div>
@@ -140,6 +164,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 
+import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
 import MpUserAPI, { type MpUserPageQuery, type MpUserTable } from "@/api/module_mp/user";
 
 const query = reactive<MpUserPageQuery>({
@@ -153,10 +178,61 @@ const rows = ref<MpUserTable[]>([]);
 const total = ref(0);
 const detailVisible = ref(false);
 const detail = ref<MpUserTable>();
+const dictOptions = reactive({
+  ethnicity: [] as Array<{ label: string; value: string }>,
+  annualIncome: [] as Array<{ label: string; value: string }>,
+  maritalStatus: [] as Array<{ label: string; value: string }>,
+  education: [] as Array<{ label: string; value: string }>,
+  houseStatus: [] as Array<{ label: string; value: string }>,
+  carStatus: [] as Array<{ label: string; value: string }>,
+});
 
 function genderLabel(value?: string) {
   const map: Record<string, string> = { "0": "男", "1": "女", "2": "未知" };
   return value ? map[value] || value : "-";
+}
+
+function eventCountLabel(value?: number) {
+  return `${value || 0} 次`;
+}
+
+function dictLabel(type: keyof typeof dictOptions, value?: string) {
+  if (!value) return "-";
+  return dictOptions[type].find((item) => item.value === value)?.label || value;
+}
+
+function aiStatusLabel(value?: string) {
+  return (
+    {
+      pending: "等待生成",
+      processing: "生成中",
+      success: "已生成",
+      failed: "生成失败，等待重试",
+      cancelled: "已取消",
+    } as Record<string, string>
+  )[value || ""] || "暂无任务";
+}
+
+function aiStatusTag(value?: string) {
+  return (
+    {
+      pending: "info",
+      processing: "warning",
+      success: "success",
+      failed: "danger",
+      cancelled: "info",
+    } as const
+  )[value || ""] || "info";
+}
+
+function aiSourceLabel(value?: string) {
+  return (
+    {
+      register: "小程序注册",
+      admin_update: "后台资料维护",
+      deep_interview: "红娘深访",
+    } as Record<string, string>
+  )[value || ""] || value || "-";
 }
 
 async function fetchList() {
@@ -179,12 +255,40 @@ function resetQuery() {
 }
 
 async function openDetail(id: number) {
+  await loadDictOptions();
   const res = await MpUserAPI.detailUser(id);
   detail.value = res.data.data;
   detailVisible.value = true;
 }
 
-onMounted(fetchList);
+let dictPromise: Promise<void> | null = null;
+
+async function loadDictOptions() {
+  if (dictPromise) return dictPromise;
+  const dictMap = {
+    ethnicity: "crm_ethnicity",
+    annualIncome: "crm_annual_income",
+    maritalStatus: "crm_marital_status",
+    education: "crm_education",
+    houseStatus: "crm_house_status",
+    carStatus: "crm_car_status",
+  } as const;
+  dictPromise = Promise.all(
+    Object.entries(dictMap).map(async ([key, type]) => {
+      const res = await DictAPI.getInitDict(type);
+      dictOptions[key as keyof typeof dictOptions] = ((res.data.data as DictDataTable[]) || []).map((item) => ({
+        label: item.dict_label || item.dict_value || "",
+        value: item.dict_value || "",
+      }));
+    })
+  ).then(() => undefined);
+  return dictPromise;
+}
+
+onMounted(() => {
+  loadDictOptions();
+  fetchList();
+});
 </script>
 
 <style scoped>
@@ -236,6 +340,48 @@ onMounted(fetchList);
   color: var(--el-text-color-primary);
   font-size: 16px;
   font-weight: 600;
+}
+
+.ai-profile-box {
+  padding: 16px 18px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.ai-profile-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ai-profile-meta {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.ai-profile-content {
+  min-height: 132px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-profile-error {
+  margin-top: 10px;
+  color: var(--el-color-danger);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .photo-list {

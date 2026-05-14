@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 from app.core.exceptions import CustomException
 from app.plugin.module_crm.lead.model import CrmLeadProfileModel, CrmPersonModel
 from app.plugin.module_mp.auth.model import MiniProgramUserModel, SourceEventModel
+from app.plugin.module_profile_ai.service import PersonAiProfileService
 
 from .schema import MpPersonBriefSchema, MpUserOutSchema, MpUserQueryParam
 
@@ -80,16 +81,18 @@ class MpAdminService:
             return []
         user_ids = [user.id for user in users]
         person_ids = [user.person_id for user in users if user.person_id]
+        person_id_set = set(person_ids)
 
         lead_map: dict[int, int] = {}
-        if person_ids:
+        if person_id_set:
             lead_rows = await db.execute(
                 select(CrmLeadProfileModel.person_id, CrmLeadProfileModel.id)
-                .where(CrmLeadProfileModel.person_id.in_(person_ids), CrmLeadProfileModel.is_deleted == False)
+                .where(CrmLeadProfileModel.person_id.in_(person_id_set), CrmLeadProfileModel.is_deleted == False)
                 .order_by(CrmLeadProfileModel.updated_time.desc(), CrmLeadProfileModel.id.desc())
             )
             for person_id, lead_id in lead_rows.all():
                 lead_map.setdefault(person_id, lead_id)
+        ai_profile_map = await PersonAiProfileService.admin_info_map(db, person_id_set)
 
         event_count_map: dict[int, int] = {}
         event_rows = await db.execute(
@@ -149,6 +152,7 @@ class MpAdminService:
                     lead_id=lead_map.get(user.person_id or 0),
                     source_event_count=event_count_map.get(user.id, 0),
                     person=person_data,
+                    ai_profile=ai_profile_map.get(user.person_id or 0, {"profile": None, "latest_task": None}),
                 ).model_dump()
             )
         return items

@@ -14,7 +14,6 @@ from app.core.exceptions import CustomException
 from app.core.logger import log
 from app.utils.storage_config import StorageConfig
 
-
 CLOUDPAY_B_APP_ID = "cloudpay.b_app_id"
 CLOUDPAY_PRIVATE_KEY = "cloudpay.private_key"
 CLOUDPAY_PUBLIC_KEY = "cloudpay.public_key"
@@ -57,7 +56,7 @@ class CloudPayClient:
         return str(value)
 
     @classmethod
-    def build_sign_content(params: dict[str, Any]) -> str:
+    def build_sign_content(cls, params: dict[str, Any]) -> str:
         parts = []
         for key in sorted(params.keys()):
             if key == "sign":

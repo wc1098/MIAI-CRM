@@ -1,5 +1,6 @@
 import atexit
 import logging
+import os
 import sys
 
 from loguru import logger
@@ -103,27 +104,39 @@ def setup_logging() -> None:
     # 确保日志目录存在,如果不存在则创建
     log_dir.mkdir(parents=True, exist_ok=True)
 
+    # Windows 下 uvicorn reload/多进程容易同时占用固定日志文件，轮转重命名会失败。
+    info_log_name = "info.log"
+    error_log_name = "error.log"
+    rotation = "00:00"
+    if sys.platform.startswith("win"):
+        current_pid = os.getpid()
+        info_log_name = f"info.{current_pid}.log"
+        error_log_name = f"error.{current_pid}.log"
+        rotation = "20 MB"
+
     # 步骤5：配置常规日志文件
     handler_id = logger.add(
-        str(log_dir / "info.log"),
+        str(log_dir / info_log_name),
         format=log_format,
         level="INFO",
-        rotation="00:00",  # 每天午夜轮转
+        rotation=rotation,
         retention=30,  # 日志保留天数，超过此天数的日志文件将被自动清理
         compression="gz",
         encoding="utf-8",
+        enqueue=True,
     )
     _logger_handlers.append(handler_id)
 
     # 步骤6：配置错误日志文件
     handler_id = logger.add(
-        str(log_dir / "error.log"),
+        str(log_dir / error_log_name),
         format=log_format,
         level="ERROR",
-        rotation="00:00",  # 每天午夜轮转
+        rotation=rotation,
         retention=30,  # 日志保留天数，超过此天数的日志文件将被自动清理
         compression="gz",
         encoding="utf-8",
+        enqueue=True,
         backtrace=True,
         diagnose=True,
     )

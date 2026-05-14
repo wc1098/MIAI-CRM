@@ -1,4 +1,5 @@
 import json
+import secrets
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -19,6 +20,7 @@ from app.plugin.module_crm.lead.model import (
     CrmLeadProfileModel,
     CrmPersonModel,
 )
+from app.plugin.module_profile_ai.service import PersonAiProfileService
 from app.utils.upload_util import UploadUtil
 
 from .model import MiniProgramUserModel, SourceEventModel, UserAgreementAcceptanceModel
@@ -30,6 +32,27 @@ MP_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * 30
 
 class MpAuthService:
     """微信小程序认证与注册服务。"""
+
+    @classmethod
+    async def _generate_person_display_no(cls, db: AsyncSession) -> str:
+        for _ in range(50):
+            display_no = str(1000000 + secrets.randbelow(9000000))
+            exists = (
+                await db.execute(
+                    select(CrmPersonModel.id).where(
+                        CrmPersonModel.display_no == display_no,
+                        CrmPersonModel.is_deleted == False,
+                    )
+                )
+            ).scalar()
+            if not exists:
+                return display_no
+        raise CustomException(msg="人员展示编号生成失败，请稍后重试")
+
+    @classmethod
+    async def _ensure_person_display_no(cls, db: AsyncSession, person: CrmPersonModel) -> None:
+        if not person.display_no:
+            person.display_no = await cls._generate_person_display_no(db)
 
     @classmethod
     async def _param(cls, db: AsyncSession, key: str, default: str | None = None) -> str | None:
@@ -147,9 +170,11 @@ class MpAuthService:
                 "https://api.weixin.qq.com/wxa/business/getuserphonenumber",
                 params={"access_token": access_token},
                 json={"code": phone_code},
-            )
+        )
         payload = response.json()
         if payload.get("errcode"):
+            if payload.get("errcode") == 40029:
+                raise CustomException(msg="微信手机号授权已过期，请重新授权手机号", data=payload)
             raise CustomException(msg=f"获取微信手机号失败: {payload.get('errmsg')}", data=payload)
         mobile = (payload.get("phone_info") or {}).get("phoneNumber")
         if not mobile or not MOBILE_PATTERN.match(mobile):
@@ -177,26 +202,60 @@ class MpAuthService:
             raise CustomException(msg="小程序登录已失效，请重新登录", code=10401, status_code=401) from e
 
     @classmethod
-    async def _get_or_create_user(cls, db: AsyncSession, session: dict[str, str]) -> MiniProgramUserModel:
+    async def _get_or_create_user(
+        cls,
+        db: AsyncSession,
+        session: dict[str, str],
+        mobile: str | None = None,
+    ) -> MiniProgramUserModel:
         openid = session["openid"]
-        result = await db.execute(
+        openid_result = await db.execute(
             select(MiniProgramUserModel).where(
                 MiniProgramUserModel.openid == openid,
                 MiniProgramUserModel.is_deleted == False,
             )
         )
-        user = result.scalars().first()
-        now = datetime.now()
-        if not user:
-            user = MiniProgramUserModel(
-                brand_id=1,
-                openid=openid,
-                unionid=session.get("unionid"),
-                session_key=session.get("session_key"),
-                last_login_at=now,
+        user = openid_result.scalars().first()
+        mobile_user = None
+        if mobile:
+            mobile_result = await db.execute(
+                select(MiniProgramUserModel).where(
+                    MiniProgramUserModel.mobile == mobile,
+                    MiniProgramUserModel.is_deleted == False,
+                )
             )
-            db.add(user)
-            await db.flush()
+            mobile_user = mobile_result.scalars().first()
+        now = datetime.now()
+        if user and mobile_user and mobile_user.id != user.id:
+            if mobile_user.openid:
+                raise CustomException(msg="该手机号已绑定其他微信账号")
+            if user.person_id or user.mobile:
+                raise CustomException(msg="当前微信账号已绑定其他小程序用户")
+            user.person_id = mobile_user.person_id
+            user.mobile = mobile_user.mobile
+            user.nickname = user.nickname or mobile_user.nickname
+            user.avatar_url = user.avatar_url or mobile_user.avatar_url
+            mobile_user.mobile = None
+            mobile_user.person_id = None
+            mobile_user.is_deleted = True
+            mobile_user.deleted_time = now
+        if not user:
+            if mobile_user and not mobile_user.openid:
+                user = mobile_user
+                user.openid = openid
+                user.last_login_at = now
+            elif mobile_user and mobile_user.openid != openid:
+                raise CustomException(msg="该手机号已绑定其他微信账号")
+            else:
+                user = MiniProgramUserModel(
+                    brand_id=1,
+                    openid=openid,
+                    unionid=session.get("unionid"),
+                    session_key=session.get("session_key"),
+                    last_login_at=now,
+                )
+                db.add(user)
+                await db.flush()
         else:
             user.unionid = session.get("unionid") or user.unionid
             user.session_key = session.get("session_key") or user.session_key
@@ -339,7 +398,7 @@ class MpAuthService:
     async def register(cls, db: AsyncSession, data: MpRegisterSchema, ip: str | None = None, device_info: str | None = None) -> dict:
         session = await cls._wechat_code_to_session(db, data.login_code)
         mobile = await cls._wechat_phone_number(db, data.phone_code)
-        user = await cls._get_or_create_user(db, session)
+        user = await cls._get_or_create_user(db, session, mobile=mobile)
 
         result = await db.execute(
             select(CrmPersonModel).where(
@@ -351,10 +410,12 @@ class MpAuthService:
         person_payload = cls._person_payload(data, mobile)
         if not person:
             person = CrmPersonModel(**person_payload)
+            await cls._ensure_person_display_no(db, person)
             db.add(person)
             await db.flush()
         else:
             cls._fill_person_missing(person, person_payload)
+            await cls._ensure_person_display_no(db, person)
 
         user.person_id = person.id
         user.mobile = mobile
@@ -375,6 +436,12 @@ class MpAuthService:
         )
         event = await cls._append_source_event(db, person, user, data)
         lead = await cls._upsert_register_lead(db, person, event)
+        await PersonAiProfileService.enqueue_miai_impression(
+            db=db,
+            person_id=person.id,
+            source_type="register",
+            source_id=event.id,
+        )
         await db.flush()
         await db.refresh(user)
         await db.refresh(person)

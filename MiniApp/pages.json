@@ -19,6 +19,18 @@
 			}
 		},
 		{
+			"path": "pages/activity/detail",
+			"style": {
+				"navigationBarTitleText": "活动详情"
+			}
+		},
+		{
+			"path": "pages/activity/detail/index",
+			"style": {
+				"navigationBarTitleText": "活动详情"
+			}
+		},
+		{
 			"path": "pages/certification/index",
 			"style": {
 				"navigationBarTitleText": "认证"
@@ -34,6 +46,12 @@
 			"path": "pages/register/index",
 			"style": {
 				"navigationBarTitleText": "注册资料"
+			}
+		},
+		{
+			"path": "pages/agreement/register",
+			"style": {
+				"navigationBarTitleText": "用户注册协议"
 			}
 		}
 	],

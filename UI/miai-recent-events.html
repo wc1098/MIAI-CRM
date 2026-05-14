@@ -1,0 +1,350 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>觅AI - 近期活动</title>
+  <style>
+    :root {
+      --bg: oklch(97% 0.012 84);
+      --surface: oklch(99% 0.006 82);
+      --fg: oklch(22% 0.018 70);
+      --muted: oklch(52% 0.018 70);
+      --border: oklch(89% 0.012 80);
+      --accent: oklch(55% 0.095 145);
+      --gold: oklch(70% 0.075 80);
+      --warn: oklch(64% 0.13 62);
+      --font-display: "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background: radial-gradient(circle at 50% 0%, oklch(93% 0.034 92), transparent 34%), linear-gradient(180deg, oklch(18% 0.018 70), oklch(12% 0.012 70));
+      color: var(--fg);
+      font-family: var(--font-body);
+    }
+    .showcase { display: grid; gap: 14px; width: min(100%, 430px); }
+    .caption {
+      display: flex;
+      justify-content: space-between;
+      color: oklch(90% 0.014 84);
+      font: 600 11px/1 var(--font-mono);
+      letter-spacing: .08em;
+      opacity: .82;
+      padding: 0 8px;
+    }
+    .phone {
+      width: 390px;
+      max-width: calc(100vw - 32px);
+      height: 844px;
+      margin: 0 auto;
+      padding: 12px;
+      border-radius: 46px;
+      background: #070706;
+      box-shadow: 0 26px 70px rgba(0,0,0,.42);
+      position: relative;
+    }
+    .screen { height: 100%; overflow: hidden; border-radius: 36px; background: var(--bg); position: relative; }
+    .island {
+      position: absolute;
+      z-index: 5;
+      top: 12px;
+      left: 50%;
+      width: 118px;
+      height: 34px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: #080807;
+    }
+    .status {
+      height: 54px;
+      padding: 14px 22px 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .wx-capsule {
+      width: 86px;
+      height: 30px;
+      border: 1px solid color-mix(in oklch, var(--fg) 14%, transparent);
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: space-evenly;
+      background: color-mix(in oklch, var(--surface) 76%, transparent);
+      backdrop-filter: blur(14px);
+    }
+    .dot-row { display: flex; gap: 3px; }
+    .dot-row i { width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--fg); display: block; }
+    .capsule-line { width: 1px; height: 16px; background: var(--border); }
+    .ring { width: 15px; height: 15px; border: 1.8px solid var(--fg); border-radius: 50%; }
+    .content { height: calc(100% - 54px); overflow-y: auto; padding: 18px 18px 98px; scrollbar-width: none; }
+    .content::-webkit-scrollbar, .filters::-webkit-scrollbar { display: none; }
+    header { padding: 6px 2px 14px; }
+    .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 650; }
+    .brand-mark {
+      width: 22px;
+      height: 22px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: var(--accent);
+      font: 700 12px/1 var(--font-display);
+    }
+    .city { color: var(--fg); font-size: 13px; font-weight: 650; }
+    h1 { margin: 0; font-family: var(--font-display); font-size: 34px; line-height: 1.1; letter-spacing: 0; }
+    .subtitle { margin: 8px 0 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+    .filters { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 16px; scrollbar-width: none; }
+    .chip {
+      flex: 0 0 auto;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 13px;
+      color: var(--muted);
+      background: color-mix(in oklch, var(--surface) 72%, transparent);
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .chip.active { color: white; border-color: var(--accent); background: var(--accent); }
+    .state-panel {
+      margin: 0 0 14px;
+      padding: 12px;
+      border: 1px dashed color-mix(in oklch, var(--accent) 44%, var(--border));
+      border-radius: 16px;
+      background: color-mix(in oklch, var(--accent) 7%, var(--surface));
+    }
+    .state-panel strong { display: block; font-size: 13px; margin-bottom: 3px; }
+    .state-panel span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .list { display: grid; gap: 14px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 10px 26px color-mix(in oklch, var(--fg) 8%, transparent);
+    }
+    .cover { height: 154px; position: relative; overflow: hidden; background: var(--border); }
+    .cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 44%, rgba(0,0,0,.36)); }
+    .cafe { background: radial-gradient(circle at 20% 28%, oklch(92% 0.032 80) 0 9%, transparent 10%), radial-gradient(circle at 74% 34%, oklch(76% 0.07 58) 0 8%, transparent 9%), linear-gradient(135deg, oklch(78% 0.034 74), oklch(56% 0.04 58)); }
+    .gallery { background: linear-gradient(90deg, transparent 0 22%, rgba(255,255,255,.36) 22% 24%, transparent 24% 58%, rgba(255,255,255,.28) 58% 60%, transparent 60%), linear-gradient(135deg, oklch(82% 0.02 104), oklch(60% 0.036 148)); }
+    .dinner { background: radial-gradient(circle at 78% 24%, oklch(78% 0.1 38) 0 10%, transparent 11%), radial-gradient(circle at 28% 70%, oklch(85% 0.05 84) 0 16%, transparent 17%), linear-gradient(135deg, oklch(70% 0.045 34), oklch(38% 0.024 42)); }
+    .hike { background: linear-gradient(155deg, transparent 0 45%, oklch(48% 0.06 145) 45% 67%, transparent 67%), linear-gradient(135deg, oklch(84% 0.032 188), oklch(62% 0.055 128)); }
+    .salon { background: radial-gradient(circle at 35% 34%, oklch(90% 0.04 22) 0 14%, transparent 15%), linear-gradient(135deg, oklch(87% 0.024 78), oklch(68% 0.038 25)); }
+    .brunch { background: radial-gradient(circle at 70% 70%, oklch(93% 0.032 96) 0 15%, transparent 16%), linear-gradient(135deg, oklch(88% 0.024 92), oklch(66% 0.05 76)); }
+    .cover-label {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      z-index: 1;
+      display: inline-flex;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      text-shadow: 0 1px 10px rgba(0,0,0,.35);
+    }
+    .card-body { padding: 14px; }
+    .topline { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 9px; }
+    .tag {
+      flex: 0 0 auto;
+      border-radius: 999px;
+      padding: 5px 8px;
+      color: color-mix(in oklch, var(--accent) 82%, var(--fg));
+      background: color-mix(in oklch, var(--accent) 10%, var(--surface));
+      font-size: 11px;
+      font-weight: 750;
+    }
+    h2 { margin: 0; font-size: 18px; line-height: 1.34; letter-spacing: 0; }
+    .meta { display: grid; gap: 7px; margin: 10px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .meta-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    .ico { width: 18px; color: color-mix(in oklch, var(--fg) 52%, var(--muted)); text-align: center; font-size: 13px; }
+    .fee { color: var(--fg); font-weight: 750; }
+    .free { color: var(--accent); }
+    .quota { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .quota-box { padding: 9px 10px; border: 1px solid var(--border); border-radius: 13px; background: oklch(98% 0.008 84); }
+    .quota-box span { color: var(--muted); display: block; font-size: 11px; margin-bottom: 2px; }
+    .quota-box b { font-size: 17px; font-variant-numeric: tabular-nums; }
+    .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+    .status-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .soon::before { background: var(--gold); }
+    .full::before, .closed::before { background: var(--muted); }
+    .pay::before { background: var(--warn); }
+    .btn {
+      min-width: 108px;
+      height: 40px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 16px;
+      font: 750 14px/1 var(--font-body);
+      color: white;
+      background: var(--accent);
+      box-shadow: 0 7px 16px color-mix(in oklch, var(--accent) 24%, transparent);
+    }
+    .btn.secondary { color: var(--fg); background: oklch(94% 0.008 84); box-shadow: none; }
+    .btn.pay { background: var(--warn); box-shadow: 0 7px 16px color-mix(in oklch, var(--warn) 22%, transparent); }
+    .tabbar {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      height: 74px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 9px 14px 10px;
+      border-top: 1px solid var(--border);
+      background: color-mix(in oklch, var(--surface) 90%, transparent);
+      backdrop-filter: blur(18px);
+      border-radius: 0 0 36px 36px;
+    }
+    .tab { display: grid; place-items: center; gap: 3px; color: var(--muted); font-size: 10px; font-weight: 650; }
+    .tab svg { width: 21px; height: 21px; stroke-width: 2; }
+    .tab.active { color: var(--accent); }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="showcase" data-od-id="stage">
+    <div class="caption"><span>HI-FI PROTOTYPE · WECHAT MINI PROGRAM</span><span>觅AI</span></div>
+    <section class="phone" data-od-id="phone-frame">
+      <div class="screen" data-od-id="wechat-events-page">
+        <div class="island"></div>
+        <div class="status" data-od-id="status-bar">
+          <span>9:41</span>
+          <div class="wx-capsule" aria-label="微信小程序菜单">
+            <span class="dot-row"><i></i><i></i><i></i></span><span class="capsule-line"></span><span class="ring"></span>
+          </div>
+        </div>
+        <div class="content" data-od-id="scroll-content">
+          <header data-od-id="page-header">
+            <div class="brand-row">
+              <div class="brand"><span class="brand-mark">觅</span><span>本地优质相识活动</span></div>
+              <div class="city">上海</div>
+            </div>
+            <h1>近期活动</h1>
+            <p class="subtitle">发现适合你的线下相识机会</p>
+          </header>
+          <nav class="filters" aria-label="活动筛选" data-od-id="filters">
+            <span class="chip active">全部</span><span class="chip">报名中</span><span class="chip">即将开始</span><span class="chip">可免费参加</span>
+          </nav>
+          <section class="state-panel" data-od-id="edge-state-note">
+            <strong>今晚 6 场可选 · 已按距离和空位排序</strong>
+            <span>筛选无结果时会保留当前条件，并提供“查看全部活动”的恢复入口。</span>
+          </section>
+          <section class="list" data-od-id="event-card-list">
+            <article class="card" data-od-id="event-card-registering">
+              <div class="cover cafe"><span class="cover-label">小型咖啡局 · 18 人</span></div>
+              <div class="card-body">
+                <div class="topline"><h2>周五微醺咖啡夜：不赶时间的初次见面</h2><span class="tag">轻社交</span></div>
+                <div class="meta">
+                  <div class="meta-row"><span class="ico">时</span><span>5月10日 周五 19:30-21:30</span></div>
+                  <div class="meta-row"><span class="ico">地</span><span>徐汇 · 衡山路独立咖啡馆</span></div>
+                  <div class="meta-row"><span class="ico">费</span><span class="fee">报名费用 ¥99</span></div>
+                </div>
+                <div class="quota"><div class="quota-box"><span>男生剩余名额</span><b>4</b></div><div class="quota-box"><span>女生剩余名额</span><b>3</b></div></div>
+                <div class="actions"><span class="status-badge">报名中</span><button class="btn">立即报名</button></div>
+              </div>
+            </article>
+            <article class="card" data-od-id="event-card-soon">
+              <div class="cover gallery"><span class="cover-label">展览同行 · 12 人</span></div>
+              <div class="card-body">
+                <div class="topline"><h2>城市摄影展同行：边看展边交换生活切片</h2><span class="tag">艺术展</span></div>
+                <div class="meta">
+                  <div class="meta-row"><span class="ico">时</span><span>明天 15:00-17:00</span></div>
+                  <div class="meta-row"><span class="ico">地</span><span>静安 · 苏河湾艺术空间</span></div>
+                  <div class="meta-row"><span class="ico">费</span><span class="fee free">免费参加</span></div>
+                </div>
+                <div class="quota"><div class="quota-box"><span>男生剩余名额</span><b>1</b></div><div class="quota-box"><span>女生剩余名额</span><b>2</b></div></div>
+                <div class="actions"><span class="status-badge soon">即将开始</span><button class="btn">立即报名</button></div>
+              </div>
+            </article>
+            <article class="card" data-od-id="event-card-unregistered">
+              <div class="cover salon"><span class="cover-label">新用户开放日 · 14 人</span></div>
+              <div class="card-body">
+                <div class="topline"><h2>周末生活方式开放日：先认识城市里的同频人</h2><span class="tag">开放日</span></div>
+                <div class="meta">
+                  <div class="meta-row"><span class="ico">时</span><span>5月11日 周六 10:30-12:00</span></div>
+                  <div class="meta-row"><span class="ico">地</span><span>静安 · 武康路会员客厅</span></div>
+                  <div class="meta-row"><span class="ico">费</span><span class="fee free">免费参加</span></div>
+                </div>
+                <div class="quota"><div class="quota-box"><span>男生剩余名额</span><b>3</b></div><div class="quota-box"><span>女生剩余名额</span><b>4</b></div></div>
+                <div class="actions"><span class="status-badge">报名中</span><button class="btn">先注册再报名</button></div>
+              </div>
+            </article>
+            <article class="card" data-od-id="event-card-pay">
+              <div class="cover dinner"><span class="cover-label">餐桌局 · 已预留席位</span></div>
+              <div class="card-body">
+                <div class="topline"><h2>老洋房晚餐局：六道菜和六个认真问题</h2><span class="tag">晚餐局</span></div>
+                <div class="meta">
+                  <div class="meta-row"><span class="ico">时</span><span>5月12日 周日 18:30-21:00</span></div>
+                  <div class="meta-row"><span class="ico">地</span><span>黄浦 · 思南公馆附近</span></div>
+                  <div class="meta-row"><span class="ico">费</span><span class="fee">报名费用 ¥99</span></div>
+                </div>
+                <div class="quota"><div class="quota-box"><span>男生剩余名额</span><b>2</b></div><div class="quota-box"><span>女生剩余名额</span><b>0</b></div></div>
+                <div class="actions"><span class="status-badge pay">待支付</span><button class="btn pay">继续支付</button></div>
+              </div>
+            </article>
+            <article class="card" data-od-id="event-card-joined">
+              <div class="cover hike"><span class="cover-label">周末轻徒步 · 24 人</span></div>
+              <div class="card-body">
+                <div class="topline"><h2>滨江轻徒步：从日落走到第一杯热茶</h2><span class="tag">户外</span></div>
+                <div class="meta">
+                  <div class="meta-row"><span class="ico">时</span><span>5月18日 周六 16:30-19:00</span></div>
+                  <div class="meta-row"><span class="ico">地</span><span>浦东 · 前滩滨江步道</span></div>
+                  <div class="meta-row"><span class="ico">费</span><span class="fee free">免费参加</span></div>
+                </div>
+                <div class="quota"><div class="quota-box"><span>男生剩余名额</span><b>6</b></div><div class="quota-box"><span>女生剩余名额</span><b>5</b></div></div>
+                <div class="actions"><span class="status-badge">已报名</span><button class="btn secondary">查看详情</button></div>
+              </div>
+            </article>
+            <article class="card" data-od-id="event-card-full">
+              <div class="cover salon"><span class="cover-label">主题沙龙 · 16 人</span></div>
+              <div class="card-body">
+                <div class="topline"><h2>关系沟通沙龙：把择偶标准说得更具体</h2><span class="tag">沙龙</span></div>
+                <div class="meta">
+                  <div class="meta-row"><span class="ico">时</span><span>5月19日 周日 14:00-16:00</span></div>
+                  <div class="meta-row"><span class="ico">地</span><span>长宁 · 愚园路共享客厅</span></div>
+                  <div class="meta-row"><span class="ico">费</span><span class="fee">报名费用 ¥99</span></div>
+                </div>
+                <div class="quota"><div class="quota-box"><span>男生剩余名额</span><b>0</b></div><div class="quota-box"><span>女生剩余名额</span><b>0</b></div></div>
+                <div class="actions"><span class="status-badge full">已满员</span><button class="btn secondary">候补登记</button></div>
+              </div>
+            </article>
+            <article class="card" data-od-id="event-card-closed">
+              <div class="cover brunch"><span class="cover-label">周日早午餐 · 20 人</span></div>
+              <div class="card-body">
+                <div class="topline"><h2>法租界早午餐：一张长桌认识新朋友</h2><span class="tag">餐叙</span></div>
+                <div class="meta">
+                  <div class="meta-row"><span class="ico">时</span><span>5月9日 周四 11:00-13:00</span></div>
+                  <div class="meta-row"><span class="ico">地</span><span>徐汇 · 建国西路花园餐厅</span></div>
+                  <div class="meta-row"><span class="ico">费</span><span class="fee">报名费用 ¥99</span></div>
+                </div>
+                <div class="quota"><div class="quota-box"><span>男生剩余名额</span><b>2</b></div><div class="quota-box"><span>女生剩余名额</span><b>1</b></div></div>
+                <div class="actions"><span class="status-badge closed">报名截止</span><button class="btn secondary">查看详情</button></div>
+              </div>
+            </article>
+          </section>
+        </div>
+        <nav class="tabbar" aria-label="底部导航" data-od-id="tabbar">
+          <div class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg><span>活动</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 11a4 4 0 1 0-8 0"/><path d="M5 21a7 7 0 0 1 14 0"/></svg><span>匹配</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5"/></svg><span>消息</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>我的</span></div>
+        </nav>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

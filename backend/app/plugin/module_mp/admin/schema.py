@@ -49,6 +49,7 @@ class MpUserOutSchema(BaseSchema):
     lead_id: int | None = Field(default=None, description="当前有效线索ID")
     source_event_count: int = Field(default=0, description="来源事件数")
     person: MpPersonBriefSchema | None = Field(default=None, description="人员摘要")
+    ai_profile: dict | None = Field(default=None, description="觅AI印象摘要")
 
 
 class MpUserQueryParam:

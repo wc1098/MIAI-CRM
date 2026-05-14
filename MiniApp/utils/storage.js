@@ -12,9 +12,13 @@ export function setSession(data) {
 	}
 	if (data.user) {
 		uni.setStorageSync(USER_KEY, data.user)
+	} else if (Object.prototype.hasOwnProperty.call(data || {}, 'user')) {
+		uni.removeStorageSync(USER_KEY)
 	}
 	if (data.person) {
 		uni.setStorageSync(PERSON_KEY, data.person)
+	} else if (Object.prototype.hasOwnProperty.call(data || {}, 'person')) {
+		uni.removeStorageSync(PERSON_KEY)
 	}
 }
 
