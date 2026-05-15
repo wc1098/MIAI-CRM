@@ -141,6 +141,11 @@ export default {
 	onShow() {
 		this.fetchEvents()
 	},
+	onPullDownRefresh() {
+		this.fetchEvents().finally(() => {
+			uni.stopPullDownRefresh()
+		})
+	},
 	methods: {
 		async fetchEvents() {
 			this.loading = true

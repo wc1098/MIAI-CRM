@@ -3,43 +3,81 @@
 		{
 			"path": "pages/plaza/index",
 			"style": {
-				"navigationBarTitleText": "广场"
+				"navigationBarTitleText": "广场",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/plaza/detail/index",
+			"style": {
+				"navigationBarTitleText": "用户资料",
+				"enablePullDownRefresh": true,
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/plaza/unlock/index",
+			"style": {
+				"navigationBarTitleText": "解锁联系方式",
+				"enablePullDownRefresh": true,
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/plaza/unlock/final",
+			"style": {
+				"navigationBarTitleText": "最后一步"
+			}
+		},
+		{
+			"path": "pages/plaza/unlock/contact",
+			"style": {
+				"navigationBarTitleText": "手机号",
+				"enablePullDownRefresh": true
 			}
 		},
 		{
 			"path": "pages/subscription/index",
 			"style": {
-				"navigationBarTitleText": "订阅"
+				"navigationBarTitleText": "订阅",
+				"enablePullDownRefresh": true
 			}
 		},
 		{
 			"path": "pages/activity/index",
 			"style": {
-				"navigationBarTitleText": "活动"
+				"navigationBarTitleText": "活动",
+				"enablePullDownRefresh": true
 			}
 		},
 		{
 			"path": "pages/activity/detail",
 			"style": {
-				"navigationBarTitleText": "活动详情"
+				"navigationBarTitleText": "活动详情",
+				"enablePullDownRefresh": true
 			}
 		},
 		{
 			"path": "pages/activity/detail/index",
 			"style": {
-				"navigationBarTitleText": "活动详情"
+				"navigationBarTitleText": "活动详情",
+				"enablePullDownRefresh": true
 			}
 		},
 		{
 			"path": "pages/certification/index",
 			"style": {
-				"navigationBarTitleText": "认证"
+				"navigationBarTitleText": "认证",
+				"enablePullDownRefresh": true
 			}
 		},
 		{
 			"path": "pages/mine/index",
 			"style": {
-				"navigationBarTitleText": "我的"
+				"navigationBarTitleText": "我的",
+				"enablePullDownRefresh": true
 			}
 		},
 		{

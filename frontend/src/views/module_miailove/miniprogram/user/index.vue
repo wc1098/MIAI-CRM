@@ -118,6 +118,24 @@
           <el-descriptions-item label="购车信息">{{ dictLabel("carStatus", detail.person?.car_status) }}</el-descriptions-item>
         </el-descriptions>
 
+        <el-descriptions class="detail-section" title="互动摘要" :column="3" border>
+          <el-descriptions-item label="被喜欢">{{ detail.interaction_stats?.liked_count || 0 }} 次</el-descriptions-item>
+          <el-descriptions-item label="被收藏">{{ detail.interaction_stats?.favorited_count || 0 }} 次</el-descriptions-item>
+          <el-descriptions-item label="被解锁">{{ detail.interaction_stats?.unlocked_count || 0 }} 次</el-descriptions-item>
+          <el-descriptions-item label="可用免费券">{{ detail.coupon_summary?.unused_count || 0 }} 张</el-descriptions-item>
+        </el-descriptions>
+
+        <div class="detail-section">
+          <div class="section-title">最近行为</div>
+          <el-table :data="detail.recent_actions || []" border size="small">
+            <el-table-column label="行为" min-width="120">
+              <template #default="{ row }">{{ actionLabel(row.action_type) }}</template>
+            </el-table-column>
+            <el-table-column prop="viewer_user_id" label="操作用户ID" width="120" />
+            <el-table-column prop="occurred_at" label="时间" min-width="170" />
+          </el-table>
+        </div>
+
         <div class="detail-section">
           <div class="section-title">觅AI印象</div>
           <div class="ai-profile-box">
@@ -231,6 +249,23 @@ function aiSourceLabel(value?: string) {
       register: "小程序注册",
       admin_update: "后台资料维护",
       deep_interview: "红娘深访",
+    } as Record<string, string>
+  )[value || ""] || value || "-";
+}
+
+function actionLabel(value?: string) {
+  return (
+    {
+      view: "浏览详情",
+      view_invisible: "浏览隐身资料",
+      like: "喜欢",
+      cancel_like: "取消喜欢",
+      favorite: "收藏",
+      cancel_favorite: "取消收藏",
+      unlock_heartbeat_attempt: "尝试心动值解锁",
+      unlock_coupon_attempt: "尝试免费券解锁",
+      unlock_pay_attempt: "尝试付费解锁",
+      unlock_success: "解锁成功",
     } as Record<string, string>
   )[value || ""] || value || "-";
 }

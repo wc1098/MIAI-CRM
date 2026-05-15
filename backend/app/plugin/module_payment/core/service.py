@@ -210,7 +210,7 @@ class PaymentService:
                     "pay_payload": None,
                     "wechat_pay": None,
                     "paid": True,
-                    "message": "订单已支付，已同步报名状态",
+                    "message": "订单已支付，已同步业务状态",
                 }
             raise
         payment.raw_response = response
@@ -370,3 +370,7 @@ class PaymentService:
             from app.plugin.module_mp.event.service import MpEventService
 
             await MpEventService.on_payment_success(db, order)
+        elif order.biz_type == "contact_unlock":
+            from app.plugin.module_mp.plaza.service import MpPlazaService
+
+            await MpPlazaService.on_payment_success(db, order)

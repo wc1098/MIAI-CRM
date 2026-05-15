@@ -230,5 +230,205 @@
     "config_type": true,
     "status": "0",
     "description": "小程序注册后是否自动创建或更新CRM总部线索池线索"
+  },
+  {
+    "config_name": "广场展示待绑定用户",
+    "config_key": "miniprogram.plaza.show_pending_users",
+    "config_value": "false",
+    "config_type": true,
+    "status": "0",
+    "description": "开启后，后台同步进小程序但尚未微信绑定/注册的待绑定用户也会展示在广场"
+  },
+  {
+    "config_name": "联系方式解锁价格",
+    "config_key": "miniprogram.unlock.contact_price",
+    "config_value": "19.90",
+    "config_type": true,
+    "status": "0",
+    "description": "小程序用户详情页付费解锁手机号价格"
+  },
+  {
+    "config_name": "允许免费券解锁",
+    "config_key": "miniprogram.unlock.allow_coupon",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "是否允许用户使用免费券解锁联系方式"
+  },
+  {
+    "config_name": "默认收款门店",
+    "config_key": "miniprogram.unlock.default_store_id",
+    "config_value": "",
+    "config_type": true,
+    "status": "0",
+    "description": "小程序品牌级付费订单默认收款门店ID，留空时使用第一个可用门店"
+  },
+  {
+    "config_name": "初始心动值下限",
+    "config_key": "miniprogram.heartbeat.initial_min",
+    "config_value": "35",
+    "config_type": true,
+    "status": "0",
+    "description": "用户首次进入某个目标详情时生成的心动值下限"
+  },
+  {
+    "config_name": "初始心动值上限",
+    "config_key": "miniprogram.heartbeat.initial_max",
+    "config_value": "55",
+    "config_type": true,
+    "status": "0",
+    "description": "用户首次进入某个目标详情时生成的心动值上限"
+  },
+  {
+    "config_name": "浏览加分",
+    "config_key": "miniprogram.heartbeat.view_score",
+    "config_value": "1",
+    "config_type": true,
+    "status": "0",
+    "description": "查看详情时增加的心动值"
+  },
+  {
+    "config_name": "喜欢加分",
+    "config_key": "miniprogram.heartbeat.like_score",
+    "config_value": "8",
+    "config_type": true,
+    "status": "0",
+    "description": "喜欢目标用户时增加的心动值"
+  },
+  {
+    "config_name": "收藏加分",
+    "config_key": "miniprogram.heartbeat.favorite_score",
+    "config_value": "5",
+    "config_type": true,
+    "status": "0",
+    "description": "收藏目标用户时增加的心动值"
+  },
+  {
+    "config_name": "资料完整加分",
+    "config_key": "miniprogram.heartbeat.profile_score",
+    "config_value": "0",
+    "config_type": true,
+    "status": "0",
+    "description": "预留：资料完整度带来的心动值加分"
+  },
+  {
+    "config_name": "心动值解锁阈值",
+    "config_key": "miniprogram.heartbeat.unlock_score",
+    "config_value": "100",
+    "config_type": true,
+    "status": "0",
+    "description": "达到该心动值后可解锁目标手机号"
+  },
+  {
+    "config_name": "免费券启用",
+    "config_key": "miniprogram.coupon.enabled",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "是否启用小程序联系方式解锁免费券"
+  },
+  {
+    "config_name": "免费券名称",
+    "config_key": "miniprogram.coupon.name",
+    "config_value": "联系方式解锁券",
+    "config_type": true,
+    "status": "0",
+    "description": "admin发放免费券时使用的默认名称"
+  },
+  {
+    "config_name": "免费券有效天数",
+    "config_key": "miniprogram.coupon.valid_days",
+    "config_value": "7",
+    "config_type": true,
+    "status": "0",
+    "description": "admin发放免费券时默认有效天数"
+  },
+  {
+    "config_name": "免费券说明",
+    "config_key": "miniprogram.coupon.description",
+    "config_value": "可免费解锁一次心仪用户手机号",
+    "config_type": true,
+    "status": "0",
+    "description": "小程序端免费券说明"
+  },
+  {
+    "config_name": "联系方式允许付费补足",
+    "config_key": "miniprogram.unlock.allow_paid_boost",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "联系方式允许付费补足"
+  },
+  {
+    "config_name": "联系方式允许任务免费解锁",
+    "config_key": "miniprogram.unlock.allow_task_free",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "联系方式允许任务免费解锁"
+  },
+  {
+    "config_name": "联系方式每日解锁上限",
+    "config_key": "miniprogram.unlock.daily_limit",
+    "config_value": "5",
+    "config_type": true,
+    "status": "0",
+    "description": "联系方式每日解锁上限"
+  },
+  {
+    "config_name": "免费券连续任务周期",
+    "config_key": "miniprogram.coupon.cycle_days",
+    "config_value": "2",
+    "config_type": true,
+    "status": "0",
+    "description": "免费券连续任务周期"
+  },
+  {
+    "config_name": "免费券持有上限",
+    "config_key": "miniprogram.coupon.hold_limit",
+    "config_value": "1",
+    "config_type": true,
+    "status": "0",
+    "description": "免费券持有上限"
+  },
+  {
+    "config_name": "解锁进度页文案",
+    "config_key": "miniprogram.copy.progress",
+    "config_value": "完成互动任务提升心动值，达到目标后即可查看手机号。",
+    "config_type": true,
+    "status": "0",
+    "description": "解锁进度页文案"
+  },
+  {
+    "config_name": "解锁最后一步文案",
+    "config_key": "miniprogram.copy.final",
+    "config_value": "解锁后可查看对方手机号，本次解锁后可重复查看，不重复收费。",
+    "config_type": true,
+    "status": "0",
+    "description": "解锁最后一步文案"
+  },
+  {
+    "config_name": "解锁支付说明文案",
+    "config_key": "miniprogram.copy.pay",
+    "config_value": "付费补足会直接加满当前心动值并解锁手机号。",
+    "config_type": true,
+    "status": "0",
+    "description": "解锁支付说明文案"
+  },
+  {
+    "config_name": "手机号展示提示",
+    "config_key": "miniprogram.copy.contact",
+    "config_value": "请真诚沟通，尊重对方意愿；若对方明确拒绝，请停止打扰。",
+    "config_type": true,
+    "status": "0",
+    "description": "手机号展示提示"
+  },
+  {
+    "config_name": "解锁风控提示",
+    "config_key": "miniprogram.copy.risk",
+    "config_value": "今日解锁次数已用完，请明天再试。",
+    "config_type": true,
+    "status": "0",
+    "description": "解锁风控提示"
   }
 ]

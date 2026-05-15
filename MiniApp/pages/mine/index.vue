@@ -38,6 +38,11 @@ export default {
 	onShow() {
 		this.loadMe()
 	},
+	onPullDownRefresh() {
+		this.loadMe().finally(() => {
+			uni.stopPullDownRefresh()
+		})
+	},
 	methods: {
 		goRegister() {
 			uni.navigateTo({ url: '/pages/register/index' })

@@ -153,7 +153,7 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
         existing = None
         if node.get("route_path"):
             existing = menus_by_route.get(node["route_path"])
-        if existing is None and node.get("permission"):
+        if existing is None and not node.get("route_path") and node.get("permission"):
             existing = menus_by_permission.get(node["permission"])
         if existing is not None:
             menus_by_key[key] = existing

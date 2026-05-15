@@ -264,6 +264,11 @@ export default {
 	onShow() {
 		this.fetchDetail()
 	},
+	onPullDownRefresh() {
+		this.fetchDetail().finally(() => {
+			uni.stopPullDownRefresh()
+		})
+	},
 	onShareAppMessage() {
 		return {
 			title: this.event.title || '觅AI 活动详情',

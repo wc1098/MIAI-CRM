@@ -22,13 +22,24 @@
     "description": "小程序活动报名、签到等活动来源事件。"
   },
   {
+    "channel_code": "MINIAPP_CONTACT_UNLOCK",
+    "channel_name": "联系方式解锁",
+    "channel_type": "miniprogram",
+    "source_system": "miniapp",
+    "external_code": null,
+    "landing_url": null,
+    "sort": 3,
+    "status": "0",
+    "description": "小程序用户解锁联系方式产生的来源事件。"
+  },
+  {
     "channel_code": "MANUAL_CREATE",
     "channel_name": "人工录入",
     "channel_type": "manual",
     "source_system": "admin",
     "external_code": null,
     "landing_url": null,
-    "sort": 3,
+    "sort": 4,
     "status": "0",
     "description": "后台人工录入入口。"
   },
@@ -39,7 +50,7 @@
     "source_system": "admin",
     "external_code": null,
     "landing_url": null,
-    "sort": 4,
+    "sort": 5,
     "status": "0",
     "description": "后台批量导入入口。"
   },
@@ -50,7 +61,7 @@
     "source_system": "external",
     "external_code": null,
     "landing_url": null,
-    "sort": 5,
+    "sort": 6,
     "status": "0",
     "description": "外部系统推送预留入口，第一版不开放推送线索接口。"
   }

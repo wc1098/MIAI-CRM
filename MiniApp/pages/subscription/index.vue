@@ -7,6 +7,14 @@
 	</view>
 </template>
 
+<script>
+export default {
+	onPullDownRefresh() {
+		uni.stopPullDownRefresh()
+	},
+}
+</script>
+
 <style>
 .title,
 .desc {

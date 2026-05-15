@@ -477,6 +477,8 @@ const phrases = ["已电话沟通，客户有初步意向。", "微信已添加�
 const sourceFallbackLabels: Record<string, string> = {
   "1": "小程序注册用户",
   MINIAPP_REGISTER: "小程序注册",
+  MINIAPP_EVENT: "小程序活动",
+  MINIAPP_CONTACT_UNLOCK: "联系方式解锁",
   MANUAL_CREATE: "人工录入",
   IMPORT: "批量导入",
   EXTERNAL_PUSH: "外部推送",
@@ -827,6 +829,7 @@ function actionLabel(value: string) {
       register: "小程序注册",
       event_register: "活动报名",
       event_checkin: "活动签到",
+      contact_unlock: "联系方式解锁",
       follow: "普通跟进",
       invalid: "标记无效",
       release: "释放线索",

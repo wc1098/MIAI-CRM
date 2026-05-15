@@ -315,6 +315,11 @@ export default {
 	onReachBottom() {
 		this.loadMore()
 	},
+	onPullDownRefresh() {
+		this.fetchList(true).finally(() => {
+			uni.stopPullDownRefresh()
+		})
+	},
 	methods: {
 		async bootstrap() {
 			if (this.bootstrapping) return
@@ -470,8 +475,9 @@ export default {
 			this.filters = defaultFilters()
 			this.reload()
 		},
-		openProfile() {
-			uni.showToast({ title: '用户详情页后续开放', icon: 'none' })
+		openProfile(item) {
+			if (!item || !item.display_no) return
+			uni.navigateTo({ url: `/pages/plaza/detail/index?display_no=${item.display_no}` })
 		},
 		ageText(age) {
 			return age ? `${age}岁` : '年龄待补充'
