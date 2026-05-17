@@ -12,6 +12,9 @@ from app.api.v1.module_system.auth.schema import AuthSchema
 from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.user.model import UserModel
 from app.core.exceptions import CustomException
+from app.plugin.module_crm.preference.schema import PartnerPreferenceSaveSchema
+from app.plugin.module_crm.preference.service import PartnerPreferenceService
+from app.plugin.module_match.service import MatchProfileService
 from app.plugin.module_mp.auth.model import MiniProgramUserModel
 from app.plugin.module_profile_ai.service import PersonAiProfileService
 from app.utils.excel_util import ExcelUtil
@@ -226,6 +229,7 @@ class LeadService:
         user_names = await cls._user_names(auth, {lead.owner_sales_id for lead in leads if lead.owner_sales_id})
         dept_names = await cls._dept_names(auth, {lead.store_id for lead in leads if lead.store_id})
         ai_profile_map = await PersonAiProfileService.admin_info_map(auth.db, {lead.person_id for lead in leads})
+        preference_map = await PartnerPreferenceService.map_current(auth.db, {lead.person_id for lead in leads})
         data = []
         for lead in leads:
             item = LeadOutSchema.model_validate(lead).model_dump()
@@ -248,6 +252,7 @@ class LeadService:
                 item["person"]["primary_mobile"] = item["mobile_masked"]
                 item["person"]["wechat"] = item["wechat_masked"]
             item["ai_profile"] = ai_profile_map.get(lead.person_id, {"profile": None, "latest_task": None})
+            item["partner_preference"] = preference_map.get(lead.person_id)
             data.append(item)
         return data
 
@@ -482,6 +487,7 @@ class LeadService:
         data["lifecycle_records"] = [
             LeadLifecycleOutSchema.model_validate(row).model_dump() for row in lifecycle_result.scalars().all()
         ]
+        data["partner_preference_versions"] = await PartnerPreferenceService.versions_out(auth.db, lead.person_id, 10)
         return LeadDetailOutSchema.model_validate(data).model_dump()
 
     @classmethod
@@ -570,7 +576,7 @@ class LeadService:
             lead,
             "create",
             {"pool_type": pool_type, "store_id": store_id, "owner_sales_id": owner_sales_id},
-            data.description,
+            data.description or "后台新增线索",
         )
         if data.sync_to_miniprogram:
             mp_user = await cls._sync_person_to_miniprogram_user(auth, person)
@@ -581,10 +587,24 @@ class LeadService:
                 {"mp_user_id": mp_user.id, "person_id": person.id, "mobile": person.primary_mobile},
                 "后台新增线索同步为小程序待绑定用户",
             )
+        if data.partner_preference:
+            await PartnerPreferenceService.save(
+                auth.db,
+                person.id,
+                PartnerPreferenceSaveSchema(**data.partner_preference.model_dump(), source_type="admin", source_id=str(lead.id)),
+                auth=auth,
+            )
         await PersonAiProfileService.enqueue_miai_impression(
             db=auth.db,
             person_id=person.id,
             source_type="admin_update",
+            source_id=lead.id,
+        )
+        await MatchProfileService.mark_dirty(
+            db=auth.db,
+            person_id=person.id,
+            dirty_parts=["self_profile", "preference"],
+            source_type="admin_lead_create",
             source_id=lead.id,
         )
         await auth.db.flush()
@@ -622,14 +642,14 @@ class LeadService:
             )
             if exists.scalars().first():
                 raise CustomException(msg="更新失败，手机号已存在")
-        for field, value in data.model_dump(exclude={"source_channel_code", "description"}).items():
+        for field, value in data.model_dump(exclude={"source_channel_code", "description", "partner_preference"}).items():
             target = "primary_mobile" if field == "mobile" else field
             setattr(lead.person, target, value)
         old_source_channel_code = lead.source_channel_code
         old_description = lead.description
         cls._stamp_update(auth, lead.person)
         cls._stamp_update(auth, lead)
-        new = data.model_dump(exclude={"source_channel_code", "description"})
+        new = data.model_dump(exclude={"source_channel_code", "description", "partner_preference"})
         changes = {
             field: {"from": old.get(field), "to": new.get(field)}
             for field in new
@@ -639,6 +659,14 @@ class LeadService:
             changes["source_channel_code"] = {"from": old_source_channel_code, "to": data.source_channel_code}
         lead.source_channel_code = data.source_channel_code
         lead.description = data.description
+        if data.partner_preference is not None:
+            await PartnerPreferenceService.save(
+                auth.db,
+                lead.person_id,
+                PartnerPreferenceSaveSchema(**data.partner_preference.model_dump(), source_type="admin", source_id=str(lead.id)),
+                auth=auth,
+            )
+            changes["partner_preference"] = {"from": "updated", "to": "updated"}
         if data.description != old_description:
             changes["description"] = {"from": old_description, "to": data.description}
         if changes:
@@ -649,6 +677,15 @@ class LeadService:
                 source_type="admin_update",
                 source_id=lead.id,
             )
+            base_change_fields = set(changes) - {"partner_preference", "description", "source_channel_code"}
+            if base_change_fields:
+                await MatchProfileService.mark_dirty(
+                    db=auth.db,
+                    person_id=lead.person_id,
+                    dirty_parts=["self_profile"],
+                    source_type="admin_lead_update",
+                    source_id=lead.id,
+                )
         await auth.db.flush()
         await auth.db.refresh(lead)
         return (await cls._decorate_list(auth, [lead]))[0]

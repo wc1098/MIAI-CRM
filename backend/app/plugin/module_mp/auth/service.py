@@ -20,6 +20,7 @@ from app.plugin.module_crm.lead.model import (
     CrmLeadProfileModel,
     CrmPersonModel,
 )
+from app.plugin.module_match.service import MatchProfileService
 from app.plugin.module_profile_ai.service import PersonAiProfileService
 from app.utils.upload_util import UploadUtil
 
@@ -440,6 +441,13 @@ class MpAuthService:
             db=db,
             person_id=person.id,
             source_type="register",
+            source_id=event.id,
+        )
+        await MatchProfileService.mark_dirty(
+            db=db,
+            person_id=person.id,
+            dirty_parts=["self_profile", "preference"],
+            source_type="miniapp_register",
             source_id=event.id,
         )
         await db.flush()

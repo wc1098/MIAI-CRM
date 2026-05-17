@@ -36,6 +36,8 @@ pymysql==1.1.2
 python-multipart==0.0.9                # request.form() 对表单进行「解析」时安装
 redis==7.1.0
 rich==13.9.4                           # 终端打印美化
+pgvector==0.4.2                        # PostgreSQL 向量类型与相似度查询
+sentence-transformers==5.1.2           # 本地 text2vec embedding 模型
 tomli>=2.0.1; python_version < "3.11"  # 解析 plugin.toml（3.11+ 用标准库 tomllib）
 sqlalchemy==2.0.45                     # 数据库ORM
 sqlglot[rs]==27.8.0                   # sql 解析

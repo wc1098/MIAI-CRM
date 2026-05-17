@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.params.model import ParamsModel
 from app.core.exceptions import CustomException
 from app.plugin.module_crm.lead.model import CrmLeadProfileModel, CrmPersonModel
+from app.plugin.module_crm.preference.service import PartnerPreferenceService
 from app.plugin.module_mp.auth.model import MiniProgramUserModel, SourceEventModel
 from app.plugin.module_mp.plaza.model import (
     MpContactUnlockModel,
@@ -25,9 +26,9 @@ from .schema import (
     MpActionQueryParam,
     MpCouponGrantSchema,
     MpCouponQueryParam,
-    MpQuestionUpsertSchema,
     MpOperationSettingsSchema,
     MpPersonBriefSchema,
+    MpQuestionUpsertSchema,
     MpTaskUpsertSchema,
     MpUnlockRecordQueryParam,
     MpUnlockRevokeSchema,
@@ -120,6 +121,7 @@ class MpAdminService:
             for person_id, lead_id in lead_rows.all():
                 lead_map.setdefault(person_id, lead_id)
         ai_profile_map = await PersonAiProfileService.admin_info_map(db, person_id_set)
+        preference_map = await PartnerPreferenceService.map_current(db, person_id_set)
 
         event_count_map: dict[int, int] = {}
         event_rows = await db.execute(
@@ -186,6 +188,7 @@ class MpAdminService:
                     source_event_count=event_count_map.get(user.id, 0),
                     person=person_data,
                     ai_profile=ai_profile_map.get(user.person_id or 0, {"profile": None, "latest_task": None}),
+                    partner_preference=preference_map.get(user.person_id or 0),
                     interaction_stats={
                         "liked_count": like_count_map.get(user.id, 0),
                         "favorited_count": favorite_count_map.get(user.id, 0),
@@ -247,7 +250,7 @@ class MpAdminService:
                 ParamsModel.is_deleted == False,
             )
         )
-        raw.update({key: value for key, value in rows.all()})
+        raw.update(dict(rows.all()))
         for key, value in DEFAULT_SETTINGS.items():
             raw.setdefault(key, value)
         default_store_id = cls._to_int(raw.get("miniprogram.unlock.default_store_id"))
@@ -591,27 +594,52 @@ class MpAdminService:
 
     @classmethod
     async def page_unlock_records(cls, db, page_no: int, page_size: int, search: MpUnlockRecordQueryParam | None = None) -> dict:
+        viewer_user = aliased(MiniProgramUserModel)
+        target_user = aliased(MiniProgramUserModel)
+        viewer_person = aliased(CrmPersonModel)
+        target_person = aliased(CrmPersonModel)
         conditions = [MpContactUnlockModel.is_deleted == False]
         stmt = (
             select(
                 MpContactUnlockModel,
-                MiniProgramUserModel,
-                CrmPersonModel,
+                viewer_user,
+                viewer_person,
+                target_user,
+                target_person,
                 func.count(MpContactViewLogModel.id),
                 func.max(MpContactViewLogModel.viewed_at),
             )
-            .join(MiniProgramUserModel, MpContactUnlockModel.target_user_id == MiniProgramUserModel.id)
-            .outerjoin(CrmPersonModel, MiniProgramUserModel.person_id == CrmPersonModel.id)
+            .join(viewer_user, MpContactUnlockModel.viewer_user_id == viewer_user.id)
+            .outerjoin(viewer_person, viewer_user.person_id == viewer_person.id)
+            .join(target_user, MpContactUnlockModel.target_user_id == target_user.id)
+            .outerjoin(target_person, target_user.person_id == target_person.id)
             .outerjoin(MpContactViewLogModel, MpContactViewLogModel.unlock_id == MpContactUnlockModel.id)
-            .group_by(MpContactUnlockModel.id, MiniProgramUserModel.id, CrmPersonModel.id)
+            .group_by(MpContactUnlockModel.id, viewer_user.id, viewer_person.id, target_user.id, target_person.id)
         )
-        count_stmt = select(func.count(MpContactUnlockModel.id)).join(MiniProgramUserModel, MpContactUnlockModel.target_user_id == MiniProgramUserModel.id).outerjoin(CrmPersonModel, MiniProgramUserModel.person_id == CrmPersonModel.id)
+        count_stmt = (
+            select(func.count(MpContactUnlockModel.id))
+            .join(viewer_user, MpContactUnlockModel.viewer_user_id == viewer_user.id)
+            .outerjoin(viewer_person, viewer_user.person_id == viewer_person.id)
+            .join(target_user, MpContactUnlockModel.target_user_id == target_user.id)
+            .outerjoin(target_person, target_user.person_id == target_person.id)
+        )
         if search:
             if search.unlock_status:
                 conditions.append(MpContactUnlockModel.unlock_status == search.unlock_status)
             if search.keyword:
                 keyword = f"%{search.keyword}%"
-                conditions.append(or_(MiniProgramUserModel.nickname.like(keyword), MiniProgramUserModel.mobile.like(keyword), CrmPersonModel.name.like(keyword), CrmPersonModel.display_no.like(keyword)))
+                conditions.append(
+                    or_(
+                        viewer_user.nickname.like(keyword),
+                        viewer_user.mobile.like(keyword),
+                        viewer_person.name.like(keyword),
+                        viewer_person.display_no.like(keyword),
+                        target_user.nickname.like(keyword),
+                        target_user.mobile.like(keyword),
+                        target_person.name.like(keyword),
+                        target_person.display_no.like(keyword),
+                    )
+                )
         total = (await db.execute(count_stmt.where(and_(*conditions)))).scalar() or 0
         rows = (
             await db.execute(
@@ -631,9 +659,13 @@ class MpAdminService:
                     "id": unlock.id,
                     "viewer_user_id": unlock.viewer_user_id,
                     "target_user_id": unlock.target_user_id,
-                    "target_display_no": person.display_no if person else None,
-                    "target_name": person.name if person else None,
-                    "target_nickname": user.nickname,
+                    "viewer_display_no": viewer_person_row.display_no if viewer_person_row else None,
+                    "viewer_name": viewer_person_row.name if viewer_person_row else None,
+                    "viewer_nickname": viewer_user_row.nickname,
+                    "viewer_mobile": viewer_user_row.mobile,
+                    "target_display_no": target_person_row.display_no if target_person_row else None,
+                    "target_name": target_person_row.name if target_person_row else None,
+                    "target_nickname": target_user_row.nickname,
                     "unlock_source": unlock.unlock_source,
                     "unlock_method": unlock.unlock_method,
                     "unlock_status": unlock.unlock_status,
@@ -646,7 +678,7 @@ class MpAdminService:
                     "view_count": int(view_count or 0),
                     "last_viewed_at": last_viewed_at,
                 }
-                for unlock, user, person, view_count, last_viewed_at in rows
+                for unlock, viewer_user_row, viewer_person_row, target_user_row, target_person_row, view_count, last_viewed_at in rows
             ],
         }
 

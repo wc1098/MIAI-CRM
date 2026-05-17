@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.base_schema import BaseSchema
 from app.core.validator import DateTimeStr
+from app.plugin.module_crm.preference.schema import PartnerPreferenceOutSchema
 
 
 class MpPersonBriefSchema(BaseModel):
@@ -50,6 +51,7 @@ class MpUserOutSchema(BaseSchema):
     source_event_count: int = Field(default=0, description="来源事件数")
     person: MpPersonBriefSchema | None = Field(default=None, description="人员摘要")
     ai_profile: dict | None = Field(default=None, description="觅AI印象摘要")
+    partner_preference: PartnerPreferenceOutSchema | None = Field(default=None, description="择偶要求")
     interaction_stats: dict | None = Field(default=None, description="互动统计")
     recent_actions: list[dict] = Field(default_factory=list, description="最近行为")
     coupon_summary: dict | None = Field(default=None, description="免费券摘要")
@@ -169,3 +171,4 @@ class MpUnlockRecordQueryParam:
 class MpUnlockRevokeSchema(BaseModel):
     status: str = Field(..., pattern="^(revoked|blocked)$", description="处理状态")
     reason: str | None = Field(default=None, max_length=500, description="原因")
+

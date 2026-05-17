@@ -126,6 +126,27 @@
         </el-descriptions>
 
         <div class="detail-section">
+          <div class="section-title">择偶要求</div>
+          <el-descriptions v-if="detail.partner_preference" :column="2" border>
+            <el-descriptions-item label="年龄范围">{{ rangeLabel(detail.partner_preference.age_min, detail.partner_preference.age_max, "岁") }}</el-descriptions-item>
+            <el-descriptions-item label="身高范围">{{ rangeLabel(detail.partner_preference.height_min_cm, detail.partner_preference.height_max_cm, "cm") }}</el-descriptions-item>
+            <el-descriptions-item label="常驻地">{{ listLabel(detail.partner_preference.preferred_residence_region_codes) }}</el-descriptions-item>
+            <el-descriptions-item label="籍贯">{{ listLabel(detail.partner_preference.preferred_hometown_region_codes) }}</el-descriptions-item>
+            <el-descriptions-item label="学历">{{ dictLabels("education", detail.partner_preference.preferred_education_codes) }}</el-descriptions-item>
+            <el-descriptions-item label="婚况">{{ dictLabels("maritalStatus", detail.partner_preference.preferred_marital_status_codes) }}</el-descriptions-item>
+            <el-descriptions-item label="年收入">{{ dictLabels("annualIncome", detail.partner_preference.preferred_annual_income_codes) }}</el-descriptions-item>
+            <el-descriptions-item label="房产">{{ dictLabels("houseStatus", detail.partner_preference.preferred_house_status_codes) }}</el-descriptions-item>
+            <el-descriptions-item label="车辆">{{ dictLabels("carStatus", detail.partner_preference.preferred_car_status_codes) }}</el-descriptions-item>
+            <el-descriptions-item label="接受异地">{{ boolLabel(detail.partner_preference.accept_long_distance) }}</el-descriptions-item>
+            <el-descriptions-item label="接受离异">{{ boolLabel(detail.partner_preference.accept_divorced) }}</el-descriptions-item>
+            <el-descriptions-item label="接受有子女">{{ boolLabel(detail.partner_preference.accept_children) }}</el-descriptions-item>
+            <el-descriptions-item label="子女说明">{{ detail.partner_preference.children_requirement || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="来源">{{ preferenceSourceLabel(detail.partner_preference.source_type) }}</el-descriptions-item>
+          </el-descriptions>
+          <el-empty v-else description="暂无择偶要求" :image-size="72" />
+        </div>
+
+        <div class="detail-section">
           <div class="section-title">最近行为</div>
           <el-table :data="detail.recent_actions || []" border size="small">
             <el-table-column label="行为" min-width="120">
@@ -204,7 +225,6 @@ const dictOptions = reactive({
   houseStatus: [] as Array<{ label: string; value: string }>,
   carStatus: [] as Array<{ label: string; value: string }>,
 });
-
 function genderLabel(value?: string) {
   const map: Record<string, string> = { "0": "男", "1": "女", "2": "未知" };
   return value ? map[value] || value : "-";
@@ -217,6 +237,40 @@ function eventCountLabel(value?: number) {
 function dictLabel(type: keyof typeof dictOptions, value?: string) {
   if (!value) return "-";
   return dictOptions[type].find((item) => item.value === value)?.label || value;
+}
+
+function dictLabels(type: keyof typeof dictOptions, values?: string[]) {
+  if (!values?.length) return "不限";
+  return values.map((value) => dictLabel(type, value)).join("、");
+}
+
+function listLabel(values?: string[]) {
+  return values?.length ? values.join("、") : "不限";
+}
+
+function rangeLabel(min?: number, max?: number, unit = "") {
+  if (!min && !max) return "不限";
+  if (min && max) return `${min}-${max}${unit}`;
+  if (min) return `${min}${unit}以上`;
+  return `${max}${unit}以下`;
+}
+
+function boolLabel(value?: boolean | null) {
+  if (value === true) return "接受";
+  if (value === false) return "不接受";
+  return "不限";
+}
+
+function preferenceSourceLabel(value?: string) {
+  return (
+    {
+      miniapp: "小程序",
+      admin: "后台",
+      matchmaker: "红娘",
+      deep_interview: "深访",
+      import: "导入",
+    } as Record<string, string>
+  )[value || ""] || value || "-";
 }
 
 function aiStatusLabel(value?: string) {

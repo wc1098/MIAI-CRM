@@ -1,0 +1,551 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>觅AI - 订阅推荐</title>
+  <style>
+    :root {
+      --bg: oklch(97% 0.014 74);
+      --surface: oklch(99% 0.006 74);
+      --surface-2: oklch(95% 0.014 72);
+      --fg: oklch(22% 0.018 56);
+      --muted: oklch(52% 0.018 56);
+      --border: oklch(89% 0.012 74);
+      --accent: oklch(62% 0.13 24);
+      --accent-soft: oklch(94% 0.04 24);
+      --gold: oklch(73% 0.08 82);
+      --wine: oklch(31% 0.07 24);
+      --green: oklch(52% 0.09 150);
+      --font-display: "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--fg);
+      font-family: var(--font-body);
+      background:
+        radial-gradient(circle at 50% 0%, oklch(88% 0.044 28 / .44), transparent 36%),
+        linear-gradient(180deg, oklch(18% 0.014 56), oklch(12% 0.012 56));
+    }
+    button { font: inherit; }
+    .showcase { width: min(100%, 430px); display: grid; gap: 12px; }
+    .caption {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 8px;
+      color: oklch(91% 0.012 74);
+      font: 650 11px/1 var(--font-mono);
+      letter-spacing: .08em;
+      opacity: .86;
+    }
+    .phone {
+      width: 390px;
+      max-width: calc(100vw - 28px);
+      height: 844px;
+      margin: 0 auto;
+      padding: 10px;
+      border-radius: 42px;
+      background: #080807;
+      box-shadow: 0 28px 70px rgba(0,0,0,.42);
+      position: relative;
+    }
+    .screen {
+      height: 100%;
+      overflow: hidden;
+      border-radius: 33px;
+      background: radial-gradient(circle at 90% 4%, oklch(94% 0.03 28 / .75), transparent 24%), var(--bg);
+      position: relative;
+    }
+    .island {
+      position: absolute;
+      z-index: 20;
+      top: 10px;
+      left: 50%;
+      width: 114px;
+      height: 32px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: #090908;
+    }
+    .statusbar {
+      height: 50px;
+      padding: 13px 20px 0;
+      display: flex;
+      justify-content: space-between;
+      color: var(--fg);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .wx-capsule {
+      width: 84px;
+      height: 29px;
+      border: 1px solid color-mix(in oklch, var(--fg) 14%, transparent);
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: space-evenly;
+      background: color-mix(in oklch, var(--surface) 78%, transparent);
+      backdrop-filter: blur(14px);
+    }
+    .dot-row { display: flex; gap: 3px; }
+    .dot-row i { width: 3.5px; height: 3.5px; display: block; border-radius: 50%; background: currentColor; }
+    .capsule-line { width: 1px; height: 15px; background: var(--border); }
+    .ring { width: 14px; height: 14px; border: 1.7px solid currentColor; border-radius: 50%; }
+    .content {
+      height: calc(100% - 50px);
+      overflow-y: auto;
+      padding: 14px 14px calc(156px + env(safe-area-inset-bottom));
+      scrollbar-width: none;
+    }
+    .content::-webkit-scrollbar { display: none; }
+    .top { padding: 4px 2px 14px; display: grid; gap: 12px; }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .brand-mark {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: white;
+      background: var(--accent);
+      font: 700 13px/1 var(--font-display);
+    }
+    h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 34px;
+      line-height: 1.08;
+      letter-spacing: 0;
+      color: var(--fg);
+    }
+    .lead {
+      margin: -5px 0 0;
+      max-width: 320px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      text-wrap: pretty;
+    }
+    .status-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      width: fit-content;
+      padding: 8px 11px;
+      border: 1px solid color-mix(in oklch, var(--gold) 38%, var(--border));
+      border-radius: 999px;
+      color: var(--wine);
+      background: color-mix(in oklch, var(--gold) 14%, var(--surface));
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .status-note::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--green); }
+    .section {
+      margin-top: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: 0 10px 24px oklch(22% 0.018 56 / .06);
+    }
+    .section h2 { margin: 0 0 10px; font-size: 17px; line-height: 1.35; letter-spacing: 0; }
+    .section p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.58; text-wrap: pretty; }
+    .steps { display: grid; gap: 10px; margin-top: 12px; }
+    .step {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-2);
+    }
+    .step i {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: white;
+      background: var(--wine);
+      font-style: normal;
+      font-weight: 900;
+      font-size: 13px;
+    }
+    .step:nth-child(2) i { background: var(--accent); }
+    .step:nth-child(3) i { background: var(--green); }
+    .step strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .step span { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .preference {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      border-color: color-mix(in oklch, var(--green) 26%, var(--border));
+      background: linear-gradient(135deg, color-mix(in oklch, var(--green) 7%, var(--surface)), var(--surface));
+    }
+    .secondary {
+      height: 36px;
+      border: 1px solid color-mix(in oklch, var(--green) 38%, var(--border));
+      border-radius: 999px;
+      padding: 0 12px;
+      color: var(--green);
+      background: var(--surface);
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+    .plans { display: grid; gap: 11px; margin-top: 12px; }
+    .plan {
+      position: relative;
+      display: grid;
+      gap: 11px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      box-shadow: 0 10px 22px oklch(22% 0.018 56 / .05);
+      cursor: pointer;
+    }
+    .plan.selected {
+      border-color: color-mix(in oklch, var(--accent) 58%, var(--border));
+      background: linear-gradient(135deg, color-mix(in oklch, var(--accent-soft) 58%, var(--surface)), var(--surface));
+    }
+    .corner {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      color: var(--wine);
+      background: color-mix(in oklch, var(--gold) 20%, var(--surface));
+      border: 1px solid color-mix(in oklch, var(--gold) 44%, var(--border));
+      font-size: 11px;
+      font-weight: 900;
+    }
+    .plan-head { display: flex; justify-content: space-between; gap: 12px; padding-right: 58px; }
+    .plan-name { display: grid; gap: 4px; }
+    .plan-name strong { font-size: 16px; }
+    .plan-name span { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .price {
+      text-align: right;
+      color: var(--wine);
+      font-family: var(--font-display);
+      font-size: 28px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .price small {
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 850;
+      vertical-align: 7px;
+    }
+    .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .meta {
+      min-height: 50px;
+      padding: 8px 9px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-2);
+    }
+    .meta span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 750; }
+    .meta b { display: block; font-size: 13px; line-height: 1.25; }
+    .benefit {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.42;
+    }
+    .benefit::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: var(--green);
+    }
+    .buy {
+      height: 42px;
+      border: 0;
+      border-radius: 999px;
+      color: white;
+      background: var(--accent);
+      font-weight: 900;
+      box-shadow: 0 10px 20px color-mix(in oklch, var(--accent) 22%, transparent);
+    }
+    .plan:not(.selected) .buy {
+      color: var(--wine);
+      background: color-mix(in oklch, var(--gold) 14%, var(--surface));
+      border: 1px solid color-mix(in oklch, var(--gold) 38%, var(--border));
+      box-shadow: none;
+    }
+    .purchase-bar {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: calc(82px + env(safe-area-inset-bottom));
+      z-index: 18;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 1px solid color-mix(in oklch, var(--accent) 26%, var(--border));
+      border-radius: 18px;
+      background: color-mix(in oklch, var(--surface) 94%, transparent);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 -10px 24px oklch(22% 0.018 56 / .09);
+    }
+    .selected-summary {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+    .selected-summary span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .selected-summary strong {
+      color: var(--fg);
+      font-size: 14px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .purchase-btn {
+      height: 44px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 18px;
+      color: white;
+      background: var(--accent);
+      font-weight: 900;
+      white-space: nowrap;
+      box-shadow: 0 10px 20px color-mix(in oklch, var(--accent) 24%, transparent);
+    }
+    .fineprint {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px dashed color-mix(in oklch, var(--accent) 32%, var(--border));
+      border-radius: 12px;
+      background: color-mix(in oklch, var(--accent-soft) 46%, var(--surface));
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.58;
+    }
+    .toast {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      bottom: 94px;
+      display: none;
+      z-index: 30;
+      padding: 11px 12px;
+      border-radius: 999px;
+      color: white;
+      background: color-mix(in oklch, var(--fg) 86%, transparent);
+      text-align: center;
+      font-size: 13px;
+      font-weight: 800;
+      backdrop-filter: blur(12px);
+    }
+    .toast.show { display: block; }
+    .tabbar {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      height: calc(72px + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 2px;
+      padding: 9px 10px calc(9px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
+      border-radius: 0 0 33px 33px;
+      background: color-mix(in oklch, var(--surface) 92%, transparent);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 -12px 26px oklch(22% 0.018 56 / .08);
+    }
+    .tab { display: grid; place-items: center; gap: 3px; color: var(--muted); font-size: 10px; font-weight: 750; }
+    .tab svg { width: 21px; height: 21px; stroke-width: 2; }
+    .tab.active { color: var(--accent); }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="showcase" data-od-id="stage">
+    <div class="caption"><span>HI-FI PROTOTYPE · WECHAT MINI PROGRAM</span><span>觅AI</span></div>
+    <section class="phone" data-od-id="phone-frame">
+      <div class="screen" data-od-id="subscription-recommendation">
+        <div class="island"></div>
+        <div class="statusbar" data-od-id="status-bar">
+          <span>9:41</span>
+          <div class="wx-capsule" aria-label="微信小程序菜单">
+            <span class="dot-row"><i></i><i></i><i></i></span><span class="capsule-line"></span><span class="ring"></span>
+          </div>
+        </div>
+        <div class="content" data-od-id="scroll-content">
+          <header class="top" data-od-id="page-header">
+            <span class="brand"><span class="brand-mark">觅</span>觅AI 精准推荐</span>
+            <h1>订阅</h1>
+            <p class="lead">按你的资料和择偶要求，为你临期匹配认真相识的人</p>
+            <span class="status-note">已注册未订阅 · 可随时开通</span>
+          </header>
+
+          <section class="section" data-od-id="mechanism-card">
+            <h2>订阅推荐怎么工作</h2>
+            <p>每一次推荐，都会按你当下的资料、择偶要求和匹配画像重新匹配。不强行凑数，优先保证推荐质量。</p>
+            <div class="steps">
+              <div class="step"><i>1</i><div><strong>购买订阅</strong><span>支付成功后立即开放第 1 位推荐。</span></div></div>
+              <div class="step"><i>2</i><div><strong>临期匹配</strong><span>后续推荐按周期平均开放，开放当天重新匹配。</span></div></div>
+              <div class="step"><i>3</i><div><strong>查看手机号</strong><span>推荐开放后，可直接查看手机号。</span></div></div>
+            </div>
+          </section>
+
+          <section class="section preference" data-od-id="preference-card">
+            <div>
+              <h2>让推荐更贴近你</h2>
+              <p>完善择偶要求后，系统会更清楚你期待遇见什么样的人。</p>
+            </div>
+            <button class="secondary">完善择偶要求</button>
+          </section>
+
+          <section class="section" data-od-id="plans-section">
+            <h2>选择订阅套餐</h2>
+            <p>订阅有效期内，新的推荐会按节奏陆续开放。</p>
+            <div class="plans">
+              <article class="plan" data-plan="月度精准推荐" data-price="¥99" data-od-id="plan-month">
+                <div class="plan-head">
+                  <div class="plan-name"><strong>月度精准推荐</strong><span>30天权益</span></div>
+                  <div class="price"><small>¥</small>99</div>
+                </div>
+                <div class="meta-grid">
+                  <div class="meta"><span>推荐数量</span><b>4 位推荐</b></div>
+                  <div class="meta"><span>开放节奏</span><b>立即开放第1位</b></div>
+                </div>
+                <div class="benefit">开放后可直接查看手机号</div>
+              </article>
+
+              <article class="plan selected" data-plan="季度精准推荐" data-price="¥269" data-od-id="plan-quarter">
+                <span class="corner">推荐</span>
+                <div class="plan-head">
+                  <div class="plan-name"><strong>季度精准推荐</strong><span>90天权益</span></div>
+                  <div class="price"><small>¥</small>269</div>
+                </div>
+                <div class="meta-grid">
+                  <div class="meta"><span>推荐数量</span><b>12 位推荐</b></div>
+                  <div class="meta"><span>开放节奏</span><b>推荐节奏更稳定</b></div>
+                </div>
+                <div class="benefit">开放后可直接查看手机号</div>
+              </article>
+
+              <article class="plan" data-plan="年度精准推荐" data-price="¥999" data-od-id="plan-year">
+                <div class="plan-head">
+                  <div class="plan-name"><strong>年度精准推荐</strong><span>365天权益</span></div>
+                  <div class="price"><small>¥</small>999</div>
+                </div>
+                <div class="meta-grid">
+                  <div class="meta"><span>推荐数量</span><b>48 位推荐</b></div>
+                  <div class="meta"><span>适合人群</span><b>长期认真寻找</b></div>
+                </div>
+                <div class="benefit">长期认真寻找更从容，开放后可直接查看手机号</div>
+              </article>
+            </div>
+            <div class="fineprint">游客也可以浏览本页，点击购买时会先引导完成注册。订阅推荐是 AI 推荐辅助，不承诺一定匹配成功。</div>
+          </section>
+        </div>
+
+        <div class="toast" id="toast" role="status">已选择季度精准推荐</div>
+
+        <div class="purchase-bar" data-od-id="purchase-bar">
+          <div class="selected-summary">
+            <span>当前选择</span>
+            <strong id="selectedPlan">季度精准推荐 · ¥269</strong>
+          </div>
+          <button class="purchase-btn" id="purchaseBtn">购买订阅</button>
+        </div>
+
+        <nav class="tabbar" aria-label="底部导航" data-od-id="tabbar">
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5h16M4 12h16M4 19h16"/><path d="M8 3v4M16 10v4M11 17v4"/></svg>
+            <span>广场</span>
+          </div>
+          <div class="tab active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 7h14v12H5z"/><path d="M8 7V5h8v2"/><path d="M8 12h8"/></svg>
+            <span>订阅</span>
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 3v4M17 3v4"/><path d="M4 8h16v12H4z"/><path d="M8 12h3M8 16h5"/></svg>
+            <span>活动</span>
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z"/><path d="m9 12 2 2 4-5"/></svg>
+            <span>认证</span>
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            <span>我的</span>
+          </div>
+        </nav>
+      </div>
+    </section>
+  </main>
+  <script>
+    const plans = Array.from(document.querySelectorAll(".plan"));
+    const toast = document.getElementById("toast");
+    const selectedPlan = document.getElementById("selectedPlan");
+    const purchaseBtn = document.getElementById("purchaseBtn");
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 1600);
+    }
+
+    plans.forEach((plan) => {
+      plan.addEventListener("click", () => {
+        plans.forEach((item) => item.classList.remove("selected"));
+        plan.classList.add("selected");
+        selectedPlan.textContent = `${plan.dataset.plan} · ${plan.dataset.price}`;
+      });
+    });
+    purchaseBtn.addEventListener("click", () => {
+      const selected = document.querySelector(".plan.selected");
+      showToast(`准备购买${selected.dataset.plan}`);
+    });
+  </script>
+</body>
+</html>

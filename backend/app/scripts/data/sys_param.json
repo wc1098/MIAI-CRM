@@ -430,5 +430,141 @@
     "config_type": true,
     "status": "0",
     "description": "解锁风控提示"
+  },
+  {
+    "config_name": "订阅推荐重复排除天数",
+    "config_key": "subscription.repeat_exclude_days",
+    "config_value": "180",
+    "config_type": true,
+    "status": "0",
+    "description": "订阅推荐历史候选重复排除天数"
+  },
+  {
+    "config_name": "订阅每月推荐人数",
+    "config_key": "subscription.monthly_recommend_count",
+    "config_value": "4",
+    "config_type": true,
+    "status": "0",
+    "description": "小程序订阅每月默认推荐槽位数"
+  },
+  {
+    "config_name": "订阅推荐任务扫描间隔秒",
+    "config_key": "subscription.worker.interval_seconds",
+    "config_value": "60",
+    "config_type": true,
+    "status": "0",
+    "description": "订阅推荐定时任务扫描间隔秒，修改后需重启后端服务生效"
+  },
+  {
+    "config_name": "订阅推荐任务批量大小",
+    "config_key": "subscription.worker.batch_size",
+    "config_value": "50",
+    "config_type": true,
+    "status": "0",
+    "description": "订阅推荐定时任务每次最多处理的到期槽位数量"
+  },
+  {
+    "config_name": "订阅待候选重试间隔分钟",
+    "config_key": "subscription.waiting_retry_minutes",
+    "config_value": "30",
+    "config_type": true,
+    "status": "0",
+    "description": "订阅槽位暂无合适候选后，间隔多少分钟再次尝试匹配"
+  },
+  {
+    "config_name": "匹配向量生成开关",
+    "config_key": "match.embedding.enabled",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "是否启用匹配推荐本地向量生成"
+  },
+  {
+    "config_name": "匹配向量提供者",
+    "config_key": "match.embedding.provider",
+    "config_value": "local_text2vec",
+    "config_type": true,
+    "status": "0",
+    "description": "匹配推荐向量提供者"
+  },
+  {
+    "config_name": "本地向量模型路径",
+    "config_key": "match.embedding.model_path",
+    "config_value": "backend/models/text2vec-base-chinese",
+    "config_type": true,
+    "status": "0",
+    "description": "本地 text2vec 模型路径"
+  },
+  {
+    "config_name": "本地向量模型名称",
+    "config_key": "match.embedding.model_name",
+    "config_value": "text2vec-base-chinese",
+    "config_type": true,
+    "status": "0",
+    "description": "匹配推荐向量模型名称"
+  },
+  {
+    "config_name": "匹配向量维度",
+    "config_key": "match.embedding.dimension",
+    "config_value": "768",
+    "config_type": true,
+    "status": "0",
+    "description": "匹配推荐向量维度"
+  },
+  {
+    "config_name": "匹配向量批量大小",
+    "config_key": "match.embedding.batch_size",
+    "config_value": "16",
+    "config_type": true,
+    "status": "0",
+    "description": "匹配推荐向量批量生成大小"
+  },
+  {
+    "config_name": "匹配向量归一化",
+    "config_key": "match.embedding.normalize",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "本地 embedding 是否归一化"
+  },
+  {
+    "config_name": "订阅推荐理由AI润色开关",
+    "config_key": "subscription.reason_polish.enabled",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "是否启用订阅推荐理由AI异步润色"
+  },
+  {
+    "config_name": "订阅理由润色任务扫描间隔秒",
+    "config_key": "subscription.reason_polish.worker_interval_seconds",
+    "config_value": "60",
+    "config_type": true,
+    "status": "0",
+    "description": "订阅推荐理由AI润色任务扫描间隔秒，修改后需重启后端服务生效"
+  },
+  {
+    "config_name": "订阅理由润色任务批量大小",
+    "config_key": "subscription.reason_polish.batch_size",
+    "config_value": "10",
+    "config_type": true,
+    "status": "0",
+    "description": "订阅推荐理由AI润色任务每次最多处理的任务数量"
+  },
+  {
+    "config_name": "订阅理由润色最大Token",
+    "config_key": "subscription.reason_polish.max_tokens",
+    "config_value": "260",
+    "config_type": true,
+    "status": "0",
+    "description": "订阅推荐理由AI润色最大输出Token"
+  },
+  {
+    "config_name": "订阅理由润色温度",
+    "config_key": "subscription.reason_polish.temperature",
+    "config_value": "0.45",
+    "config_type": true,
+    "status": "0",
+    "description": "订阅推荐理由AI润色temperature参数"
   }
 ]

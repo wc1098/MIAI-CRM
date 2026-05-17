@@ -12,7 +12,7 @@
       </template>
 
       <div class="search-bar">
-        <el-input v-model="query.keyword" clearable placeholder="编号/昵称/手机号/姓名" style="width: 240px" @keyup.enter="load" />
+        <el-input v-model="query.keyword" clearable placeholder="解锁人/目标的编号/昵称/手机号/姓名" style="width: 300px" @keyup.enter="load" />
         <el-select v-model="query.unlock_status" clearable placeholder="状态" style="width: 140px">
           <el-option label="成功" value="success" />
           <el-option label="待处理" value="pending" />
@@ -23,8 +23,21 @@
       </div>
 
       <el-table :data="rows" border>
-        <el-table-column prop="target_display_no" label="目标编号" width="120" />
-        <el-table-column prop="target_nickname" label="目标昵称" min-width="120" />
+        <el-table-column label="解锁人" min-width="190">
+          <template #default="{ row }">
+            <div>{{ row.viewer_name || row.viewer_nickname || "-" }}</div>
+            <div class="muted">
+              {{ row.viewer_display_no || `用户ID ${row.viewer_user_id}` }}
+              <span v-if="row.viewer_mobile"> / {{ row.viewer_mobile }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="被解锁目标" min-width="170">
+          <template #default="{ row }">
+            <div>{{ row.target_name || row.target_nickname || "-" }}</div>
+            <div class="muted">{{ row.target_display_no || `用户ID ${row.target_user_id}` }}</div>
+          </template>
+        </el-table-column>
         <el-table-column label="解锁方式" width="120">
           <template #default="{ row }">{{ sourceLabel(row.unlock_source) }}</template>
         </el-table-column>

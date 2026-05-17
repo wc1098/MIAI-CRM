@@ -320,7 +320,25 @@ export default {
 			uni.stopPullDownRefresh()
 		})
 	},
+	onShareAppMessage() {
+		return {
+			title: '觅AI真实用户广场｜遇见认真相识的人',
+			path: '/pages/plaza/index',
+			imageUrl: this.shareImage(),
+		}
+	},
+	onShareTimeline() {
+		return {
+			title: '觅AI真实用户广场｜让相识回到真实与慎重',
+			query: '',
+			imageUrl: this.shareImage(),
+		}
+	},
 	methods: {
+		shareImage() {
+			const first = this.items.find((item) => item && item.avatar_url)
+			return first ? first.avatar_url : undefined
+		},
 		async bootstrap() {
 			if (this.bootstrapping) return
 			this.bootstrapping = true

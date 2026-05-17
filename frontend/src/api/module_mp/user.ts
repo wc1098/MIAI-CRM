@@ -1,5 +1,5 @@
 import request from "@/utils/request";
-import type { AiProfileInfo } from "@/api/module_crm/lead";
+import type { AiProfileInfo, PartnerPreference } from "@/api/module_crm/lead";
 
 const API_PATH = "/mp/admin/user";
 
@@ -111,6 +111,21 @@ const MpUserAPI = {
       params: query,
     });
   },
+
+  matchDebug(query: MatchDebugQuery) {
+    return request<ApiResponse<MatchDebugResult>>({
+      url: "/match/admin/debug/candidates",
+      method: "get",
+      params: query,
+    });
+  },
+
+  rebuildMatchVector(personId: number) {
+    return request<ApiResponse<{ person_id: number }>>({
+      url: `/match/admin/debug/person/${personId}/dirty`,
+      method: "post",
+    });
+  },
 };
 
 export default MpUserAPI;
@@ -157,6 +172,7 @@ export interface MpUserTable extends BaseType {
   source_event_count: number;
   person?: MpUserPerson;
   ai_profile?: AiProfileInfo;
+  partner_preference?: PartnerPreference | null;
   interaction_stats?: {
     liked_count?: number;
     favorited_count?: number;
@@ -240,6 +256,44 @@ export interface MpCouponGrantForm {
   grant_reason?: string;
 }
 
+export interface MatchDebugQuery extends PageQuery {
+  person_id?: number;
+  display_no?: string;
+  scene?: "subscription" | "debug" | "matchmaker_service";
+}
+
+export interface MatchCandidate {
+  person_id: number;
+  display_no?: string;
+  nickname?: string;
+  gender?: string;
+  age?: number;
+  height_cm?: number;
+  residence?: string;
+  education?: string;
+  annual_income?: string;
+  marital_status?: string;
+  match_score: number;
+  rank_score: number;
+  confidence_score: number;
+  structured_score: number;
+  vector_score?: number;
+  vector_status: string;
+  matched_points: string[];
+  risk_points: string[];
+  blocked_reasons: string[];
+  user_reason: string;
+  admin_reason: string;
+}
+
+export interface MatchDebugResult extends PageResult<MatchCandidate[]> {
+  query_person_id: number;
+  query_display_no?: string;
+  scene: string;
+  model_info: Record<string, unknown>;
+  vector_status: Record<string, unknown>;
+}
+
 export interface MpUnlockTask {
   id?: number;
   task_code: string;
@@ -276,6 +330,10 @@ export interface MpUnlockRecord {
   id: number;
   viewer_user_id: number;
   target_user_id: number;
+  viewer_display_no?: string;
+  viewer_name?: string;
+  viewer_nickname?: string;
+  viewer_mobile?: string;
   target_display_no?: string;
   target_name?: string;
   target_nickname?: string;

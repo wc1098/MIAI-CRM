@@ -146,7 +146,25 @@ export default {
 			uni.stopPullDownRefresh()
 		})
 	},
+	onShareAppMessage() {
+		return {
+			title: '觅AI近期活动｜把相识放回真实场景里',
+			path: '/pages/activity/index',
+			imageUrl: this.shareImage(),
+		}
+	},
+	onShareTimeline() {
+		return {
+			title: '觅AI近期活动｜认真相识，从一次见面开始',
+			query: '',
+			imageUrl: this.shareImage(),
+		}
+	},
 	methods: {
+		shareImage() {
+			const first = this.filteredEvents.find((item) => item && item.cover_url)
+			return first ? first.cover_url : undefined
+		},
 		async fetchEvents() {
 			this.loading = true
 			try {

@@ -148,7 +148,7 @@ export default {
 	onShareAppMessage() {
 		if (this.displayNo) this.completeShareTask()
 		return {
-			title: `${this.displayName}的资料`,
+			title: this.profileShareTitle(),
 			path: `/pages/plaza/detail/index?display_no=${this.displayNo}`,
 			imageUrl: this.person.avatar_url || undefined,
 		}
@@ -156,12 +156,21 @@ export default {
 	onShareTimeline() {
 		if (this.displayNo) this.completeShareTask()
 		return {
-			title: `${this.displayName}的资料`,
+			title: this.profileShareTitle(),
 			query: `display_no=${this.displayNo}`,
 			imageUrl: this.person.avatar_url || undefined,
 		}
 	},
 	methods: {
+		profileShareTitle() {
+			const parts = [
+				this.displayName,
+				this.ageText(this.person.age),
+				this.person.annual_income || '收入待补充',
+				this.person.occupation || '职业待补充',
+			].filter((item) => item && item !== '-')
+			return `${parts.join('｜')}，在觅AI认真相识`
+		},
 		async fetchDetail() {
 			if (!this.displayNo) return
 			this.loading = true

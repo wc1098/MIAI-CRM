@@ -8,6 +8,34 @@
 			</view>
 		</view>
 
+		<view v-if="person" class="card menu-card">
+			<view class="menu-head">
+				<text class="title">个人信息维护</text>
+				<text class="desc">完善资料后，后续订阅推荐会更贴近你的期待。</text>
+			</view>
+			<view class="menu-row" @tap="goPreference">
+				<view>
+					<text class="menu-title">择偶要求</text>
+					<text class="menu-desc">年龄、地区、学历、婚况等偏好</text>
+				</view>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-row disabled">
+				<view>
+					<text class="menu-title">个人资料</text>
+					<text class="menu-desc">基础资料维护暂未开放</text>
+				</view>
+				<text class="pill">占位</text>
+			</view>
+			<view class="menu-row disabled">
+				<view>
+					<text class="menu-title">隐身设置</text>
+					<text class="menu-desc">后续在设置中统一维护</text>
+				</view>
+				<text class="pill">占位</text>
+			</view>
+		</view>
+
 		<view v-else class="card">
 			<text class="title">还未注册</text>
 			<text class="desc">完成完整资料后，系统会同步生成 CRM 线索，方便门店及时跟进。</text>
@@ -46,6 +74,9 @@ export default {
 	methods: {
 		goRegister() {
 			uni.navigateTo({ url: '/pages/register/index' })
+		},
+		goPreference() {
+			uni.navigateTo({ url: '/pages/mine/preference' })
 		},
 		async loadMe() {
 			try {
@@ -102,5 +133,61 @@ export default {
 .desc {
 	line-height: 1.6;
 	margin-bottom: 28rpx;
+}
+
+.menu-card {
+	margin-top: 24rpx;
+}
+
+.menu-head {
+	border-bottom: 1rpx solid rgba(91, 68, 58, 0.1);
+	padding-bottom: 18rpx;
+}
+
+.menu-row {
+	align-items: center;
+	border-bottom: 1rpx solid rgba(91, 68, 58, 0.08);
+	display: flex;
+	justify-content: space-between;
+	min-height: 112rpx;
+}
+
+.menu-row:last-child {
+	border-bottom: 0;
+}
+
+.menu-row.disabled {
+	opacity: 0.58;
+}
+
+.menu-title,
+.menu-desc {
+	display: block;
+}
+
+.menu-title {
+	color: #4b342d;
+	font-size: 30rpx;
+	font-weight: 700;
+}
+
+.menu-desc {
+	color: #8d7f78;
+	font-size: 24rpx;
+	margin-top: 8rpx;
+}
+
+.arrow {
+	color: #b85c67;
+	font-size: 52rpx;
+	line-height: 1;
+}
+
+.pill {
+	background: #f3eee7;
+	border-radius: 999rpx;
+	color: #9a8a7f;
+	font-size: 22rpx;
+	padding: 8rpx 18rpx;
 }
 </style>

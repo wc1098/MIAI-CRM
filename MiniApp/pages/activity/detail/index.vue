@@ -271,12 +271,24 @@ export default {
 	},
 	onShareAppMessage() {
 		return {
-			title: this.event.title || '觅AI 活动详情',
+			title: this.eventShareTitle(),
 			path: `/pages/activity/detail/index?id=${this.id}`,
 			imageUrl: this.event.cover_url || undefined,
 		}
 	},
+	onShareTimeline() {
+		return {
+			title: this.eventShareTitle(),
+			query: `id=${this.id}`,
+			imageUrl: this.event.cover_url || undefined,
+		}
+	},
 	methods: {
+		eventShareTitle() {
+			const title = this.event.title || '觅AI线下活动'
+			const time = this.event.start_time ? this.eventTimeText(this.event) : ''
+			return `${title}${time ? `｜${time}` : ''}，认真相识从见面开始`
+		},
 		async fetchDetail() {
 			try {
 				this.event = await eventDetail(this.id)

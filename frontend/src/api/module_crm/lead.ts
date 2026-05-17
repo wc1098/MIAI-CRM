@@ -136,6 +136,60 @@ export interface LeadPerson extends BaseType {
   photo_urls?: string[];
 }
 
+export interface PartnerPreference {
+  id?: number;
+  person_id?: number;
+  age_min?: number;
+  age_max?: number;
+  height_min_cm?: number;
+  height_max_cm?: number;
+  weight_min_kg?: number;
+  weight_max_kg?: number;
+  preferred_residence_region_codes: string[];
+  preferred_hometown_region_codes: string[];
+  preferred_education_codes: string[];
+  preferred_marital_status_codes: string[];
+  preferred_annual_income_codes: string[];
+  preferred_house_status_codes: string[];
+  preferred_car_status_codes: string[];
+  accept_long_distance?: boolean | null;
+  accept_divorced?: boolean | null;
+  accept_children?: boolean | null;
+  children_requirement?: string;
+  preferred_personality_tags: string[];
+  preferred_lifestyle_tags: string[];
+  preferred_relationship_tags: string[];
+  hard_reject_items: string[];
+  soft_preference_items: string[];
+  preferred_occupation_text?: string;
+  preference_text?: string;
+  strictness_level: "loose" | "normal" | "strict";
+  must_match_fields: string[];
+  preferred_match_fields: string[];
+  profile_summary?: string;
+  source_type?: string;
+  source_id?: string;
+  priority?: number;
+  is_effective?: boolean;
+  is_final?: boolean;
+  vector_dirty?: boolean;
+  last_vectorized_at?: string;
+  version_no?: number;
+}
+
+export interface PartnerPreferenceVersion {
+  id?: number;
+  person_id?: number;
+  version_no: number;
+  source_type: string;
+  source_id?: string;
+  priority?: number;
+  is_effective?: boolean;
+  is_final?: boolean;
+  snapshot: Record<string, unknown>;
+  created_time?: string;
+}
+
 export interface AiProfileBrief {
   id?: number;
   profile_type?: string;
@@ -191,11 +245,13 @@ export interface LeadTable extends BaseType {
   wechat_masked?: string;
   can_view_contact?: boolean;
   ai_profile?: AiProfileInfo;
+  partner_preference?: PartnerPreference | null;
 }
 
 export interface LeadDetail extends LeadTable {
   process_records: LeadProcessRecord[];
   lifecycle_records: LeadLifecycleRecord[];
+  partner_preference_versions?: PartnerPreferenceVersion[];
 }
 
 export interface LeadForm {
@@ -218,6 +274,7 @@ export interface LeadForm {
   source_channel_code?: string;
   store_id?: number;
   owner_sales_id?: number;
+  partner_preference?: PartnerPreference;
   sync_to_miniprogram?: boolean;
   description?: string;
 }

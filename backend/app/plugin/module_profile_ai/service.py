@@ -12,6 +12,7 @@ from app.config.setting import settings
 from app.core.database import async_db_session
 from app.core.exceptions import CustomException
 from app.plugin.module_crm.lead.model import CrmPersonModel
+from app.plugin.module_match.service import MatchProfileService
 
 from .model import PersonAiProfileModel, PersonAiProfileTaskModel
 
@@ -439,4 +440,11 @@ class PersonAiProfileService:
                     PersonAiProfileModel.is_effective == True,
                 )
                 .values(is_effective=False)
+            )
+            await MatchProfileService.mark_dirty(
+                db=db,
+                person_id=task.person_id,
+                dirty_parts=["self_profile"],
+                source_type="ai_profile",
+                source_id=profile.id,
             )

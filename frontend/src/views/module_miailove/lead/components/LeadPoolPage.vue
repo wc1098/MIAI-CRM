@@ -91,138 +91,228 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" size="72%" :title="drawerTitle" destroy-on-close>
-      <el-tabs v-model="activeTab">
-        <el-tab-pane label="个人信息" name="profile">
-          <el-form ref="formRef" :model="form" :rules="rules" label-width="110px" class="lead-form">
-            <el-row :gutter="16">
-              <el-col :span="8">
-                <el-form-item label="手机号" prop="mobile">
-                  <el-input v-model="form.mobile" :disabled="Boolean(editingId)" @blur="checkMobile" />
-                  <div v-if="mobileCheckMessage" class="form-tip form-tip--danger">{{ mobileCheckMessage }}</div>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8"><el-form-item label="姓名" prop="name"><el-input v-model="form.name" /></el-form-item></el-col>
-              <el-col :span="8">
-                <el-form-item label="性别" prop="gender">
-                  <el-select v-model="form.gender" style="width: 100%">
-                    <el-option label="男" value="0" />
-                    <el-option label="女" value="1" />
-                    <el-option label="未知" value="2" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8"><el-form-item label="微信号"><el-input v-model="form.wechat" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="出生日期"><el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="身高"><el-input-number v-model="form.height_cm" :min="80" :max="260" style="width: 100%" /></el-form-item></el-col>
-              <el-col :span="8">
-                <el-form-item label="民族">
-                  <el-select v-model="form.ethnicity" clearable filterable style="width: 100%">
-                    <el-option v-for="item in dictOptions.ethnicity" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8"><el-form-item label="职业"><el-input v-model="form.occupation" /></el-form-item></el-col>
-              <el-col :span="8">
-                <el-form-item label="年收入">
-                  <el-select v-model="form.annual_income" clearable style="width: 100%">
-                    <el-option v-for="item in dictOptions.annualIncome" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="婚况">
-                  <el-select v-model="form.marital_status" clearable style="width: 100%">
-                    <el-option v-for="item in dictOptions.maritalStatus" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="学历">
-                  <el-select v-model="form.education" clearable style="width: 100%">
-                    <el-option v-for="item in dictOptions.education" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="籍贯">
-                  <el-cascader v-model="hometownValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 100%" @change="syncAddressFields" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="常驻地">
-                  <el-cascader v-model="residenceValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 100%" @change="syncAddressFields" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="住房情况">
-                  <el-select v-model="form.house_status" clearable style="width: 100%">
-                    <el-option v-for="item in dictOptions.houseStatus" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="购车情况">
-                  <el-select v-model="form.car_status" clearable style="width: 100%">
-                    <el-option v-for="item in dictOptions.carStatus" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="来源渠道">
-                  <el-select v-model="form.source_channel_code" clearable filterable style="width: 100%">
-                    <el-option v-for="item in channelOptions" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col v-if="!editingId" :span="8">
-                <el-form-item>
-                  <template #label>
-                    <span class="label-with-tip">
-                      同步小程序
-                      <el-tooltip content="开启后创建待绑定小程序用户，用户后续用同手机号注册会自动关联。" placement="top">
-                        <el-icon class="tip-icon"><QuestionFilled /></el-icon>
-                      </el-tooltip>
-                    </span>
-                  </template>
-                  <el-switch
-                    v-model="form.sync_to_miniprogram"
-                    active-text="是"
-                    inactive-text="否"
-                    inline-prompt
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8"><el-form-item label="归属门店"><el-input :model-value="autoStoreName" disabled /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="归属人"><el-input :model-value="autoOwnerName" disabled /></el-form-item></el-col>
-              <el-col :span="24">
-                <el-form-item label="照片">
-                  <el-upload
-                    v-model:file-list="photoFileList"
-                    list-type="picture-card"
-                    accept="image/*"
-                    multiple
-                    :http-request="uploadPhoto"
-                    :on-remove="removePhoto"
-                  >
-                    <el-icon><Plus /></el-icon>
-                  </el-upload>
-                </el-form-item>
-              </el-col>
-              <el-col :span="24">
-                <el-form-item label="备注">
-                  <el-input v-model="form.description" type="textarea" :rows="3" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </el-form>
-          <div class="drawer-actions">
-            <el-button @click="detailVisible = false">取消</el-button>
-            <el-button v-hasPerm="['crm:lead:create', 'crm:lead:update']" type="primary" @click="submitForm">保存</el-button>
+    <el-drawer
+      v-model="detailVisible"
+      size="76%"
+      destroy-on-close
+      class="lead-drawer"
+      :close-on-click-modal="isReadOnlyMode"
+    >
+      <template #header>
+        <div class="drawer-header">
+          <div>
+            <div class="drawer-title">{{ drawerTitle }}</div>
+            <div class="drawer-subtitle">
+              {{ isReadOnlyMode ? "查看线索资料、过程记录与生命周期" : "编辑后点击底部保存，资料与择偶要求会一起提交" }}
+            </div>
           </div>
-        </el-tab-pane>
+          <el-tag v-if="detail" :type="leadTypeTag(detail.lead_type)" effect="light">{{ leadTypeLabel(detail.lead_type) }}</el-tag>
+        </div>
+      </template>
 
-        <el-tab-pane label="系统信息" name="system" v-if="detail">
+      <el-tabs v-model="activeTab" class="lead-detail-tabs">
+          <el-tab-pane label="资料信息" name="profile">
+            <template v-if="isReadOnlyMode && detail">
+              <div class="readonly-stack">
+                <div class="readonly-section">
+                  <div class="section-title">基础资料</div>
+                  <el-descriptions :column="3" border>
+                    <el-descriptions-item label="手机号">{{ detail.person.primary_mobile || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="姓名">{{ detail.person.name || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="性别">{{ genderLabel(detail.person.gender) }}</el-descriptions-item>
+                    <el-descriptions-item label="微信号">{{ detail.person.wechat || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="出生日期">{{ detail.person.birth_date || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="身高">{{ detail.person.height_cm ? `${detail.person.height_cm} cm` : "-" }}</el-descriptions-item>
+                  </el-descriptions>
+                </div>
+                <div class="readonly-section">
+                  <div class="section-title">扩展资料</div>
+                  <el-descriptions :column="3" border>
+                    <el-descriptions-item label="民族">{{ optionLabel(dictOptions.ethnicity, detail.person.ethnicity) }}</el-descriptions-item>
+                    <el-descriptions-item label="职业">{{ detail.person.occupation || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="年收入">{{ optionLabel(dictOptions.annualIncome, detail.person.annual_income) }}</el-descriptions-item>
+                    <el-descriptions-item label="婚况">{{ optionLabel(dictOptions.maritalStatus, detail.person.marital_status) }}</el-descriptions-item>
+                    <el-descriptions-item label="学历">{{ optionLabel(dictOptions.education, detail.person.education) }}</el-descriptions-item>
+                    <el-descriptions-item label="籍贯">{{ normalizeDisplayText(detail.person.hometown || "", "hometown") || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="常驻地">{{ normalizeDisplayText(detail.person.residence || "", "residence") || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="住房情况">{{ optionLabel(dictOptions.houseStatus, detail.person.house_status) }}</el-descriptions-item>
+                    <el-descriptions-item label="购车情况">{{ optionLabel(dictOptions.carStatus, detail.person.car_status) }}</el-descriptions-item>
+                    <el-descriptions-item label="来源渠道">{{ sourceLabel(detail) }}</el-descriptions-item>
+                    <el-descriptions-item label="归属门店">{{ detail.store?.name || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="归属人">{{ detail.owner_sales?.name || "-" }}</el-descriptions-item>
+                  </el-descriptions>
+                </div>
+                <div class="readonly-section">
+                  <div class="section-title">照片与备注</div>
+                  <div v-if="detail.person.photo_urls?.length" class="photo-preview-list">
+                    <el-image
+                      v-for="url in detail.person.photo_urls"
+                      :key="url"
+                      class="photo-preview"
+                      :src="url"
+                      :preview-src-list="detail.person.photo_urls"
+                      fit="cover"
+                      preview-teleported
+                    />
+                  </div>
+                  <el-empty v-else description="暂无照片" :image-size="64" />
+                  <div class="readonly-remark">{{ detail.description || "暂无备注" }}</div>
+                </div>
+              </div>
+            </template>
+
+            <el-form v-else ref="formRef" :model="form" :rules="rules" label-width="96px" class="lead-form">
+              <div class="form-section">
+                <div class="section-title">基础资料</div>
+                <el-row :gutter="16">
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="手机号" prop="mobile">
+                      <el-input v-model="form.mobile" :disabled="Boolean(editingId)" clearable @blur="checkMobile" />
+                      <div v-if="mobileCheckMessage" class="form-tip form-tip--danger">{{ mobileCheckMessage }}</div>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="姓名" prop="name"><el-input v-model="form.name" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="性别" prop="gender">
+                      <el-radio-group v-model="form.gender">
+                        <el-radio-button value="0">男</el-radio-button>
+                        <el-radio-button value="1">女</el-radio-button>
+                        <el-radio-button value="2">未知</el-radio-button>
+                      </el-radio-group>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="微信号"><el-input v-model="form.wechat" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="出生日期"><el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="身高"><el-input-number v-model="form.height_cm" :min="80" :max="260" controls-position="right" style="width: 100%" /></el-form-item></el-col>
+                </el-row>
+              </div>
+
+              <div class="form-section">
+                <div class="section-title">扩展资料</div>
+                <el-row :gutter="16">
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="民族">
+                      <el-select v-model="form.ethnicity" clearable filterable style="width: 100%">
+                        <el-option v-for="item in dictOptions.ethnicity" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="职业"><el-input v-model="form.occupation" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="年收入">
+                      <el-select v-model="form.annual_income" clearable style="width: 100%">
+                        <el-option v-for="item in dictOptions.annualIncome" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="婚况">
+                      <el-select v-model="form.marital_status" clearable style="width: 100%">
+                        <el-option v-for="item in dictOptions.maritalStatus" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="学历">
+                      <el-select v-model="form.education" clearable style="width: 100%">
+                        <el-option v-for="item in dictOptions.education" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="住房情况">
+                      <el-select v-model="form.house_status" clearable style="width: 100%">
+                        <el-option v-for="item in dictOptions.houseStatus" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="购车情况">
+                      <el-select v-model="form.car_status" clearable style="width: 100%">
+                        <el-option v-for="item in dictOptions.carStatus" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="籍贯">
+                      <el-cascader v-model="hometownValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 100%" @change="syncAddressFields" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="常驻地">
+                      <el-cascader v-model="residenceValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 100%" @change="syncAddressFields" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+              </div>
+
+              <div class="form-section">
+                <div class="section-title">系统归属</div>
+                <el-row :gutter="16">
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="来源渠道">
+                      <el-select v-model="form.source_channel_code" clearable filterable style="width: 100%">
+                        <el-option v-for="item in channelOptions" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col v-if="!editingId" :xs="24" :sm="12" :lg="8">
+                    <el-form-item>
+                      <template #label>
+                        <span class="label-with-tip">
+                          同步小程序
+                          <el-tooltip content="开启后创建待绑定小程序用户，用户后续用同手机号注册会自动关联。" placement="top">
+                            <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                          </el-tooltip>
+                        </span>
+                      </template>
+                      <el-switch v-model="form.sync_to_miniprogram" active-text="是" inactive-text="否" inline-prompt />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="归属门店"><el-input :model-value="autoStoreName" disabled /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="归属人"><el-input :model-value="autoOwnerName" disabled /></el-form-item></el-col>
+                </el-row>
+              </div>
+
+              <div class="form-section">
+                <div class="section-title">照片与备注</div>
+                <el-row :gutter="16">
+                  <el-col :span="24">
+                    <el-form-item label="照片">
+                      <el-upload
+                        v-model:file-list="photoFileList"
+                        list-type="picture-card"
+                        accept="image/*"
+                        multiple
+                        :http-request="uploadPhoto"
+                        :on-remove="removePhoto"
+                      >
+                        <el-icon><Plus /></el-icon>
+                      </el-upload>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="24">
+                    <el-form-item label="备注">
+                      <el-input v-model="form.description" type="textarea" :rows="3" resize="none" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+              </div>
+            </el-form>
+          </el-tab-pane>
+
+          <el-tab-pane label="择偶要求" name="preference">
+            <PartnerPreferenceForm
+              ref="preferenceFormRef"
+              :model-value="form.partner_preference || detail?.partner_preference"
+              :dict-options="dictOptions"
+              :region-options="addressOptions"
+              :read-only="isReadOnlyMode"
+              :show-actions="false"
+            />
+          </el-tab-pane>
+
+          <el-tab-pane label="系统信息" name="system" v-if="detail">
           <el-descriptions :column="2" border>
             <el-descriptions-item label="线索ID">{{ detail.id }}</el-descriptions-item>
             <el-descriptions-item label="线索类型">{{ leadTypeLabel(detail.lead_type) }}</el-descriptions-item>
@@ -256,9 +346,9 @@
               </div>
             </div>
           </div>
-        </el-tab-pane>
+          </el-tab-pane>
 
-        <el-tab-pane label="过程记录" name="process" v-if="detail">
+          <el-tab-pane label="过程记录" name="process" v-if="detail">
           <el-timeline>
             <el-timeline-item v-for="item in detail.process_records" :key="item.id" :timestamp="item.created_time">
               <el-tag>{{ actionLabel(item.action_type) }}</el-tag>
@@ -266,17 +356,24 @@
               <span v-if="item.next_follow_at" class="timeline-extra">下次跟进：{{ item.next_follow_at }}</span>
             </el-timeline-item>
           </el-timeline>
-        </el-tab-pane>
+          </el-tab-pane>
 
-        <el-tab-pane label="生命周期" name="lifecycle" v-if="detail">
+          <el-tab-pane label="生命周期" name="lifecycle" v-if="detail">
           <el-timeline>
             <el-timeline-item v-for="item in detail.lifecycle_records" :key="item.id" :timestamp="item.created_time">
               <el-tag type="info">{{ actionLabel(item.operation_type) }}</el-tag>
-              <span class="timeline-content">{{ item.remark || formatChange(item.change_detail) }}</span>
+              <span class="timeline-content">{{ item.remark || formatChange(item.change_detail, item.operation_type) }}</span>
             </el-timeline-item>
           </el-timeline>
-        </el-tab-pane>
+          </el-tab-pane>
       </el-tabs>
+
+      <template #footer>
+        <div class="drawer-footer">
+          <el-button @click="detailVisible = false">{{ isReadOnlyMode ? "关闭" : "取消" }}</el-button>
+          <el-button v-if="!isReadOnlyMode" v-hasPerm="['crm:lead:create', 'crm:lead:update']" type="primary" @click="submitForm">保存</el-button>
+        </div>
+      </template>
     </el-drawer>
 
     <el-dialog v-model="assignVisible" title="分配线索" width="520px">
@@ -369,6 +466,7 @@ import DeptAPI, { type DeptTable } from "@/api/module_system/dept";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
 import ParamsAPI from "@/api/module_system/params";
 import UserAPI, { type UserInfo } from "@/api/module_system/user";
+import PartnerPreferenceForm from "@/views/module_miailove/components/PartnerPreferenceForm.vue";
 
 const props = defineProps<{ view: LeadView; title: string }>();
 
@@ -383,8 +481,10 @@ const importVisible = ref(false);
 const activeTab = ref("profile");
 const detail = ref<LeadDetail>();
 const editingId = ref<number>();
+const drawerMode = ref<"create" | "detail" | "edit">("create");
 const processLeadId = ref<number>();
 const formRef = ref<FormInstance>();
+const preferenceFormRef = ref<InstanceType<typeof PartnerPreferenceForm>>();
 const importResult = ref<LeadImportResult>();
 const currentUser = ref<UserInfo>();
 const optionsLoaded = ref(false);
@@ -491,7 +591,8 @@ const rules = {
 
 const view = computed(() => props.view);
 const title = computed(() => props.title);
-const drawerTitle = computed(() => (editingId.value ? "线索详情" : "新增线索"));
+const drawerTitle = computed(() => ({ create: "新增线索", detail: "线索详情", edit: "编辑线索" })[drawerMode.value]);
+const isReadOnlyMode = computed(() => drawerMode.value === "detail");
 const currentRoleCodes = computed(() => new Set((currentUser.value?.roles || []).map((role) => role.code)));
 const autoStoreName = computed(() => {
   if (detail.value) return detail.value.store?.name || "-";
@@ -508,6 +609,7 @@ function resetForm() {
   Object.assign(form, defaultForm());
   detail.value = undefined;
   editingId.value = undefined;
+  drawerMode.value = "create";
   mobileCheckMessage.value = "";
   photoFileList.value = [];
   hometownValue.value = [];
@@ -538,6 +640,7 @@ function fillForm(data: LeadDetail) {
     description: data.description,
     store_id: data.store_id,
     owner_sales_id: data.owner_sales_id,
+    partner_preference: data.partner_preference || undefined,
   });
   photoFileList.value = (data.person.photo_urls || []).map((url) => ({ name: url.split("/").pop() || "image", url }));
   hometownValue.value = splitAddress(data.person.hometown);
@@ -563,6 +666,7 @@ function resetQuery() {
 async function openDetail(id: number) {
   await ensureOptionsLoaded();
   resetForm();
+  drawerMode.value = "detail";
   editingId.value = id;
   const res = await LeadAPI.detailLead(id);
   detail.value = res.data.data;
@@ -571,20 +675,30 @@ async function openDetail(id: number) {
 }
 
 async function openEdit(id: number) {
-  await openDetail(id);
+  await ensureOptionsLoaded();
+  resetForm();
+  drawerMode.value = "edit";
+  editingId.value = id;
+  const res = await LeadAPI.detailLead(id);
+  detail.value = res.data.data;
+  fillForm(detail.value);
+  detailVisible.value = true;
 }
 
 async function openCreate() {
   await ensureOptionsLoaded();
   resetForm();
+  drawerMode.value = "create";
   detailVisible.value = true;
 }
 
 async function submitForm() {
+  if (isReadOnlyMode.value) return;
   await formRef.value?.validate();
   await checkMobile();
   if (mobileCheckMessage.value) return;
   syncAddressFields();
+  form.partner_preference = preferenceFormRef.value?.getValue();
   const payload = {
     ...form,
     photo_urls: photoFileList.value.map((item) => item.url).filter((url): url is string => Boolean(url)),
@@ -668,7 +782,7 @@ async function handleFileChange(file: UploadFile) {
 
 async function checkMobile() {
   mobileCheckMessage.value = "";
-  if (editingId.value || !/^1[3-9]\d{9}$/.test(form.mobile)) return;
+  if (isReadOnlyMode.value || editingId.value || !/^1[3-9]\d{9}$/.test(form.mobile)) return;
   const res = await LeadAPI.checkMobile(form.mobile);
   if (res.data.data.exists) {
     mobileCheckMessage.value = `手机号已存在：${res.data.data.name || ""}`;
@@ -758,6 +872,15 @@ function leadTypeLabel(value: string) {
   return leadTypeOptions.find((item) => item.value === value)?.label || value;
 }
 
+function genderLabel(value?: string) {
+  return ({ "0": "男", "1": "女", "2": "未知" } as Record<string, string>)[value || ""] || "-";
+}
+
+function optionLabel(options: Array<{ label: string; value: string }>, value?: string) {
+  if (!value) return "-";
+  return options.find((item) => item.value === value)?.label || value;
+}
+
 function sourceLabel(row?: Pick<LeadTable, "source_channel_name" | "source_channel_code">) {
   if (!row) return "-";
   if (row.source_channel_name) return row.source_channel_name;
@@ -839,8 +962,117 @@ function actionLabel(value: string) {
   );
 }
 
-function formatChange(value?: Record<string, unknown>) {
-  return value ? JSON.stringify(value) : "-";
+function formatChange(value?: Record<string, unknown>, operationType?: string) {
+  if (!value) return "-";
+  if (operationType === "create") {
+    return `创建到${poolTypeLabel(String(value.pool_type || ""))}${formatNullableId("归属门店", value.store_id)}${formatNullableId("归属人", value.owner_sales_id)}`;
+  }
+  if (operationType === "assign" && value.to && typeof value.to === "object") {
+    const to = value.to as Record<string, unknown>;
+    return `调整为${poolTypeLabel(String(to.pool_type || ""))}${leadTypeChangeText(to.lead_type)}${formatNullableId("归属门店", to.store_id)}${formatNullableId("归属人", to.owner_sales_id)}`;
+  }
+  if (operationType === "claim") {
+    return `从${poolTypeLabel(String(value.from_pool || ""))}领取到${poolTypeLabel(String(value.to_pool || ""))}${formatNullableId("归属人", value.to_owner_sales_id)}`;
+  }
+  if (operationType === "auto_reclaim") {
+    return String(value.reason || `从${poolTypeLabel(String(value.from_pool || ""))}回到${poolTypeLabel(String(value.to_pool || ""))}`);
+  }
+  if (operationType === "edit") {
+    return Object.keys(value)
+      .map((key) => fieldChangeText(key, value[key]))
+      .filter(Boolean)
+      .join("；") || "资料已更新";
+  }
+  return Object.entries(value)
+    .map(([key, val]) => `${fieldLabel(key)}：${displayChangeValue(val, key)}`)
+    .join("；");
+}
+
+function formatNullableId(label: string, value: unknown) {
+  return value ? `，${label}ID ${value}` : `，未设置${label}`;
+}
+
+function leadTypeChangeText(value: unknown) {
+  return value ? `，类型${leadTypeLabel(String(value))}` : "";
+}
+
+function fieldChangeText(key: string, value: unknown) {
+  if (value && typeof value === "object" && ("from" in value || "to" in value)) {
+    const change = value as { from?: unknown; to?: unknown };
+    return `${fieldLabel(key)}：${displayChangeValue(change.from, key)} → ${displayChangeValue(change.to, key)}`;
+  }
+  return `${fieldLabel(key)}：${displayChangeValue(value, key)}`;
+}
+
+function fieldLabel(key: string) {
+  return (
+    {
+      pool_type: "归属池",
+      from_pool: "原归属池",
+      to_pool: "新归属池",
+      store_id: "归属门店",
+      owner_sales_id: "归属人",
+      from_owner_sales_id: "原归属人",
+      to_owner_sales_id: "新归属人",
+      lead_type: "线索类型",
+      source_channel_code: "来源渠道",
+      mobile: "手机号",
+      name: "姓名",
+      gender: "性别",
+      wechat: "微信号",
+      birth_date: "出生日期",
+      height_cm: "身高",
+      ethnicity: "民族",
+      occupation: "职业",
+      annual_income: "年收入",
+      marital_status: "婚况",
+      education: "学历",
+      hometown: "籍贯",
+      residence: "常驻地",
+      house_status: "房产信息",
+      car_status: "购车信息",
+      photo_urls: "照片",
+      description: "备注",
+      partner_preference: "择偶要求",
+      reason: "原因",
+      source_event_id: "来源事件",
+    } as Record<string, string>
+  )[key] || key;
+}
+
+function displayChangeValue(value: unknown, field?: string): string {
+  if (value === null || value === undefined || value === "") return "未设置";
+  if (Array.isArray(value)) return value.length ? value.join("、") : "未设置";
+  if (typeof value === "string") {
+    const dictLabel = dictValueLabel(field, value);
+    if (dictLabel) return dictLabel;
+    if (["hq_pool", "store_pool", "sales_private"].includes(value)) return poolTypeLabel(value);
+    if (["pending", "new", "second_hand", "invalid", "converted_customer"].includes(value)) return leadTypeLabel(value);
+    return normalizeDisplayText(value, field);
+  }
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function dictValueLabel(field: string | undefined, value: string) {
+  if (field === "gender") return ({ "0": "男", "1": "女", "2": "未知" } as Record<string, string>)[value] || "";
+  if (field === "source_channel_code") return channelOptions.value.find((item) => item.value === value)?.label || sourceFallbackLabels[value] || "";
+  const map = {
+    ethnicity: dictOptions.ethnicity,
+    annual_income: dictOptions.annualIncome,
+    marital_status: dictOptions.maritalStatus,
+    education: dictOptions.education,
+    house_status: dictOptions.houseStatus,
+    car_status: dictOptions.carStatus,
+  } as Record<string, Array<{ label: string; value: string }>>;
+  return field && map[field] ? map[field].find((item) => item.value === value)?.label || "" : "";
+}
+
+function normalizeDisplayText(value: string, field?: string) {
+  if (!value.includes("/")) return value;
+  const parts = value.split("/").map((item) => item.trim()).filter(Boolean);
+  const normalized = field === "hometown" || field === "residence" ? parts.slice(0, 2) : parts;
+  return normalized.join(" / ");
 }
 
 onMounted(() => {
@@ -880,8 +1112,92 @@ onMounted(() => {
   padding-top: 16px;
 }
 
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.drawer-title {
+  color: var(--el-text-color-primary);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.drawer-subtitle {
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.lead-detail-tabs {
+  padding-right: 6px;
+}
+
 .lead-form {
-  padding-right: 16px;
+  padding-right: 4px;
+}
+
+.form-section,
+.readonly-section {
+  padding: 16px 18px 4px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.form-section + .form-section,
+.readonly-section + .readonly-section {
+  margin-top: 14px;
+}
+
+.readonly-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.photo-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.photo-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.readonly-remark {
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-regular);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+}
+
+:deep(.lead-drawer .el-drawer__body) {
+  overflow-y: auto;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+:deep(.lead-drawer .el-drawer__footer) {
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .drawer-actions {

@@ -6,6 +6,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.base_schema import BaseSchema, CommonSchema, UserBySchema
 from app.core.validator import DateTimeStr
+from app.plugin.module_crm.preference.schema import (
+    PartnerPreferenceOutSchema,
+    PartnerPreferencePayload,
+    PartnerPreferenceVersionOutSchema,
+)
 
 MOBILE_PATTERN = re.compile(r"^1[3-9]\d{9}$")
 GENDER_VALUES = {"0", "1", "2"}
@@ -86,6 +91,7 @@ class LeadCreateSchema(LeadPersonPayload):
     owner_sales_id: int | None = Field(default=None, description="归属销售ID")
     sync_to_miniprogram: bool = Field(default=False, description="是否同步为待绑定小程序用户")
     description: str | None = Field(default=None, max_length=255, description="备注")
+    partner_preference: PartnerPreferencePayload | None = Field(default=None, description="择偶要求")
 
     @field_validator("source_channel_code")
     @classmethod
@@ -98,6 +104,7 @@ class LeadUpdateSchema(LeadPersonPayload):
 
     source_channel_code: str | None = Field(default=None, max_length=64, description="来源渠道编码")
     description: str | None = Field(default=None, max_length=255, description="备注")
+    partner_preference: PartnerPreferencePayload | None = Field(default=None, description="择偶要求")
 
     @field_validator("source_channel_code")
     @classmethod
@@ -214,6 +221,7 @@ class LeadOutSchema(BaseSchema, UserBySchema):
     wechat_masked: str | None = None
     can_view_contact: bool = False
     ai_profile: dict | None = None
+    partner_preference: PartnerPreferenceOutSchema | None = None
 
 
 class LeadProcessOutSchema(BaseSchema, UserBySchema):
@@ -250,6 +258,7 @@ class LeadDetailOutSchema(LeadOutSchema):
 
     process_records: list[LeadProcessOutSchema] = Field(default_factory=list)
     lifecycle_records: list[LeadLifecycleOutSchema] = Field(default_factory=list)
+    partner_preference_versions: list[PartnerPreferenceVersionOutSchema] = Field(default_factory=list)
 
 
 class LeadImportResultSchema(BaseModel):

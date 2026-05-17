@@ -4,7 +4,9 @@
 			"path": "pages/plaza/index",
 			"style": {
 				"navigationBarTitleText": "广场",
-				"enablePullDownRefresh": true
+				"enablePullDownRefresh": true,
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
 			}
 		},
 		{
@@ -49,7 +51,9 @@
 			"path": "pages/activity/index",
 			"style": {
 				"navigationBarTitleText": "活动",
-				"enablePullDownRefresh": true
+				"enablePullDownRefresh": true,
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
 			}
 		},
 		{
@@ -63,7 +67,9 @@
 			"path": "pages/activity/detail/index",
 			"style": {
 				"navigationBarTitleText": "活动详情",
-				"enablePullDownRefresh": true
+				"enablePullDownRefresh": true,
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
 			}
 		},
 		{
@@ -77,6 +83,13 @@
 			"path": "pages/mine/index",
 			"style": {
 				"navigationBarTitleText": "我的",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/mine/preference",
+			"style": {
+				"navigationBarTitleText": "择偶要求",
 				"enablePullDownRefresh": true
 			}
 		},

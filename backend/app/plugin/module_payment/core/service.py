@@ -374,3 +374,7 @@ class PaymentService:
             from app.plugin.module_mp.plaza.service import MpPlazaService
 
             await MpPlazaService.on_payment_success(db, order)
+        elif order.biz_type == "subscription":
+            from app.plugin.module_subscription.service import SubscriptionService
+
+            await SubscriptionService.on_payment_success(db, order)
