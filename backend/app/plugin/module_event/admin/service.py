@@ -215,7 +215,7 @@ class EventAdminService:
                 select(EventModel)
                 .where(and_(*conditions))
                 .options(selectinload(EventModel.store), selectinload(EventModel.created_by))
-                .order_by(EventModel.start_time.desc(), EventModel.id.desc())
+                .order_by(EventModel.id.desc())
                 .offset((search.page_no - 1) * search.page_size)
                 .limit(search.page_size)
             )

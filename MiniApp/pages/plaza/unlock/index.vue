@@ -1,7 +1,7 @@
 <template>
 	<view class="page unlock-page">
 		<view class="target-card">
-			<image class="avatar" :src="target.avatar_url || '/static/logo.png'" mode="aspectFill"></image>
+			<image class="avatar" :src="avatarUrl(target.avatar_url)" mode="aspectFill"></image>
 			<view class="target-info">
 				<text class="name">{{ target.display_name || '觅AI用户' }}</text>
 				<text class="meta">ID {{ target.display_no }} · {{ target.residence || '常驻地待补充' }}</text>
@@ -74,6 +74,7 @@
 
 <script>
 import { answerUnlockQuestion, completeUnlockTask, unlockProgress, unlockQuestions } from '../../../api/mpPlaza.js'
+import { ossImage, ossPreview } from '../../../utils/ossImage.js'
 
 export default {
 	data() {
@@ -147,7 +148,7 @@ export default {
 		return {
 			title: `${this.target.display_name || '觅AI用户'}的资料`,
 			path: `/pages/plaza/detail/index?display_no=${this.displayNo}`,
-			imageUrl: this.target.avatar_url || undefined,
+			imageUrl: this.target.avatar_url ? ossPreview(this.target.avatar_url, { width: 800 }) : undefined,
 		}
 	},
 	onShareTimeline() {
@@ -156,10 +157,13 @@ export default {
 		return {
 			title: `${this.target.display_name || '觅AI用户'}的资料`,
 			query: `display_no=${this.displayNo}`,
-			imageUrl: this.target.avatar_url || undefined,
+			imageUrl: this.target.avatar_url ? ossPreview(this.target.avatar_url, { width: 800 }) : undefined,
 		}
 	},
 	methods: {
+		avatarUrl(url) {
+			return ossImage(url, { width: 180, height: 180 }) || '/static/logo.png'
+		},
 		async load() {
 			if (!this.displayNo) return
 			try {

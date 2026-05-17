@@ -2,11 +2,13 @@ import os
 import random
 import re
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import urljoin
 
 import aiofiles
 from fastapi import UploadFile
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config.setting import settings
 from app.core.exceptions import CustomException
@@ -78,6 +80,12 @@ MIME_TYPE_MAPPING = {
     "text/plain": ".txt",
     "text/csv": ".csv",
 }
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+IMAGE_COMPRESS_MAX_SIDE = 1600
+IMAGE_COMPRESS_MAX_BYTES = 4 * 1024 * 1024
+IMAGE_COMPRESS_JPEG_QUALITY = 85
+IMAGE_COMPRESS_WEBP_QUALITY = 85
 
 
 class UploadUtil:
@@ -192,6 +200,8 @@ class UploadUtil:
             return "image/png"
         if content.startswith(b"GIF87a") or content.startswith(b"GIF89a"):
             return "image/gif"
+        if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+            return "image/webp"
         if content.startswith(b"PK\x03\x04"):
             if b"[Content_Types].xml" in content[:1000]:
                 return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -268,6 +278,54 @@ class UploadUtil:
                 msg=f"文件大小超过限制，最大允许 {settings.MAX_FILE_SIZE // (1024 * 1024)}MB"
             )
         return True
+
+    @staticmethod
+    def compress_image_content(content: bytes, extension: str) -> tuple[bytes, str]:
+        """
+        压缩图片到接口与展示更友好的尺寸。
+        """
+        ext = extension.lower()
+        if ext not in IMAGE_EXTENSIONS:
+            return content, ""
+
+        try:
+            with Image.open(BytesIO(content)) as image:
+                image = ImageOps.exif_transpose(image)
+                width, height = image.size
+                should_resize = max(width, height) > IMAGE_COMPRESS_MAX_SIDE
+                should_compress = len(content) > IMAGE_COMPRESS_MAX_BYTES
+
+                if not should_resize and not should_compress:
+                    return content, image.get_format_mimetype() or ""
+
+                if should_resize:
+                    image.thumbnail((IMAGE_COMPRESS_MAX_SIDE, IMAGE_COMPRESS_MAX_SIDE))
+
+                output = BytesIO()
+                if ext in {".jpg", ".jpeg"}:
+                    if image.mode not in ("RGB", "L"):
+                        image = image.convert("RGB")
+                    image.save(
+                        output,
+                        format="JPEG",
+                        quality=IMAGE_COMPRESS_JPEG_QUALITY,
+                        optimize=True,
+                    )
+                    return output.getvalue(), "image/jpeg"
+
+                if ext == ".webp":
+                    image.save(
+                        output,
+                        format="WEBP",
+                        quality=IMAGE_COMPRESS_WEBP_QUALITY,
+                        method=6,
+                    )
+                    return output.getvalue(), "image/webp"
+
+                image.save(output, format="PNG", optimize=True)
+                return output.getvalue(), "image/png"
+        except UnidentifiedImageError:
+            return content, ""
 
     @classmethod
     def generate_safe_filename(cls, original_filename: str, extension: str) -> str:
@@ -416,6 +474,11 @@ class UploadUtil:
 
         cls.validate_file_content_type(content, extension)
 
+        content_type = file.content_type
+        content, compressed_content_type = cls.compress_image_content(content, extension)
+        if compressed_content_type:
+            content_type = compressed_content_type
+
         safe_filename = cls.generate_safe_filename(original_filename, extension)
         date_path = datetime.now().strftime("%Y/%m/%d")
         storage_driver = await StorageConfig.get_storage_driver()
@@ -432,7 +495,7 @@ class UploadUtil:
                     config=config,
                     object_key=object_key,
                     content=content,
-                    content_type=file.content_type,
+                    content_type=content_type,
                 )
                 return safe_filename, Path(object_key), file_url
 
@@ -450,10 +513,8 @@ class UploadUtil:
 
             file_url = urljoin(base_url, str(filepath))
 
-            chunk_size = 8 * 1024 * 1024
             async with aiofiles.open(filepath, "wb") as f:
-                while chunk := await file.read(chunk_size):
-                    await f.write(chunk)
+                await f.write(content)
 
             log.info(f"文件上传成功: {safe_filename}")
             return safe_filename, filepath, file_url

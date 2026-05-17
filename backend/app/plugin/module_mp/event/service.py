@@ -207,6 +207,8 @@ class MpEventService:
         person = user.person
         if not person:
             raise CustomException(msg="请先完成注册资料")
+        if event.require_realname and not person.id_card_no:
+            raise CustomException(msg="该活动要求实名认证，请先到认证中心完成实名认证")
         age = cls._age(person.birth_date)
         if event.min_age and age is not None and age < event.min_age:
             raise CustomException(msg="年龄不符合活动报名要求")

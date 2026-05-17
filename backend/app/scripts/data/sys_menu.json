@@ -6426,6 +6426,25 @@
             "affix": false,
             "redirect": null,
             "description": "查看小程序注册用户详情"
+          },
+          {
+            "name": "编辑注册用户资料",
+            "type": 3,
+            "icon": null,
+            "order": 3,
+            "permission": "operation:miniprogram:update",
+            "route_name": null,
+            "route_path": null,
+            "component_path": null,
+            "status": "0",
+            "keep_alive": true,
+            "hidden": false,
+            "always_show": false,
+            "title": "编辑注册用户资料",
+            "params": null,
+            "affix": false,
+            "redirect": null,
+            "description": "编辑小程序注册用户关联CRM资料"
           }
         ]
       },
@@ -6902,6 +6921,65 @@
             "affix": false,
             "redirect": null,
             "description": "查看匹配推荐调试结果"
+          }
+        ]
+      },
+      {
+        "name": "认证基座",
+        "type": 2,
+        "icon": "medal",
+        "order": 12,
+        "permission": "operation:miniprogram:certification:query",
+        "route_name": "MiailoveMiniprogramCertification",
+        "route_path": "/miailove/miniprogram/certification",
+        "component_path": "module_miailove/miniprogram/certification/index",
+        "status": "0",
+        "keep_alive": true,
+        "hidden": false,
+        "always_show": false,
+        "title": "认证基座",
+        "params": null,
+        "affix": false,
+        "redirect": null,
+        "description": "小程序认证基座配置与申请记录",
+        "children": [
+          {
+            "name": "查询认证",
+            "type": 3,
+            "icon": null,
+            "order": 1,
+            "permission": "operation:miniprogram:certification:query",
+            "route_name": null,
+            "route_path": null,
+            "component_path": null,
+            "status": "0",
+            "keep_alive": true,
+            "hidden": false,
+            "always_show": false,
+            "title": "查询认证",
+            "params": null,
+            "affix": false,
+            "redirect": null,
+            "description": "查询认证套餐和申请"
+          },
+          {
+            "name": "维护认证配置",
+            "type": 3,
+            "icon": null,
+            "order": 2,
+            "permission": "operation:miniprogram:certification:settings",
+            "route_name": null,
+            "route_path": null,
+            "component_path": null,
+            "status": "0",
+            "keep_alive": true,
+            "hidden": false,
+            "always_show": false,
+            "title": "维护认证配置",
+            "params": null,
+            "affix": false,
+            "redirect": null,
+            "description": "维护认证项和认证套餐"
           }
         ]
       }
@@ -8082,13 +8160,13 @@
     "component_path": null,
     "status": "0",
     "keep_alive": true,
-    "hidden": true,
+    "hidden": false,
     "always_show": false,
     "title": "审核中心",
     "params": null,
     "affix": false,
     "redirect": "/miailove/review/task",
-    "description": "审核中心（权限占位，页面实现后开放）",
+    "description": "审核中心",
     "children": [
       {
         "name": "审核任务",
@@ -8101,13 +8179,13 @@
         "component_path": "module_miailove/review/task/index",
         "status": "0",
         "keep_alive": true,
-        "hidden": true,
+        "hidden": false,
         "always_show": false,
         "title": "审核任务",
         "params": null,
         "affix": false,
         "redirect": null,
-        "description": "审核任务（权限占位，页面实现后开放）",
+        "description": "认证审核任务",
         "children": [
           {
             "name": "查询审核任务",

@@ -1,7 +1,7 @@
 <template>
 	<view class="page final-page">
 		<view class="card">
-			<image class="avatar" :src="target.avatar_url || '/static/logo.png'" mode="aspectFill"></image>
+			<image class="avatar" :src="avatarUrl(target.avatar_url)" mode="aspectFill"></image>
 			<text class="title">最后一步</text>
 			<text class="desc">{{ copy.final || '解锁后可查看对方手机号，本次解锁后可重复查看，不重复收费。' }}</text>
 			<view class="score">{{ progress.score || 0 }}/{{ progress.target_score || 100 }}</view>
@@ -20,6 +20,7 @@
 
 <script>
 import { finalCouponUnlock, finalPayUnlock, finalTaskFreeUnlock, unlockProgress } from '../../../api/mpPlaza.js'
+import { ossImage } from '../../../utils/ossImage.js'
 
 export default {
 	data() {
@@ -40,6 +41,9 @@ export default {
 		this.load()
 	},
 	methods: {
+		avatarUrl(url) {
+			return ossImage(url, { width: 190, height: 190 }) || '/static/logo.png'
+		},
 		async load() {
 			if (!this.displayNo) return
 			this.data = await unlockProgress(this.displayNo)

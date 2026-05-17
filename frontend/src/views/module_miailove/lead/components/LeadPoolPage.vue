@@ -149,8 +149,8 @@
                       v-for="url in detail.person.photo_urls"
                       :key="url"
                       class="photo-preview"
-                      :src="url"
-                      :preview-src-list="detail.person.photo_urls"
+                      :src="ossImage(url, { w: 120, h: 120 })"
+                      :preview-src-list="ossImageList(detail.person.photo_urls, { w: 1600 })"
                       fit="cover"
                       preview-teleported
                     />
@@ -286,6 +286,7 @@
                         multiple
                         :http-request="uploadPhoto"
                         :on-remove="removePhoto"
+                        :on-preview="previewUploadedPhoto"
                       >
                         <el-icon><Plus /></el-icon>
                       </el-upload>
@@ -310,6 +311,121 @@
               :read-only="isReadOnlyMode"
               :show-actions="false"
             />
+          </el-tab-pane>
+
+          <el-tab-pane label="认证情况" name="certification" v-if="detail">
+            <div v-loading="certificationLoading" class="certification-tab">
+              <template v-if="certification">
+                <el-descriptions :column="3" border>
+                  <el-descriptions-item label="认证等级">
+                    <el-tag :type="certification.certification_level === 'none' ? 'info' : 'success'">
+                      {{ certification.certification_level_name }}
+                    </el-tag>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="用户编号">{{ certification.display_no || "-" }}</el-descriptions-item>
+                  <el-descriptions-item label="手机号">{{ certification.mobile || "-" }}</el-descriptions-item>
+                  <el-descriptions-item label="身份证">{{ certification.id_card_no_masked || "-" }}</el-descriptions-item>
+                  <el-descriptions-item label="最近申请">
+                    {{ certification.latest_application ? `${certification.latest_application.level_name} / ${appStatusLabel(certification.latest_application.application_status)}` : "-" }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="最近通过">
+                    {{ certification.latest_application?.approved_at || "-" }}
+                  </el-descriptions-item>
+                </el-descriptions>
+
+                <div class="detail-section">
+                  <div class="section-title">认证申请</div>
+                  <el-table :data="certification.applications || []" border size="small">
+                    <el-table-column prop="level_name" label="等级" width="110" />
+                    <el-table-column label="状态" width="110">
+                      <template #default="{ row }">
+                        <el-tag :type="appStatusType(row.application_status)">{{ appStatusLabel(row.application_status) }}</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="进度" min-width="150">
+                      <template #default="{ row }">
+                        <el-progress :percentage="row.progress?.percent || 0" :stroke-width="8" />
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="订单" min-width="180">
+                      <template #default="{ row }">
+                        {{ row.order?.order_no || "-" }} <span v-if="row.order">/ {{ row.order.pay_status }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="paid_at" label="支付时间" min-width="160" />
+                    <el-table-column prop="approved_at" label="通过时间" min-width="160" />
+                    <el-table-column label="奖励" width="90">
+                      <template #default="{ row }">{{ row.reward_granted ? "已发" : "未发" }}</template>
+                    </el-table-column>
+                  </el-table>
+                </div>
+
+                <div class="detail-section">
+                  <div class="section-title">单项认证</div>
+                  <el-table :data="certificationRecords" border size="small">
+                    <el-table-column prop="item_name" label="认证项" width="120" />
+                    <el-table-column label="状态" width="110">
+                      <template #default="{ row }">
+                        <el-tag :type="recordStatusType(row.record_status)">{{ recordStatusLabel(row.record_status) }}</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="材料" min-width="180">
+                      <template #default="{ row }">
+                        <el-image
+                          v-for="material in row.materials || []"
+                          :key="material.id"
+                          class="cert-material"
+                          :src="ossImage(material.file_url, { w: 64, h: 64 })"
+                          :preview-src-list="ossImageList([material.file_url], { w: 1600 })"
+                          fit="cover"
+                          preview-teleported
+                        />
+                        <span v-if="!row.materials?.length">-</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="reject_reason" label="驳回原因" min-width="150" />
+                    <el-table-column prop="submitted_at" label="提交时间" min-width="160" />
+                    <el-table-column prop="verified_at" label="通过时间" min-width="160" />
+                  </el-table>
+                </div>
+
+                <div class="detail-section">
+                  <div class="section-title">实名核验日志</div>
+                  <el-table :data="certification.verification_logs || []" border size="small">
+                    <el-table-column prop="verifier_code" label="核验器" width="150" />
+                    <el-table-column prop="verify_status" label="状态" width="100" />
+                    <el-table-column prop="request_snapshot" label="请求摘要" min-width="220">
+                      <template #default="{ row }">{{ jsonText(row.request_snapshot) }}</template>
+                    </el-table-column>
+                    <el-table-column prop="error_message" label="错误" min-width="160" />
+                    <el-table-column prop="verified_at" label="时间" min-width="160" />
+                  </el-table>
+                </div>
+
+                <div class="detail-section">
+                  <div class="section-title">人脸检测日志</div>
+                  <el-table :data="certification.face_logs || []" border size="small">
+                    <el-table-column label="图片" width="80">
+                      <template #default="{ row }">
+                        <el-image v-if="row.file_url" class="cert-material" :src="ossImage(row.file_url, { w: 64, h: 64 })" :preview-src-list="ossImageList([row.file_url], { w: 1600 })" fit="cover" preview-teleported />
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="business_type" label="业务" width="140" />
+                    <el-table-column prop="face_count" label="人脸" width="70" />
+                    <el-table-column prop="quality_score" label="质量" width="80" />
+                    <el-table-column prop="beauty_score" label="颜值" width="80" />
+                    <el-table-column label="结果" width="90">
+                      <template #default="{ row }">
+                        <el-tag :type="row.passed ? 'success' : 'danger'">{{ row.passed ? "通过" : "拒绝" }}</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="error_message" label="错误" min-width="160" />
+                    <el-table-column prop="detected_at" label="时间" min-width="160" />
+                  </el-table>
+                </div>
+              </template>
+              <el-empty v-else description="暂无认证记录" />
+            </div>
           </el-tab-pane>
 
           <el-tab-pane label="系统信息" name="system" v-if="detail">
@@ -446,13 +562,21 @@
         <el-button @click="importVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <ElImageViewer
+      v-if="photoPreviewVisible"
+      :url-list="photoPreviewUrls"
+      :initial-index="photoPreviewIndex"
+      :z-index="4000"
+      @close="photoPreviewVisible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { Plus, QuestionFilled } from "@element-plus/icons-vue";
-import { ElMessage, type FormInstance, type UploadFile, type UploadRequestOptions, type UploadUserFile } from "element-plus";
+import { ElImageViewer, ElMessage, type FormInstance, type UploadFile, type UploadRequestOptions, type UploadUserFile } from "element-plus";
 import LeadAPI, {
   type LeadDetail,
   type LeadForm,
@@ -464,8 +588,10 @@ import LeadAPI, {
 import ChannelAPI from "@/api/module_crm/channel";
 import DeptAPI, { type DeptTable } from "@/api/module_system/dept";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
-import ParamsAPI from "@/api/module_system/params";
 import UserAPI, { type UserInfo } from "@/api/module_system/user";
+import CertificationAdminAPI, { type CertificationPersonSummary, type CertificationRecord } from "@/api/module_certification/admin";
+import { ossImage, ossImageList } from "@/utils/ossImage";
+import { uploadImageDirect } from "@/utils/upload";
 import PartnerPreferenceForm from "@/views/module_miailove/components/PartnerPreferenceForm.vue";
 
 const props = defineProps<{ view: LeadView; title: string }>();
@@ -480,6 +606,8 @@ const processVisible = ref(false);
 const importVisible = ref(false);
 const activeTab = ref("profile");
 const detail = ref<LeadDetail>();
+const certification = ref<CertificationPersonSummary>();
+const certificationLoading = ref(false);
 const editingId = ref<number>();
 const drawerMode = ref<"create" | "detail" | "edit">("create");
 const processLeadId = ref<number>();
@@ -490,6 +618,9 @@ const currentUser = ref<UserInfo>();
 const optionsLoaded = ref(false);
 const mobileCheckMessage = ref("");
 const photoFileList = ref<UploadUserFile[]>([]);
+const photoPreviewVisible = ref(false);
+const photoPreviewUrls = ref<string[]>([]);
+const photoPreviewIndex = ref(0);
 const hometownValue = ref<string[]>([]);
 const residenceValue = ref<string[]>([]);
 
@@ -604,10 +735,12 @@ const autoOwnerName = computed(() => {
   if (currentRoleCodes.value.has("SALES")) return currentUser.value?.name || "-";
   return "未分配";
 });
+const certificationRecords = computed<CertificationRecord[]>(() => (certification.value?.applications || []).flatMap((item) => item.records || []));
 
 function resetForm() {
   Object.assign(form, defaultForm());
   detail.value = undefined;
+  certification.value = undefined;
   editingId.value = undefined;
   drawerMode.value = "create";
   mobileCheckMessage.value = "";
@@ -672,6 +805,7 @@ async function openDetail(id: number) {
   detail.value = res.data.data;
   fillForm(detail.value);
   detailVisible.value = true;
+  await loadCertification(detail.value.person.id);
 }
 
 async function openEdit(id: number) {
@@ -683,6 +817,19 @@ async function openEdit(id: number) {
   detail.value = res.data.data;
   fillForm(detail.value);
   detailVisible.value = true;
+  await loadCertification(detail.value.person.id);
+}
+
+async function loadCertification(personId?: number) {
+  certification.value = undefined;
+  if (!personId) return;
+  certificationLoading.value = true;
+  try {
+    const res = await CertificationAdminAPI.getPersonSummary(personId);
+    certification.value = res.data.data;
+  } finally {
+    certificationLoading.value = false;
+  }
 }
 
 async function openCreate() {
@@ -790,10 +937,7 @@ async function checkMobile() {
 }
 
 async function uploadPhoto(options: UploadRequestOptions) {
-  const formData = new FormData();
-  formData.append("file", options.file);
-  const res = await ParamsAPI.uploadFile(formData);
-  const fileInfo = res.data.data;
+  const fileInfo = await uploadImageDirect(options.file, "crm_lead_photo");
   const current = photoFileList.value.find((item) => item.uid === options.file.uid);
   if (current) {
     current.name = fileInfo.file_name || fileInfo.origin_name || options.file.name;
@@ -804,6 +948,14 @@ async function uploadPhoto(options: UploadRequestOptions) {
 
 function removePhoto(file: UploadFile) {
   photoFileList.value = photoFileList.value.filter((item) => item.uid !== file.uid && item.url !== file.url);
+}
+
+function previewUploadedPhoto(file: UploadFile) {
+  const urls = photoFileList.value.map((item) => item.url).filter((url): url is string => Boolean(url));
+  if (!urls.length) return;
+  photoPreviewUrls.value = ossImageList(urls, { w: 1600 });
+  photoPreviewIndex.value = Math.max(urls.findIndex((url) => url === file.url), 0);
+  photoPreviewVisible.value = true;
 }
 
 function splitAddress(value?: string) {
@@ -932,6 +1084,53 @@ function leadTypeTag(value: string) {
     converted_customer: "primary",
   } as const;
   return tags[value as keyof typeof tags] || "info";
+}
+
+function appStatusLabel(value?: string) {
+  return (
+    {
+      pending_payment: "待支付",
+      paid_pending_submit: "待提交",
+      in_progress: "进行中",
+      approved: "已通过",
+      rejected: "已驳回",
+      expired: "已过期",
+      void: "已作废",
+    } as Record<string, string>
+  )[value || ""] || value || "-";
+}
+
+function appStatusType(value?: string) {
+  if (value === "approved") return "success";
+  if (value === "rejected" || value === "expired" || value === "void") return "danger";
+  if (value === "pending_payment") return "info";
+  return "warning";
+}
+
+function recordStatusLabel(value?: string) {
+  return (
+    {
+      not_submitted: "未提交",
+      submitted: "已提交",
+      verifying: "核验中",
+      pending_review: "待审核",
+      approved: "已通过",
+      rejected: "已驳回",
+      expired: "已过期",
+      void: "已作废",
+    } as Record<string, string>
+  )[value || ""] || value || "-";
+}
+
+function recordStatusType(value?: string) {
+  if (value === "approved") return "success";
+  if (value === "rejected" || value === "expired" || value === "void") return "danger";
+  if (value === "not_submitted") return "info";
+  return "warning";
+}
+
+function jsonText(value?: Record<string, unknown>) {
+  return value ? JSON.stringify(value) : "-";
 }
 
 function poolTypeLabel(value: string) {
@@ -1171,6 +1370,19 @@ onMounted(() => {
   height: 96px;
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
+}
+
+.certification-tab {
+  min-height: 220px;
+}
+
+.cert-material {
+  width: 46px;
+  height: 46px;
+  margin-right: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  vertical-align: middle;
 }
 
 .readonly-remark {

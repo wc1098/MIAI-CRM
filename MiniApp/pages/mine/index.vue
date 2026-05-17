@@ -1,10 +1,11 @@
 <template>
 	<view class="page">
 		<view v-if="person" class="card profile-card">
-			<image class="avatar" :src="user.avatar_url || '/static/logo.png'" mode="aspectFill"></image>
+			<image class="avatar" :src="avatarUrl(user.avatar_url)" mode="aspectFill"></image>
 			<view class="profile-info">
 				<text class="name">{{ user.nickname || person.name }}</text>
 				<text class="meta">{{ maskedMobile }}</text>
+				<text class="cert">{{ certificationLabel }}</text>
 			</view>
 		</view>
 
@@ -17,6 +18,13 @@
 				<view>
 					<text class="menu-title">择偶要求</text>
 					<text class="menu-desc">年龄、地区、学历、婚况等偏好</text>
+				</view>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-row" @tap="goCertification">
+				<view>
+					<text class="menu-title">认证中心</text>
+					<text class="menu-desc">实名、真人照片和资料认证</text>
 				</view>
 				<text class="arrow">›</text>
 			</view>
@@ -48,6 +56,7 @@
 import { getPerson, getUser, setSession } from '../../utils/storage.js'
 import { mpMe } from '../../api/mpAuth.js'
 import { ensureMpSession } from '../../utils/mpSession.js'
+import { ossImage } from '../../utils/ossImage.js'
 
 export default {
 	data() {
@@ -62,6 +71,10 @@ export default {
 			if (!mobile || mobile.length < 7) return mobile || ''
 			return `${mobile.slice(0, 3)}****${mobile.slice(-4)}`
 		},
+		certificationLabel() {
+			const level = this.person && this.person.certification_level
+			return ({ basic: '基础认证', advanced: '高级认证', premium: '尊享认证' }[level]) || '未认证'
+		},
 	},
 	onShow() {
 		this.loadMe()
@@ -72,11 +85,17 @@ export default {
 		})
 	},
 	methods: {
+		avatarUrl(url) {
+			return ossImage(url, { width: 180, height: 180 }) || '/static/logo.png'
+		},
 		goRegister() {
 			uni.navigateTo({ url: '/pages/register/index' })
 		},
 		goPreference() {
 			uni.navigateTo({ url: '/pages/mine/preference' })
+		},
+		goCertification() {
+			uni.switchTab({ url: '/pages/certification/index' })
 		},
 		async loadMe() {
 			try {
@@ -112,6 +131,7 @@ export default {
 
 .name,
 .meta,
+.cert,
 .title,
 .desc {
 	display: block;
@@ -128,6 +148,17 @@ export default {
 	color: #7a6f69;
 	font-size: 28rpx;
 	margin-top: 12rpx;
+}
+
+.cert {
+	display: inline-block;
+	margin-top: 12rpx;
+	border-radius: 999rpx;
+	background: #eef5ec;
+	color: #4e865e;
+	font-size: 22rpx;
+	font-weight: 800;
+	padding: 8rpx 16rpx;
 }
 
 .desc {

@@ -8,7 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.common.response import SuccessResponse
 from app.core.dependencies import db_getter
 from app.core.exceptions import CustomException
-from app.plugin.module_crm.preference.schema import PartnerPreferenceMpUpdateSchema, PartnerPreferenceSaveSchema
+from app.plugin.module_crm.preference.schema import (
+    PartnerPreferenceMpUpdateSchema,
+    PartnerPreferenceSaveSchema,
+)
 from app.plugin.module_crm.preference.service import PartnerPreferenceService
 from app.plugin.module_mp.auth.dependencies import get_current_mp_user_id
 from app.plugin.module_mp.auth.model import MiniProgramUserModel

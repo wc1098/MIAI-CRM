@@ -566,5 +566,29 @@
     "config_type": true,
     "status": "0",
     "description": "订阅推荐理由AI润色temperature参数"
+  },
+  {
+    "config_name": "认证人脸质量阈值",
+    "config_key": "certification.face.min_quality_score",
+    "config_value": "60",
+    "config_type": true,
+    "status": "0",
+    "description": "人脸检测最低质量分，低于该值拒绝上传"
+  },
+  {
+    "config_name": "实名认证单申请失败上限",
+    "config_key": "certification.real_name.max_failed_per_application",
+    "config_value": "3",
+    "config_type": true,
+    "status": "0",
+    "description": "同一认证申请实名认证失败次数上限，超过后冷却"
+  },
+  {
+    "config_name": "实名认证每日调用上限",
+    "config_key": "certification.real_name.daily_limit",
+    "config_value": "5",
+    "config_type": true,
+    "status": "0",
+    "description": "按用户、手机号、身份证脱敏值统计的每日实名认证调用上限"
   }
 ]

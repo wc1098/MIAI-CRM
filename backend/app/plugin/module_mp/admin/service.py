@@ -3,11 +3,19 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import aliased, selectinload
 
+from app.api.v1.module_system.auth.schema import AuthSchema
 from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.params.model import ParamsModel
 from app.core.exceptions import CustomException
-from app.plugin.module_crm.lead.model import CrmLeadProfileModel, CrmPersonModel
+from app.plugin.module_certification.service import mask_id_card
+from app.plugin.module_crm.lead.model import (
+    CrmLeadLifecycleModel,
+    CrmLeadProcessRecordModel,
+    CrmLeadProfileModel,
+    CrmPersonModel,
+)
 from app.plugin.module_crm.preference.service import PartnerPreferenceService
+from app.plugin.module_match.service import MatchProfileService
 from app.plugin.module_mp.auth.model import MiniProgramUserModel, SourceEventModel
 from app.plugin.module_mp.plaza.model import (
     MpContactUnlockModel,
@@ -33,6 +41,7 @@ from .schema import (
     MpUnlockRecordQueryParam,
     MpUnlockRevokeSchema,
     MpUserOutSchema,
+    MpUserProfileUpdateSchema,
     MpUserQueryParam,
 )
 
@@ -145,6 +154,7 @@ class MpAdminService:
             if person:
                 person_data = MpPersonBriefSchema(
                     id=person.id,
+                    description=person.description,
                     name=person.name,
                     gender=person.gender,
                     primary_mobile=person.primary_mobile,
@@ -161,6 +171,9 @@ class MpAdminService:
                     house_status=person.house_status,
                     car_status=person.car_status,
                     photo_urls=person.photo_urls or [],
+                    id_card_no_masked=mask_id_card(getattr(person, "id_card_no", None)),
+                    certification_level=getattr(person, "certification_level", "none"),
+                    certification_summary=getattr(person, "certification_summary", None),
                 )
             items.append(
                 MpUserOutSchema(
@@ -199,6 +212,111 @@ class MpAdminService:
                 ).model_dump()
             )
         return items
+
+    @classmethod
+    async def update_user_profile(
+        cls,
+        auth: AuthSchema,
+        user_id: int,
+        data: MpUserProfileUpdateSchema,
+    ) -> dict:
+        result = await auth.db.execute(
+            select(MiniProgramUserModel)
+            .where(MiniProgramUserModel.id == user_id, MiniProgramUserModel.is_deleted == False)
+            .options(selectinload(MiniProgramUserModel.person))
+        )
+        user = result.scalars().first()
+        if not user:
+            raise CustomException(msg="小程序用户不存在")
+        if not user.person_id or not user.person:
+            raise CustomException(msg="该小程序用户尚未完成注册，不能编辑资料")
+
+        person = user.person
+        old = {
+            "name": person.name,
+            "gender": person.gender,
+            "wechat": person.wechat,
+            "birth_date": person.birth_date.isoformat() if person.birth_date else None,
+            "height_cm": person.height_cm,
+            "ethnicity": person.ethnicity,
+            "occupation": person.occupation,
+            "annual_income": person.annual_income,
+            "marital_status": person.marital_status,
+            "education": person.education,
+            "hometown": person.hometown,
+            "residence": person.residence,
+            "house_status": person.house_status,
+            "car_status": person.car_status,
+            "photo_urls": person.photo_urls or [],
+            "description": person.description,
+        }
+        payload = data.model_dump()
+        compare_payload = {
+            **payload,
+            "birth_date": payload["birth_date"].isoformat() if payload.get("birth_date") else None,
+        }
+        for field, value in payload.items():
+            setattr(person, field, value)
+        user.avatar_url = payload["photo_urls"][0] if payload["photo_urls"] else None
+        now = datetime.now()
+        operator_id = auth.user.id if auth.user else None
+        person.updated_time = now
+        person.updated_id = operator_id
+        user.updated_time = now
+        user.updated_id = operator_id
+
+        changes = {
+            field: {"from": old.get(field), "to": compare_payload.get(field)}
+            for field in compare_payload
+            if old.get(field) != compare_payload.get(field)
+        }
+        if changes:
+            lead_rows = (
+                await auth.db.execute(
+                    select(CrmLeadProfileModel).where(
+                        CrmLeadProfileModel.person_id == person.id,
+                        CrmLeadProfileModel.is_deleted == False,
+                        CrmLeadProfileModel.lead_type.notin_(["invalid", "converted_customer"]),
+                    )
+                )
+            ).scalars().all()
+            for lead in lead_rows:
+                lead.updated_time = now
+                lead.updated_id = operator_id
+                process = CrmLeadProcessRecordModel(
+                    brand_id=lead.brand_id,
+                    lead_id=lead.id,
+                    person_id=lead.person_id,
+                    action_type="profile_edit",
+                    follow_method="admin_miniprogram",
+                    content="Admin 小程序用户资料编辑",
+                    operator_user_id=operator_id,
+                )
+                lifecycle = CrmLeadLifecycleModel(
+                    brand_id=lead.brand_id,
+                    lead_id=lead.id,
+                    person_id=lead.person_id,
+                    operation_type="profile_edit",
+                    operator_user_id=operator_id,
+                    change_detail=changes,
+                    remark="Admin 小程序用户资料编辑",
+                )
+                auth.db.add_all([process, lifecycle])
+            await PersonAiProfileService.enqueue_miai_impression(
+                db=auth.db,
+                person_id=person.id,
+                source_type="admin_update",
+                source_id=user.id,
+            )
+            await MatchProfileService.mark_dirty(
+                db=auth.db,
+                person_id=person.id,
+                dirty_parts=["self_profile"],
+                source_type="admin_miniprogram_update",
+                source_id=user.id,
+            )
+        await auth.db.flush()
+        return await cls.detail_user(auth.db, user_id)
 
     @classmethod
     async def _recent_action_map(cls, db, user_ids: list[int]) -> dict[int, list[dict]]:

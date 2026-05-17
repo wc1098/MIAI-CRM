@@ -14,7 +14,7 @@
 				<swiper class="photo-swiper" circular :indicator-dots="false" @change="onPhotoChange">
 					<swiper-item v-for="item in photos" :key="item.key">
 						<view class="photo-wrap">
-							<image class="hero-photo" :class="{ blurred: item.blurred }" :src="item.url || '/static/logo.png'" mode="aspectFill"></image>
+							<image class="hero-photo" :class="{ blurred: item.blurred }" :src="item.displayUrl || '/static/logo.png'" mode="aspectFill"></image>
 							<view v-if="item.blurred" class="blur-mask">
 								<text>解锁后查看完整相册</text>
 							</view>
@@ -97,6 +97,7 @@
 <script>
 import { completeUnlockTask, favoriteProfile, likeProfile, plazaDetail, unfavoriteProfile, unlikeProfile } from '../../../api/mpPlaza.js'
 import { ensureRegisteredSession } from '../../../utils/mpSession.js'
+import { ossImage, ossPreview } from '../../../utils/ossImage.js'
 
 export default {
 	data() {
@@ -117,7 +118,12 @@ export default {
 		photos() {
 			const list = this.person.photos || []
 			const source = list.length ? list : [{ url: this.person.avatar_url || '/static/logo.png', blurred: false }]
-			return source.map((item, index) => ({ url: item.url, blurred: item.blurred, key: `${item.url || 'photo'}-${index}` }))
+			return source.map((item, index) => ({
+				url: item.url,
+				displayUrl: ossImage(item.url, { width: 750, height: 860, quality: 78 }),
+				blurred: item.blurred,
+				key: `${item.url || 'photo'}-${index}`,
+			}))
 		},
 		aiContent() {
 			return this.detail.ai_profile && this.detail.ai_profile.content ? this.detail.ai_profile.content : '暂无觅AI印象'
@@ -150,7 +156,7 @@ export default {
 		return {
 			title: this.profileShareTitle(),
 			path: `/pages/plaza/detail/index?display_no=${this.displayNo}`,
-			imageUrl: this.person.avatar_url || undefined,
+			imageUrl: this.person.avatar_url ? ossPreview(this.person.avatar_url, { width: 800 }) : undefined,
 		}
 	},
 	onShareTimeline() {
@@ -158,7 +164,7 @@ export default {
 		return {
 			title: this.profileShareTitle(),
 			query: `display_no=${this.displayNo}`,
-			imageUrl: this.person.avatar_url || undefined,
+			imageUrl: this.person.avatar_url ? ossPreview(this.person.avatar_url, { width: 800 }) : undefined,
 		}
 	},
 	methods: {

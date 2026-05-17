@@ -19,6 +19,14 @@ const MpUserAPI = {
     });
   },
 
+  updateProfile(id: number, body: MpUserProfileForm) {
+    return request<ApiResponse<MpUserTable>>({
+      url: `${API_PATH}/${id}/profile`,
+      method: "put",
+      data: body,
+    });
+  },
+
   getSettings() {
     return request<ApiResponse<MpOperationSettings>>({
       url: `${API_PATH}/settings`,
@@ -137,6 +145,7 @@ export interface MpUserPageQuery extends PageQuery {
 
 export interface MpUserPerson {
   id?: number;
+  description?: string;
   name?: string;
   gender?: string;
   primary_mobile?: string;
@@ -153,6 +162,28 @@ export interface MpUserPerson {
   house_status?: string;
   car_status?: string;
   photo_urls?: string[];
+  id_card_no_masked?: string;
+  certification_level?: string;
+  certification_summary?: Record<string, unknown>;
+}
+
+export interface MpUserProfileForm {
+  name: string;
+  gender: string;
+  wechat?: string;
+  birth_date?: string;
+  height_cm?: number;
+  ethnicity?: string;
+  occupation?: string;
+  annual_income?: string;
+  marital_status?: string;
+  education?: string;
+  hometown?: string;
+  residence?: string;
+  house_status?: string;
+  car_status?: string;
+  photo_urls: string[];
+  description?: string;
 }
 
 export interface MpUserTable extends BaseType {

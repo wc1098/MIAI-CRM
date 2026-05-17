@@ -45,7 +45,7 @@
 		<view v-else class="list">
 			<view v-for="(item, index) in filteredEvents" :key="item.id" class="event-card" @tap="goDetail(item.id)">
 				<view class="cover-wrap">
-					<image v-if="item.cover_url" class="cover-img" :src="item.cover_url" mode="aspectFill" />
+					<image v-if="item.cover_url" class="cover-img" :src="coverThumb(item.cover_url)" mode="aspectFill" />
 					<view v-else class="cover-empty" :class="coverClass(item, index)"></view>
 					<view class="cover-shade"></view>
 					<text class="cover-label">{{ coverLabel(item) }}</text>
@@ -97,6 +97,7 @@
 
 <script>
 import { eventList } from '../../api/mpEvent.js'
+import { ossImage, ossPreview } from '../../utils/ossImage.js'
 
 export default {
 	data() {
@@ -161,9 +162,12 @@ export default {
 		}
 	},
 	methods: {
+		coverThumb(url) {
+			return ossImage(url, { width: 690, height: 380, quality: 78 })
+		},
 		shareImage() {
 			const first = this.filteredEvents.find((item) => item && item.cover_url)
-			return first ? first.cover_url : undefined
+			return first ? ossPreview(first.cover_url, { width: 900 }) : undefined
 		},
 		async fetchEvents() {
 			this.loading = true

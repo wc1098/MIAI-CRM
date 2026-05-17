@@ -1,7 +1,7 @@
 <template>
 	<view class="page">
 		<view class="hero" :class="{ 'hero-empty': !event.cover_url }">
-			<image v-if="event.cover_url" class="hero-img" :src="event.cover_url" mode="aspectFill" />
+			<image v-if="event.cover_url" class="hero-img" :src="coverThumb(event.cover_url)" mode="aspectFill" />
 			<view class="hero-mask"></view>
 			<view class="hero-content">
 				<view class="hero-tags">
@@ -121,6 +121,7 @@
 import { checkinEvent, continueEventPay, eventDetail, myEventRegistration, registerEvent } from '../../../api/mpEvent.js'
 import { getToken } from '../../../utils/storage.js'
 import { ensureMpSession, ensureRegisteredSession } from '../../../utils/mpSession.js'
+import { ossImage, ossPreview } from '../../../utils/ossImage.js'
 
 export default {
 	name: 'ActivityDetail',
@@ -175,7 +176,7 @@ export default {
 			return '年龄不限'
 		},
 		requireText() {
-			const realname = this.event.require_realname ? '需实名资料' : '不强制实名'
+			const realname = this.event.require_realname ? '需完成实名认证' : '不强制实名'
 			return `${realname} · ${this.ageText}`
 		},
 		maleQuota() {
@@ -273,17 +274,20 @@ export default {
 		return {
 			title: this.eventShareTitle(),
 			path: `/pages/activity/detail/index?id=${this.id}`,
-			imageUrl: this.event.cover_url || undefined,
+			imageUrl: this.event.cover_url ? ossPreview(this.event.cover_url, { width: 900 }) : undefined,
 		}
 	},
 	onShareTimeline() {
 		return {
 			title: this.eventShareTitle(),
 			query: `id=${this.id}`,
-			imageUrl: this.event.cover_url || undefined,
+			imageUrl: this.event.cover_url ? ossPreview(this.event.cover_url, { width: 900 }) : undefined,
 		}
 	},
 	methods: {
+		coverThumb(url) {
+			return ossImage(url, { width: 750, height: 520, quality: 78 })
+		},
 		eventShareTitle() {
 			const title = this.event.title || '觅AI线下活动'
 			const time = this.event.start_time ? this.eventTimeText(this.event) : ''
@@ -335,10 +339,28 @@ export default {
 				}
 				await this.fetchDetail()
 			} catch (error) {
-				uni.showToast({ title: error.message || '报名失败', icon: 'none' })
+				this.handleRegisterError(error)
 			} finally {
 				this.submitting = false
 			}
+		},
+		handleRegisterError(error) {
+			const message = error.message || '报名失败'
+			if (message.includes('实名认证') || message.includes('认证中心')) {
+				uni.showModal({
+					title: '需要先完成实名认证',
+					content: '该活动要求报名用户完成实名认证。完成认证后，再回来报名即可。',
+					confirmText: '去认证',
+					cancelText: '稍后',
+					success: (res) => {
+						if (res.confirm) {
+							uni.switchTab({ url: '/pages/certification/index' })
+						}
+					},
+				})
+				return
+			}
+			uni.showToast({ title: message, icon: 'none' })
 		},
 		requestPayment(payload) {
 			return new Promise((resolve) => {

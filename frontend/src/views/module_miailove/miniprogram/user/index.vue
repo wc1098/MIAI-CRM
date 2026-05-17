@@ -31,7 +31,7 @@
         <el-table-column label="微信资料" min-width="220">
           <template #default="{ row }">
             <div class="wx-profile">
-              <el-avatar :size="38" :src="row.avatar_url">
+              <el-avatar :size="38" :src="ossImage(row.avatar_url, { w: 76, h: 76 })">
                 {{ row.nickname?.slice(0, 1) || "微" }}
               </el-avatar>
               <div>
@@ -65,9 +65,10 @@
         </el-table-column>
         <el-table-column prop="registered_at" label="注册时间" min-width="170" />
         <el-table-column prop="last_login_at" label="最近登录" min-width="170" />
-        <el-table-column fixed="right" label="操作" width="110">
+        <el-table-column fixed="right" label="操作" width="180">
           <template #default="{ row }">
             <el-button v-hasPerm="['operation:miniprogram:detail']" link type="primary" icon="View" @click="openDetail(row.id)">详情</el-button>
+            <el-button v-hasPerm="['operation:miniprogram:update']" link type="primary" icon="Edit" :disabled="!row.person_id" @click="openEdit(row)">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -89,7 +90,7 @@
       <template v-if="detail">
         <el-descriptions title="微信资料" :column="2" border>
           <el-descriptions-item label="头像">
-            <el-avatar :size="46" :src="detail.avatar_url">{{ detail.nickname?.slice(0, 1) || "微" }}</el-avatar>
+            <el-avatar :size="46" :src="ossImage(detail.avatar_url, { w: 92, h: 92 })">{{ detail.nickname?.slice(0, 1) || "微" }}</el-avatar>
           </el-descriptions-item>
           <el-descriptions-item label="昵称">{{ detail.nickname || "-" }}</el-descriptions-item>
           <el-descriptions-item label="微信手机号">{{ detail.mobile || "-" }}</el-descriptions-item>
@@ -100,10 +101,16 @@
           <el-descriptions-item label="来源事件数">{{ eventCountLabel(detail.source_event_count) }}</el-descriptions-item>
         </el-descriptions>
 
-        <el-descriptions class="detail-section" title="CRM资料" :column="2" border>
+        <div class="detail-section section-toolbar">
+          <div class="section-title">CRM资料</div>
+          <el-button v-hasPerm="['operation:miniprogram:update']" type="primary" icon="Edit" :disabled="!detail.person_id" @click="openEdit(detail)">编辑资料</el-button>
+        </div>
+        <el-descriptions :column="2" border>
           <el-descriptions-item label="姓名">{{ detail.person?.name || "-" }}</el-descriptions-item>
           <el-descriptions-item label="性别">{{ genderLabel(detail.person?.gender) }}</el-descriptions-item>
           <el-descriptions-item label="手机号">{{ detail.person?.primary_mobile || "-" }}</el-descriptions-item>
+          <el-descriptions-item label="身份证">{{ detail.person?.id_card_no_masked || "-" }}</el-descriptions-item>
+          <el-descriptions-item label="认证等级">{{ certificationLevelLabel(detail.person?.certification_level) }}</el-descriptions-item>
           <el-descriptions-item label="微信号">{{ detail.person?.wechat || "-" }}</el-descriptions-item>
           <el-descriptions-item label="出生日期">{{ detail.person?.birth_date || "-" }}</el-descriptions-item>
           <el-descriptions-item label="身高">{{ detail.person?.height_cm ? `${detail.person.height_cm} cm` : "-" }}</el-descriptions-item>
@@ -187,9 +194,10 @@
             <el-image
               v-for="url in detail.person.photo_urls"
               :key="url"
-              :src="url"
-              :preview-src-list="detail.person.photo_urls"
+              :src="ossImage(url, { w: 120, h: 120 })"
+              :preview-src-list="ossImageList(detail.person.photo_urls, { w: 1600 })"
               fit="cover"
+              preview-teleported
               class="photo-item"
             />
           </div>
@@ -197,14 +205,66 @@
         </div>
       </template>
     </el-drawer>
+
+    <el-dialog v-model="editVisible" title="编辑小程序用户资料" width="760px" destroy-on-close>
+      <el-form :model="profileForm" label-width="86px">
+        <el-row :gutter="16">
+          <el-col :span="12"><el-form-item label="姓名"><el-input v-model="profileForm.name" /></el-form-item></el-col>
+          <el-col :span="12">
+            <el-form-item label="性别">
+              <el-radio-group v-model="profileForm.gender">
+                <el-radio-button value="0">男</el-radio-button>
+                <el-radio-button value="1">女</el-radio-button>
+                <el-radio-button value="2">未知</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12"><el-form-item label="微信号"><el-input v-model="profileForm.wechat" clearable /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="出生日期"><el-date-picker v-model="profileForm.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="身高"><el-input-number v-model="profileForm.height_cm" :min="80" :max="260" controls-position="right" style="width: 100%" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="民族"><el-select v-model="profileForm.ethnicity" clearable style="width: 100%"><el-option v-for="item in dictOptions.ethnicity" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="职业"><el-input v-model="profileForm.occupation" clearable /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="年收入"><el-select v-model="profileForm.annual_income" clearable style="width: 100%"><el-option v-for="item in dictOptions.annualIncome" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="婚况"><el-select v-model="profileForm.marital_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.maritalStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="学历"><el-select v-model="profileForm.education" clearable style="width: 100%"><el-option v-for="item in dictOptions.education" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="籍贯"><el-input v-model="profileForm.hometown" clearable /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="常驻地"><el-input v-model="profileForm.residence" clearable /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="房产"><el-select v-model="profileForm.house_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.houseStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="车辆"><el-select v-model="profileForm.car_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.carStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
+          <el-col :span="24">
+            <el-form-item label="照片">
+              <el-upload v-model:file-list="photoFileList" list-type="picture-card" accept="image/*" multiple :http-request="uploadPhoto" :on-remove="syncPhotoUrls" :on-preview="previewUploadedPhoto">
+                <el-icon><Plus /></el-icon>
+              </el-upload>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24"><el-form-item label="备注"><el-input v-model="profileForm.description" type="textarea" :rows="3" resize="none" /></el-form-item></el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveProfile">保存</el-button>
+      </template>
+    </el-dialog>
+    <ElImageViewer
+      v-if="photoPreviewVisible"
+      :url-list="photoPreviewUrls"
+      :initial-index="photoPreviewIndex"
+      :z-index="4000"
+      @close="photoPreviewVisible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
+import { Plus } from "@element-plus/icons-vue";
+import { ElImageViewer, ElMessage, type UploadFile, type UploadRequestOptions, type UploadUserFile } from "element-plus";
 
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
-import MpUserAPI, { type MpUserPageQuery, type MpUserTable } from "@/api/module_mp/user";
+import MpUserAPI, { type MpUserPageQuery, type MpUserProfileForm, type MpUserTable } from "@/api/module_mp/user";
+import { ossImage, ossImageList } from "@/utils/ossImage";
+import { uploadImageDirect } from "@/utils/upload";
 
 const query = reactive<MpUserPageQuery>({
   page_no: 1,
@@ -217,6 +277,18 @@ const rows = ref<MpUserTable[]>([]);
 const total = ref(0);
 const detailVisible = ref(false);
 const detail = ref<MpUserTable>();
+const editVisible = ref(false);
+const saving = ref(false);
+const editingUserId = ref<number>();
+const photoFileList = ref<UploadUserFile[]>([]);
+const photoPreviewVisible = ref(false);
+const photoPreviewUrls = ref<string[]>([]);
+const photoPreviewIndex = ref(0);
+const profileForm = reactive<MpUserProfileForm>({
+  name: "",
+  gender: "2",
+  photo_urls: [],
+});
 const dictOptions = reactive({
   ethnicity: [] as Array<{ label: string; value: string }>,
   annualIncome: [] as Array<{ label: string; value: string }>,
@@ -228,6 +300,11 @@ const dictOptions = reactive({
 function genderLabel(value?: string) {
   const map: Record<string, string> = { "0": "男", "1": "女", "2": "未知" };
   return value ? map[value] || value : "-";
+}
+
+function certificationLevelLabel(value?: string) {
+  const map: Record<string, string> = { none: "未认证", basic: "基础认证", advanced: "高级认证", premium: "尊享认证" };
+  return map[value || "none"] || value || "未认证";
 }
 
 function eventCountLabel(value?: number) {
@@ -350,6 +427,81 @@ async function openDetail(id: number) {
   detailVisible.value = true;
 }
 
+async function openEdit(row: MpUserTable) {
+  await loadDictOptions();
+  if (!row.id) return;
+  const target = row.person ? row : (await MpUserAPI.detailUser(row.id)).data.data;
+  if (!target.person) {
+    ElMessage.warning("该小程序用户尚未完成注册，不能编辑资料");
+    return;
+  }
+  editingUserId.value = target.id;
+  Object.assign(profileForm, {
+    name: target.person.name || "",
+    gender: target.person.gender || "2",
+    wechat: target.person.wechat || undefined,
+    birth_date: target.person.birth_date || undefined,
+    height_cm: target.person.height_cm,
+    ethnicity: target.person.ethnicity || undefined,
+    occupation: target.person.occupation || undefined,
+    annual_income: target.person.annual_income || undefined,
+    marital_status: target.person.marital_status || undefined,
+    education: target.person.education || undefined,
+    hometown: target.person.hometown || undefined,
+    residence: target.person.residence || undefined,
+    house_status: target.person.house_status || undefined,
+    car_status: target.person.car_status || undefined,
+    photo_urls: target.person.photo_urls || [],
+    description: target.person.description || undefined,
+  });
+  photoFileList.value = profileForm.photo_urls.map((url) => ({ name: url.split("/").pop() || "image", url }));
+  editVisible.value = true;
+}
+
+function syncPhotoUrls() {
+  profileForm.photo_urls = photoFileList.value.map((item) => item.url).filter((url): url is string => Boolean(url));
+}
+
+function previewUploadedPhoto(file: UploadFile) {
+  const urls = photoFileList.value.map((item) => item.url).filter((url): url is string => Boolean(url));
+  if (!urls.length) return;
+  photoPreviewUrls.value = ossImageList(urls, { w: 1600 });
+  photoPreviewIndex.value = Math.max(urls.findIndex((url) => url === file.url), 0);
+  photoPreviewVisible.value = true;
+}
+
+async function uploadPhoto(options: UploadRequestOptions) {
+  const fileInfo = await uploadImageDirect(options.file, "crm_lead_photo");
+  const current = photoFileList.value.find((item) => item.uid === options.file.uid);
+  if (current) {
+    current.name = fileInfo.file_name || options.file.name;
+    current.url = fileInfo.file_url;
+  }
+  syncPhotoUrls();
+  options.onSuccess?.(fileInfo);
+}
+
+async function saveProfile() {
+  if (!editingUserId.value) return;
+  if (!profileForm.name.trim()) {
+    ElMessage.warning("请填写姓名");
+    return;
+  }
+  saving.value = true;
+  try {
+    const res = await MpUserAPI.updateProfile(editingUserId.value, {
+      ...profileForm,
+      name: profileForm.name.trim(),
+      photo_urls: profileForm.photo_urls || [],
+    });
+    detail.value = res.data.data;
+    editVisible.value = false;
+    await fetchList();
+  } finally {
+    saving.value = false;
+  }
+}
+
 let dictPromise: Promise<void> | null = null;
 
 async function loadDictOptions() {
@@ -422,6 +574,17 @@ onMounted(() => {
 
 .detail-section {
   margin-top: 18px;
+}
+
+.section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-toolbar .section-title {
+  margin-bottom: 0;
 }
 
 .section-title {

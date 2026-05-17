@@ -51,7 +51,7 @@
 		<view v-else class="masonry">
 			<view class="column">
 				<view v-for="item in leftItems" :key="item.user_id" class="user-card" @tap="openProfile(item)">
-					<image class="avatar" :src="item.avatar_url || '/static/logo.png'" mode="aspectFill" />
+					<image class="avatar" :src="thumb(item.avatar_url, 360, 520) || '/static/logo.png'" mode="aspectFill" />
 					<view class="card-content">
 						<view class="card-top">
 							<text class="nickname">{{ item.nickname || '觅AI用户' }}</text>
@@ -75,7 +75,7 @@
 			</view>
 			<view class="column">
 				<view v-for="item in rightItems" :key="item.user_id" class="user-card" @tap="openProfile(item)">
-					<image class="avatar" :src="item.avatar_url || '/static/logo.png'" mode="aspectFill" />
+					<image class="avatar" :src="thumb(item.avatar_url, 360, 520) || '/static/logo.png'" mode="aspectFill" />
 					<view class="card-content">
 						<view class="card-top">
 							<text class="nickname">{{ item.nickname || '觅AI用户' }}</text>
@@ -177,6 +177,7 @@
 <script>
 import { plazaList } from '../../api/mpPlaza.js'
 import { ensureMpSession } from '../../utils/mpSession.js'
+import { ossImage, ossPreview } from '../../utils/ossImage.js'
 
 const defaultFilters = () => ({
 	display_no: '',
@@ -335,9 +336,12 @@ export default {
 		}
 	},
 	methods: {
+		thumb(url, width = 300, height = 300) {
+			return ossImage(url, { width, height })
+		},
 		shareImage() {
 			const first = this.items.find((item) => item && item.avatar_url)
-			return first ? first.avatar_url : undefined
+			return first ? ossPreview(first.avatar_url, { width: 800 }) : undefined
 		},
 		async bootstrap() {
 			if (this.bootstrapping) return

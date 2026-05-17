@@ -34,7 +34,7 @@
 			<view class="slot-list">
 				<view v-for="slot in slots" :key="slot.id" class="slot-card" :class="slot.status" @tap="openSlot(slot)">
 					<template v-if="slot.target">
-						<image class="slot-photo" :src="slot.target.avatar_url || '/static/logo.png'" mode="aspectFill" />
+						<image class="slot-photo" :src="avatarUrl(slot.target.avatar_url)" mode="aspectFill" />
 						<view class="slot-content">
 							<view class="slot-head">
 								<text class="slot-name">{{ slot.target.nickname || displayName(slot.target) }}</text>
@@ -152,6 +152,7 @@
 
 <script>
 import { createSubscriptionOrder, subscriptionMe, subscriptionPlans } from '../../api/mpSubscription.js'
+import { ossImage } from '../../utils/ossImage.js'
 import { ensureMpSession } from '../../utils/mpSession.js'
 import { getPerson } from '../../utils/storage.js'
 
@@ -185,6 +186,9 @@ export default {
 		this.load().finally(() => uni.stopPullDownRefresh())
 	},
 	methods: {
+		avatarUrl(url) {
+			return ossImage(url, { width: 220, height: 220 }) || '/static/logo.png'
+		},
 		async load() {
 			this.loading = true
 			try {

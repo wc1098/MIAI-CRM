@@ -17,6 +17,7 @@ from .schema import (
     MpTaskUpsertSchema,
     MpUnlockRecordQueryParam,
     MpUnlockRevokeSchema,
+    MpUserProfileUpdateSchema,
     MpUserQueryParam,
 )
 from .service import MpAdminService
@@ -46,6 +47,16 @@ async def detail_user_controller(
 ) -> JSONResponse:
     result = await MpAdminService.detail_user(db=auth.db, user_id=user_id)
     return SuccessResponse(data=result, msg="获取小程序注册用户详情成功")
+
+
+@MpAdminRouter.put("/{user_id}/profile", summary="更新小程序用户资料")
+async def update_user_profile_controller(
+    user_id: int,
+    data: MpUserProfileUpdateSchema,
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["operation:miniprogram:update"]))],
+) -> JSONResponse:
+    result = await MpAdminService.update_user_profile(auth=auth, user_id=user_id, data=data)
+    return SuccessResponse(data=result, msg="保存小程序用户资料成功")
 
 
 @MpAdminRouter.get("/settings", summary="小程序运营设置")

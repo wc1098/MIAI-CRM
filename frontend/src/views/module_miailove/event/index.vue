@@ -142,7 +142,7 @@
               <el-col :span="24">
                 <el-form-item label="封面图">
                   <el-upload class="cover-uploader" accept="image/*" :show-file-list="false" :http-request="uploadCover">
-                    <el-image v-if="form.cover_url" :src="form.cover_url" fit="cover" class="cover-preview" />
+                    <el-image v-if="form.cover_url" :src="ossImage(form.cover_url, { w: 240, h: 160 })" fit="cover" class="cover-preview" />
                     <el-button v-else icon="Upload">上传封面</el-button>
                   </el-upload>
                 </el-form-item>
@@ -225,7 +225,8 @@ import { ElMessageBox, type FormInstance, type UploadRequestOptions } from "elem
 
 import EventAPI, { type EventForm, type EventParticipant, type EventRegistration, type EventTable } from "@/api/module_event/event";
 import DeptAPI, { type DeptTable } from "@/api/module_system/dept";
-import ParamsAPI from "@/api/module_system/params";
+import { ossImage } from "@/utils/ossImage";
+import { uploadImageDirect } from "@/utils/upload";
 
 const statusOptions = [
   { label: "草稿", value: "draft" },
@@ -404,11 +405,9 @@ async function adminCheckin(registrationId: number) {
   if (managingEventId.value) await openRegistrations(managingEventId.value);
 }
 async function uploadCover(options: UploadRequestOptions) {
-  const body = new FormData();
-  body.append("file", options.file);
-  const res = await ParamsAPI.uploadFile(body);
-  form.cover_url = res.data.data.file_url;
-  options.onSuccess?.(res.data.data);
+  const fileInfo = await uploadImageDirect(options.file, "event_cover");
+  form.cover_url = fileInfo.file_url;
+  options.onSuccess?.(fileInfo);
 }
 
 onMounted(() => {

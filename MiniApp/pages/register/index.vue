@@ -119,7 +119,7 @@
 					:class="{ filled: slot.url, empty: !slot.url }"
 					@tap="slot.url ? previewPhoto(index) : choosePhotos()"
 				>
-					<image v-if="slot.url" class="photo-img" :src="slot.url" mode="aspectFill"></image>
+					<image v-if="slot.url" class="photo-img" :src="thumb(slot.url, 220, 220)" mode="aspectFill"></image>
 					<text v-if="slot.badge" class="badge">{{ slot.badge }}</text>
 					<view v-if="slot.url" class="photo-mask">
 						<text>{{ slot.label }}</text>
@@ -137,7 +137,7 @@
 		<view v-if="currentStep === 4" class="panel">
 			<view class="section">
 				<view class="avatar-summary">
-					<image v-if="mainPhoto" class="summary-avatar" :src="mainPhoto" mode="aspectFill"></image>
+					<image v-if="mainPhoto" class="summary-avatar" :src="thumb(mainPhoto, 160, 160)" mode="aspectFill"></image>
 					<view>
 						<text class="section-title">确认缘分档案</text>
 						<text class="section-desc">提交后将生成专属缘分档案，可在“我的”中继续查看。</text>
@@ -165,6 +165,7 @@
 import { mpRegister, mpRegisterOptions, uploadRegisterPhoto } from '../../api/mpAuth.js'
 import { setSession } from '../../utils/storage.js'
 import { ensureMpSession } from '../../utils/mpSession.js'
+import { ossImage, ossImageList } from '../../utils/ossImage.js'
 
 export default {
 	data() {
@@ -308,6 +309,9 @@ export default {
 		this.fetchRegisterOptions()
 	},
 	methods: {
+		thumb(url, width = 300, height = 300) {
+			return ossImage(url, { width, height })
+		},
 		goAfterRegistered() {
 			if (this.redirectUrl) {
 				const url = this.redirectUrl.startsWith('/') ? this.redirectUrl : `/${this.redirectUrl}`
@@ -423,8 +427,8 @@ export default {
 		previewPhoto(index) {
 			if (!this.form.photo_urls[index]) return
 			uni.previewImage({
-				current: index,
-				urls: this.form.photo_urls,
+				current: ossImage(this.form.photo_urls[index], { width: 1200, mode: 'lfit', quality: 85 }),
+				urls: ossImageList(this.form.photo_urls, { width: 1200, quality: 85 }),
 			})
 		},
 		async uploadChosenPhotos(paths) {
@@ -440,11 +444,19 @@ export default {
 				}
 				this.form.avatar_url = this.form.photo_urls[0] || ''
 			} catch (error) {
-				this.showToast(error.message || '照片上传失败')
+				this.showPhotoUploadError(error.message || '照片上传失败')
 			} finally {
 				uni.hideLoading()
 				this.uploading = false
 			}
+		},
+		showPhotoUploadError(message) {
+			uni.showModal({
+				title: '照片不符合要求',
+				content: message,
+				showCancel: false,
+				confirmText: '重新上传',
+			})
 		},
 		required(value, message) {
 			if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) {

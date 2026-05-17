@@ -34,6 +34,15 @@ class CrmPersonModel(ModelMixin, UserMixin):
     house_status: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="房产信息")
     car_status: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="购车信息")
     photo_urls: Mapped[list[str] | None] = mapped_column(JSON, nullable=True, comment="照片相册URL列表")
+    id_card_no: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="身份证号")
+    certification_level: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="none",
+        index=True,
+        comment="当前认证等级",
+    )
+    certification_summary: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, comment="认证摘要")
 
 
 class CrmLeadProfileModel(ModelMixin, UserMixin):

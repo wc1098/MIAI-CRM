@@ -1,6 +1,6 @@
+import random
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-import random
 from typing import Any
 
 from fastapi import Request
@@ -8,12 +8,16 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.v1.module_system.dict.model import DictDataModel
 from app.api.v1.module_system.dept.model import DeptModel
+from app.api.v1.module_system.dict.model import DictDataModel
 from app.api.v1.module_system.params.model import ParamsModel
 from app.core.exceptions import CustomException
-from app.plugin.module_crm.lead.model import CrmLeadLifecycleModel, CrmLeadProfileModel
-from app.plugin.module_crm.lead.model import CrmPersonModel
+from app.plugin.module_certification.service import CertificationService
+from app.plugin.module_crm.lead.model import (
+    CrmLeadLifecycleModel,
+    CrmLeadProfileModel,
+    CrmPersonModel,
+)
 from app.plugin.module_mp.auth.model import MiniProgramUserModel, SourceEventModel
 from app.plugin.module_payment.core.model import PaymentOrderModel
 from app.plugin.module_payment.core.service import PaymentService
@@ -196,7 +200,7 @@ class MpPlazaService:
                 ParamsModel.is_deleted == False,
             )
         )
-        raw = {key: value for key, value in rows.all()}
+        raw = dict(rows.all())
         for key, value in DEFAULT_SETTINGS.items():
             raw.setdefault(key, value)
         return {
@@ -317,9 +321,10 @@ class MpPlazaService:
             "marital_status": person.marital_status,
             "house_status": person.house_status,
             "car_status": person.car_status,
-            "certification_status": "未认证",
             "registered_at": user.registered_at,
         }
+        data.update(CertificationService.certification_level_out(person))
+        data["certification_status"] = data["certification_level_name"]
         return cls._decorate_dict_fields(data, labels)
 
     @classmethod
@@ -679,8 +684,9 @@ class MpPlazaService:
             "car_status": person.car_status,
             "hometown": person.hometown,
             "ethnicity": person.ethnicity,
-            "certification_status": "未认证",
         }
+        data.update(CertificationService.certification_level_out(person))
+        data["certification_status"] = data["certification_level_name"]
         if unlocked:
             data["mobile"] = person.primary_mobile
         return cls._decorate_dict_fields(data, labels)

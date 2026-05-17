@@ -10,10 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.v1.module_common.upload.schema import UploadConfirmRequestSchema
+from app.api.v1.module_common.upload.service import CommonUploadService
 from app.api.v1.module_system.dict.model import DictDataModel
 from app.api.v1.module_system.params.model import ParamsModel
 from app.config.setting import settings
-from app.core.base_schema import UploadResponseSchema
 from app.core.exceptions import CustomException
 from app.plugin.module_crm.lead.model import (
     CrmLeadLifecycleModel,
@@ -22,7 +23,6 @@ from app.plugin.module_crm.lead.model import (
 )
 from app.plugin.module_match.service import MatchProfileService
 from app.plugin.module_profile_ai.service import PersonAiProfileService
-from app.utils.upload_util import UploadUtil
 
 from .model import MiniProgramUserModel, SourceEventModel, UserAgreementAcceptanceModel
 from .schema import MOBILE_PATTERN, MpAuthOutSchema, MpLoginSchema, MpRegisterSchema
@@ -98,18 +98,27 @@ class MpAuthService:
         return result
 
     @classmethod
-    async def upload_register_photo(cls, base_url: str, file: UploadFile) -> dict:
+    async def upload_register_photo(cls, db: AsyncSession, base_url: str, file: UploadFile) -> dict:
         """上传小程序注册照片。"""
-        content_type = (file.content_type or "").lower()
-        if not content_type.startswith("image/"):
-            raise CustomException(msg="只能上传图片文件")
-        filename, filepath, file_url = await UploadUtil.upload_file(file=file, base_url=base_url)
-        return UploadResponseSchema(
-            file_path=f"{filepath}",
-            file_name=filename,
-            origin_name=file.filename,
-            file_url=f"{file_url}",
-        ).model_dump()
+        from app.plugin.module_certification.service import detect_and_upload_photo
+
+        return await detect_and_upload_photo(db, base_url, file, business_type="mp_register_photo")
+
+    @classmethod
+    async def confirm_register_photo(cls, db: AsyncSession, data: UploadConfirmRequestSchema) -> dict:
+        """确认直传 OSS 的小程序注册照片。"""
+        if data.scene != "mp_register_photo":
+            raise CustomException(msg="上传场景不正确")
+        upload = await CommonUploadService.confirm_uploaded_object(data)
+        from app.plugin.module_certification.service import CertificationService
+
+        face = await CertificationService.detect_face_for_url(
+            db,
+            file_url=upload.file_url,
+            business_type="mp_register_photo",
+            require_pass=True,
+        )
+        return upload.model_dump() | {"face_detection": face}
 
     @classmethod
     async def _wechat_code_to_session(cls, db: AsyncSession, code: str) -> dict[str, str]:

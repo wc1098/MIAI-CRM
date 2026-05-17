@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.module_common.upload.schema import UploadConfirmRequestSchema
 from app.common.response import ResponseSchema, SuccessResponse
 from app.core.dependencies import db_getter
 
@@ -50,8 +51,18 @@ async def register_options_controller(
 async def register_photo_upload_controller(
     file: UploadFile,
     request: Request,
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
-    result = await MpAuthService.upload_register_photo(base_url=str(request.base_url), file=file)
+    result = await MpAuthService.upload_register_photo(db=db, base_url=str(request.base_url), file=file)
+    return SuccessResponse(data=result, msg="上传注册照片成功")
+
+
+@MpAuthRouter.post("/register-photo/confirm", summary="确认小程序注册照片")
+async def register_photo_confirm_controller(
+    data: UploadConfirmRequestSchema,
+    db: Annotated[AsyncSession, Depends(db_getter)],
+) -> JSONResponse:
+    result = await MpAuthService.confirm_register_photo(db=db, data=data)
     return SuccessResponse(data=result, msg="上传注册照片成功")
 
 

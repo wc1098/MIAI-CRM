@@ -1,7 +1,7 @@
 <template>
 	<view class="page contact-page">
 		<view class="card">
-			<image class="avatar" :src="target.avatar_url || '/static/logo.png'" mode="aspectFill"></image>
+			<image class="avatar" :src="avatarUrl(target.avatar_url)" mode="aspectFill"></image>
 			<text class="name">{{ target.display_name || '觅AI用户' }}</text>
 			<text class="meta">ID {{ target.display_no }}</text>
 			<text class="phone">{{ mobile }}</text>
@@ -14,6 +14,7 @@
 
 <script>
 import { unlockContact } from '../../../api/mpPlaza.js'
+import { ossImage } from '../../../utils/ossImage.js'
 
 export default {
 	data() {
@@ -34,6 +35,9 @@ export default {
 		this.load().finally(() => uni.stopPullDownRefresh())
 	},
 	methods: {
+		avatarUrl(url) {
+			return ossImage(url, { width: 180, height: 180 }) || '/static/logo.png'
+		},
 		async load() {
 			if (!this.displayNo) return
 			try {

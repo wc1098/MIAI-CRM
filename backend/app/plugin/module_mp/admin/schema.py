@@ -1,5 +1,7 @@
+from datetime import date
+
 from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.base_schema import BaseSchema
 from app.core.validator import DateTimeStr
@@ -12,6 +14,7 @@ class MpPersonBriefSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int | None = Field(default=None, description="人员ID")
+    description: str | None = Field(default=None, description="备注")
     name: str | None = Field(default=None, description="姓名")
     gender: str | None = Field(default=None, description="性别")
     primary_mobile: str | None = Field(default=None, description="手机号")
@@ -28,6 +31,57 @@ class MpPersonBriefSchema(BaseModel):
     house_status: str | None = Field(default=None, description="房产信息")
     car_status: str | None = Field(default=None, description="购车信息")
     photo_urls: list[str] = Field(default_factory=list, description="照片相册")
+    id_card_no_masked: str | None = Field(default=None, description="脱敏身份证号")
+    certification_level: str = Field(default="none", description="认证等级")
+    certification_summary: dict | None = Field(default=None, description="认证摘要")
+
+
+class MpUserProfileUpdateSchema(BaseModel):
+    """Admin 更新小程序用户关联人员资料。"""
+
+    name: str = Field(..., min_length=1, max_length=64, description="姓名")
+    gender: str = Field(default="2", pattern="^[012]$", description="性别")
+    wechat: str | None = Field(default=None, max_length=64, description="微信号")
+    birth_date: date | None = Field(default=None, description="出生日期")
+    height_cm: int | None = Field(default=None, ge=80, le=260, description="身高cm")
+    ethnicity: str | None = Field(default=None, max_length=32, description="民族")
+    occupation: str | None = Field(default=None, max_length=64, description="职业")
+    annual_income: str | None = Field(default=None, max_length=32, description="年收入")
+    marital_status: str | None = Field(default=None, max_length=32, description="婚况")
+    education: str | None = Field(default=None, max_length=32, description="学历")
+    hometown: str | None = Field(default=None, max_length=128, description="籍贯")
+    residence: str | None = Field(default=None, max_length=128, description="常驻地")
+    house_status: str | None = Field(default=None, max_length=32, description="房产信息")
+    car_status: str | None = Field(default=None, max_length=32, description="购车信息")
+    photo_urls: list[str] = Field(default_factory=list, max_length=9, description="照片相册")
+    description: str | None = Field(default=None, max_length=1000, description="备注")
+
+    @field_validator(
+        "wechat",
+        "birth_date",
+        "ethnicity",
+        "occupation",
+        "annual_income",
+        "marital_status",
+        "education",
+        "hometown",
+        "residence",
+        "house_status",
+        "car_status",
+        "description",
+        mode="before",
+    )
+    @classmethod
+    def _empty_to_none(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return value
+
+    @field_validator("photo_urls")
+    @classmethod
+    def _clean_photo_urls(cls, value: list[str]) -> list[str]:
+        return [item.strip() for item in value if isinstance(item, str) and item.strip()]
 
 
 class MpUserOutSchema(BaseSchema):
@@ -171,4 +225,3 @@ class MpUnlockRecordQueryParam:
 class MpUnlockRevokeSchema(BaseModel):
     status: str = Field(..., pattern="^(revoked|blocked)$", description="处理状态")
     reason: str | None = Field(default=None, max_length=500, description="原因")
-
