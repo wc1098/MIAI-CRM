@@ -104,6 +104,7 @@ class MpPersonOutSchema(BaseModel):
     house_status: str | None = None
     car_status: str | None = None
     photo_urls: list[str] | None = None
+    profile_intro: str | None = None
     certification_level: str = "none"
     certification_summary: dict | None = None
 

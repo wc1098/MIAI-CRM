@@ -94,6 +94,41 @@
 			}
 		},
 		{
+			"path": "pages/mine/profile",
+			"style": {
+				"navigationBarTitleText": "个人资料",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/mine/relations",
+			"style": {
+				"navigationBarTitleText": "喜欢与收藏",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/mine/unlocks",
+			"style": {
+				"navigationBarTitleText": "解锁记录",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/mine/events",
+			"style": {
+				"navigationBarTitleText": "我的活动",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/mine/privacy",
+			"style": {
+				"navigationBarTitleText": "隐私设置",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
 			"path": "pages/register/index",
 			"style": {
 				"navigationBarTitleText": "注册资料"
@@ -121,32 +156,32 @@
 			{
 				"pagePath": "pages/plaza/index",
 				"text": "广场",
-				"iconPath": "static/logo.png",
-				"selectedIconPath": "static/logo.png"
+				"iconPath": "static/tabbar/plaza.png",
+				"selectedIconPath": "static/tabbar/plaza-active.png"
 			},
 			{
 				"pagePath": "pages/subscription/index",
 				"text": "订阅",
-				"iconPath": "static/logo.png",
-				"selectedIconPath": "static/logo.png"
+				"iconPath": "static/tabbar/subscription.png",
+				"selectedIconPath": "static/tabbar/subscription-active.png"
 			},
 			{
 				"pagePath": "pages/activity/index",
 				"text": "活动",
-				"iconPath": "static/logo.png",
-				"selectedIconPath": "static/logo.png"
+				"iconPath": "static/tabbar/activity.png",
+				"selectedIconPath": "static/tabbar/activity-active.png"
 			},
 			{
 				"pagePath": "pages/certification/index",
 				"text": "认证",
-				"iconPath": "static/logo.png",
-				"selectedIconPath": "static/logo.png"
+				"iconPath": "static/tabbar/certification.png",
+				"selectedIconPath": "static/tabbar/certification-active.png"
 			},
 			{
 				"pagePath": "pages/mine/index",
 				"text": "我的",
-				"iconPath": "static/logo.png",
-				"selectedIconPath": "static/logo.png"
+				"iconPath": "static/tabbar/mine.png",
+				"selectedIconPath": "static/tabbar/mine-active.png"
 			}
 		]
 	},
