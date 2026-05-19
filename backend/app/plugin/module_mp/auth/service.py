@@ -16,6 +16,7 @@ from app.api.v1.module_system.dict.model import DictDataModel
 from app.api.v1.module_system.params.model import ParamsModel
 from app.config.setting import settings
 from app.core.exceptions import CustomException
+from app.plugin.module_certification.model import FaceDetectionLogModel
 from app.plugin.module_crm.lead.model import (
     CrmLeadLifecycleModel,
     CrmLeadProfileModel,
@@ -307,6 +308,30 @@ class MpAuthService:
                 setattr(person, key, value)
 
     @classmethod
+    async def _bind_register_photo_face_logs(
+        cls,
+        db: AsyncSession,
+        user: MiniProgramUserModel,
+        person: CrmPersonModel,
+        photo_urls: list[str],
+    ) -> None:
+        urls = [url for url in photo_urls if url]
+        if not urls:
+            return
+        rows = (
+            await db.execute(
+                select(FaceDetectionLogModel).where(
+                    FaceDetectionLogModel.business_type == "mp_register_photo",
+                    FaceDetectionLogModel.file_url.in_(urls),
+                    FaceDetectionLogModel.is_deleted == False,
+                )
+            )
+        ).scalars().all()
+        for row in rows:
+            row.user_id = row.user_id or user.id
+            row.person_id = row.person_id or person.id
+
+    @classmethod
     async def _append_source_event(
         cls,
         db: AsyncSession,
@@ -432,6 +457,7 @@ class MpAuthService:
         user.nickname = data.nickname
         user.avatar_url = data.avatar_url
         user.registered_at = user.registered_at or datetime.now()
+        await cls._bind_register_photo_face_logs(db, user, person, person_payload["photo_urls"])
 
         db.add(
             UserAgreementAcceptanceModel(

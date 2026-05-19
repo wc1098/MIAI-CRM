@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from typing import Any
 
@@ -117,6 +117,44 @@ class LeadService:
         if len(wechat) <= 4:
             return "****"
         return f"{wechat[:2]}****{wechat[-2:]}"
+
+    @classmethod
+    def _age(cls, birth_date: date | None) -> int | None:
+        if not birth_date:
+            return None
+        today = date.today()
+        return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+
+    @classmethod
+    def _constellation(cls, birth_date: date | None) -> str | None:
+        if not birth_date:
+            return None
+        boundaries = [
+            ((1, 20), "水瓶座"),
+            ((2, 19), "双鱼座"),
+            ((3, 21), "白羊座"),
+            ((4, 20), "金牛座"),
+            ((5, 21), "双子座"),
+            ((6, 22), "巨蟹座"),
+            ((7, 23), "狮子座"),
+            ((8, 23), "处女座"),
+            ((9, 23), "天秤座"),
+            ((10, 24), "天蝎座"),
+            ((11, 23), "射手座"),
+            ((12, 22), "摩羯座"),
+        ]
+        month_day = (birth_date.month, birth_date.day)
+        for index, (boundary, _) in enumerate(boundaries):
+            if month_day < boundary:
+                return "摩羯座" if index == 0 else boundaries[index - 1][1]
+        return "摩羯座"
+
+    @classmethod
+    def _zodiac(cls, birth_date: date | None) -> str | None:
+        if not birth_date:
+            return None
+        animals = ["鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"]
+        return animals[(birth_date.year - 1900) % 12]
 
     @classmethod
     async def _generate_person_display_no(cls, auth: AuthSchema) -> str:
@@ -251,6 +289,9 @@ class LeadService:
             if not can_view:
                 item["person"]["primary_mobile"] = item["mobile_masked"]
                 item["person"]["wechat"] = item["wechat_masked"]
+            item["age"] = cls._age(lead.person.birth_date)
+            item["constellation"] = cls._constellation(lead.person.birth_date)
+            item["zodiac"] = cls._zodiac(lead.person.birth_date)
             item["ai_profile"] = ai_profile_map.get(lead.person_id, {"profile": None, "latest_task": None})
             item["partner_preference"] = preference_map.get(lead.person_id)
             data.append(item)
@@ -344,7 +385,10 @@ class LeadService:
     @classmethod
     def _scope_conditions(cls, auth: AuthSchema, view: str) -> list[Any]:
         user = auth.user
-        conditions: list[Any] = [CrmLeadProfileModel.is_deleted == False]
+        conditions: list[Any] = [
+            CrmLeadProfileModel.is_deleted == False,
+            CrmLeadProfileModel.lead_type != "converted_customer",
+        ]
         if view == "all":
             if not cls._is_brand_admin(auth):
                 raise CustomException(msg="无权限访问全量线索", code=10403, status_code=403)
@@ -478,7 +522,11 @@ class LeadService:
         )
         lifecycle_result = await auth.db.execute(
             select(CrmLeadLifecycleModel)
-            .where(CrmLeadLifecycleModel.lead_id == id, CrmLeadLifecycleModel.is_deleted == False)
+            .where(
+                CrmLeadLifecycleModel.lead_id == id,
+                CrmLeadLifecycleModel.is_deleted == False,
+                CrmLeadLifecycleModel.operation_type != "follow",
+            )
             .order_by(CrmLeadLifecycleModel.created_time.desc(), CrmLeadLifecycleModel.id.desc())
         )
         data["process_records"] = [
@@ -535,15 +583,28 @@ class LeadService:
             wechat=data.wechat,
             birth_date=data.birth_date,
             height_cm=data.height_cm,
+            weight_kg=data.weight_kg,
             ethnicity=data.ethnicity,
             occupation=data.occupation,
+            occupation_code=data.occupation_code,
             annual_income=data.annual_income,
             marital_status=data.marital_status,
             education=data.education,
+            graduated_school=data.graduated_school,
+            major=data.major,
+            unit_type=data.unit_type,
+            job_title=data.job_title,
+            work_company=data.work_company,
             hometown=data.hometown,
             residence=data.residence,
             house_status=data.house_status,
             car_status=data.car_status,
+            accept_long_distance_self=data.accept_long_distance_self,
+            accept_flash_marriage=data.accept_flash_marriage,
+            willing_relocate=data.willing_relocate,
+            marriage_plan=data.marriage_plan,
+            family_background=data.family_background,
+            profile_remark=data.profile_remark,
             photo_urls=data.photo_urls,
         )
         await cls._ensure_person_display_no(auth, person)
@@ -621,15 +682,28 @@ class LeadService:
             wechat=lead.person.wechat,
             birth_date=lead.person.birth_date,
             height_cm=lead.person.height_cm,
+            weight_kg=lead.person.weight_kg,
             ethnicity=lead.person.ethnicity,
             occupation=lead.person.occupation,
+            occupation_code=lead.person.occupation_code,
             annual_income=lead.person.annual_income,
             marital_status=lead.person.marital_status,
             education=lead.person.education,
+            graduated_school=lead.person.graduated_school,
+            major=lead.person.major,
+            unit_type=lead.person.unit_type,
+            job_title=lead.person.job_title,
+            work_company=lead.person.work_company,
             hometown=lead.person.hometown,
             residence=lead.person.residence,
             house_status=lead.person.house_status,
             car_status=lead.person.car_status,
+            accept_long_distance_self=lead.person.accept_long_distance_self,
+            accept_flash_marriage=lead.person.accept_flash_marriage,
+            willing_relocate=lead.person.willing_relocate,
+            marriage_plan=lead.person.marriage_plan,
+            family_background=lead.person.family_background,
+            profile_remark=lead.person.profile_remark,
             photo_urls=lead.person.photo_urls or [],
         ).model_dump()
         if data.mobile != lead.person.primary_mobile:
@@ -799,12 +873,17 @@ class LeadService:
             lead.latest_follow_at = now
             lead.next_follow_at = None
         elif data.action_type == "convert_customer":
-            change["from_lead_type"] = lead.lead_type
+            from app.plugin.module_crm.customer.service import CustomerService
+
+            old_lead_type = lead.lead_type
+            await CustomerService.create_from_lead_service(auth, id, data.content)
+            change["from_lead_type"] = old_lead_type
             lead.lead_type = "converted_customer"
             lead.converted_customer_at = now
             lead.latest_follow_at = now
         cls._stamp_update(auth, lead)
-        await cls._write_lifecycle(auth, lead, data.action_type, change, data.content)
+        if data.action_type != "follow":
+            await cls._write_lifecycle(auth, lead, data.action_type, change, data.content)
         await auth.db.flush()
         await auth.db.refresh(record)
         return LeadProcessOutSchema.model_validate(record).model_dump()

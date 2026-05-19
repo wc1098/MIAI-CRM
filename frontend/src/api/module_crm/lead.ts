@@ -124,15 +124,28 @@ export interface LeadPerson extends BaseType {
   wechat?: string;
   birth_date?: string;
   height_cm?: number;
+  weight_kg?: number;
   ethnicity?: string;
   occupation?: string;
+  occupation_code?: string;
   annual_income?: string;
   marital_status?: string;
   education?: string;
+  graduated_school?: string;
+  major?: string;
+  unit_type?: string;
+  job_title?: string;
+  work_company?: string;
   hometown?: string;
   residence?: string;
   house_status?: string;
   car_status?: string;
+  accept_long_distance_self?: boolean | null;
+  accept_flash_marriage?: boolean | null;
+  willing_relocate?: boolean | null;
+  marriage_plan?: string;
+  family_background?: string;
+  profile_remark?: string;
   photo_urls?: string[];
 }
 
@@ -244,6 +257,9 @@ export interface LeadTable extends BaseType {
   mobile_masked?: string;
   wechat_masked?: string;
   can_view_contact?: boolean;
+  age?: number;
+  constellation?: string;
+  zodiac?: string;
   ai_profile?: AiProfileInfo;
   partner_preference?: PartnerPreference | null;
 }
@@ -261,15 +277,28 @@ export interface LeadForm {
   wechat?: string;
   birth_date?: string;
   height_cm?: number;
+  weight_kg?: number;
   ethnicity?: string;
   occupation?: string;
+  occupation_code?: string;
   annual_income?: string;
   marital_status?: string;
   education?: string;
+  graduated_school?: string;
+  major?: string;
+  unit_type?: string;
+  job_title?: string;
+  work_company?: string;
   hometown?: string;
   residence?: string;
   house_status?: string;
   car_status?: string;
+  accept_long_distance_self?: boolean | null;
+  accept_flash_marriage?: boolean | null;
+  willing_relocate?: boolean | null;
+  marriage_plan?: string;
+  family_background?: string;
+  profile_remark?: string;
   photo_urls: string[];
   source_channel_code?: string;
   store_id?: number;

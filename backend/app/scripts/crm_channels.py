@@ -83,12 +83,101 @@ LEAD_DICTS = [
         [("10万以下", "below_100k", 1, "info"), ("10-20万", "100k_200k", 2, "primary"), ("20-50万", "200k_500k", 3, "success"), ("50万以上", "above_500k", 4, "warning")],
     ),
     (
+        {"dict_name": "CRM职业", "dict_type": "crm_occupation", "status": "0", "description": "CRM职业列表"},
+        [
+            ("互联网/IT", "internet_it", 1, "primary"),
+            ("金融/保险", "finance_insurance", 2, "success"),
+            ("教育/培训", "education_training", 3, "warning"),
+            ("医疗/护理", "medical_nursing", 4, "danger"),
+            ("公务员/行政", "civil_admin", 5, "info"),
+            ("自主创业", "entrepreneur", 6, "success"),
+        ],
+    ),
+    (
+        {"dict_name": "CRM单位类型", "dict_type": "crm_unit_type", "status": "0", "description": "CRM单位类型列表"},
+        [
+            ("国家机关", "government", 1, "primary"),
+            ("事业单位", "public_institution", 2, "success"),
+            ("国有企业", "state_owned", 3, "warning"),
+            ("私营企业", "private", 4, "info"),
+            ("外资企业", "foreign", 5, "danger"),
+            ("自主创业", "entrepreneur", 6, "success"),
+        ],
+    ),
+    (
+        {"dict_name": "CRM结婚计划", "dict_type": "crm_marriage_plan", "status": "0", "description": "CRM结婚计划列表"},
+        [("1年内", "within_1_year", 1, "success"), ("2年内", "within_2_years", 2, "primary"), ("看缘分", "depends", 3, "info")],
+    ),
+    (
         {"dict_name": "CRM房产信息", "dict_type": "crm_house_status", "status": "0", "description": "CRM房产信息列表"},
         [("无房", "none", 1, "info"), ("有房无贷", "owned", 2, "success"), ("有房有贷", "mortgage", 3, "warning"), ("与父母同住", "family", 4, "primary")],
     ),
     (
         {"dict_name": "CRM购车信息", "dict_type": "crm_car_status", "status": "0", "description": "CRM购车信息列表"},
         [("无车", "none", 1, "info"), ("有车无贷", "owned", 2, "success"), ("有车有贷", "loan", 3, "warning")],
+    ),
+    (
+        {"dict_name": "CRM客户阶段", "dict_type": "crm_customer_stage", "status": "0", "description": "CRM客户阶段列表"},
+        [
+            ("建档完善", "profiling", 1, "info"),
+            ("跟进经营", "following", 2, "primary"),
+            ("已邀约", "appointed", 3, "warning"),
+            ("已到店", "visited", 4, "success"),
+            ("已面谈", "consulted", 5, "success"),
+            ("签约推进", "signing", 6, "warning"),
+            ("已签约待付款", "contracted", 7, "primary"),
+            ("已转VIP", "converted_vip", 8, "success"),
+        ],
+    ),
+    (
+        {"dict_name": "CRM客户退回原因", "dict_type": "crm_customer_return_reason", "status": "0", "description": "CRM客户退回原因列表"},
+        [
+            ("无效客户", "invalid", 1, "danger"),
+            ("长期未响应", "no_response", 2, "warning"),
+            ("暂缓考虑", "not_ready", 3, "info"),
+            ("预算不符", "budget_mismatch", 4, "warning"),
+            ("需求不匹配", "requirement_mismatch", 5, "warning"),
+            ("重复建档", "duplicate", 6, "info"),
+            ("客户明确拒绝", "rejected", 7, "danger"),
+            ("其他", "other", 99, "info"),
+        ],
+    ),
+    (
+        {"dict_name": "CRM客户跟进方式", "dict_type": "crm_customer_follow_method", "status": "0", "description": "CRM客户跟进方式列表"},
+        [("电话", "phone", 1, "primary"), ("微信", "wechat", 2, "success"), ("邀约", "appointment", 3, "warning"), ("面谈", "consultation", 4, "danger")],
+    ),
+    (
+        {"dict_name": "CRM客户跟进常用语", "dict_type": "crm_customer_follow_phrase", "status": "0", "description": "CRM客户跟进常用语列表"},
+        [
+            ("已电话沟通，客户有初步意向。", "phone_interested", 1, "primary"),
+            ("已微信沟通，等待客户进一步回复。", "wechat_waiting", 2, "success"),
+            ("客户暂时不方便，已约定下次联系。", "next_contact", 3, "warning"),
+            ("客户对服务感兴趣，可继续推进邀约。", "push_appointment", 4, "success"),
+        ],
+    ),
+    (
+        {"dict_name": "CRM客户意向等级", "dict_type": "crm_customer_intention_level", "status": "0", "description": "CRM客户意向等级列表"},
+        [("高", "high", 1, "success"), ("中", "medium", 2, "warning"), ("低", "low", 3, "info")],
+    ),
+    (
+        {"dict_name": "CRM客户到访目的", "dict_type": "crm_customer_visit_purpose", "status": "0", "description": "CRM客户到访目的列表"},
+        [("资料完善", "profile", 1, "primary"), ("服务介绍", "service_intro", 2, "success"), ("面谈沟通", "consultation", 3, "warning"), ("签约沟通", "signing", 4, "danger")],
+    ),
+    (
+        {"dict_name": "CRM客户预约时段", "dict_type": "crm_customer_appointment_slot", "status": "0", "description": "CRM客户预约时段列表"},
+        [
+            ("8:00-10:00", "08_10", 1, "info"),
+            ("10:00-12:00", "10_12", 2, "info"),
+            ("12:00-14:00", "12_14", 3, "info"),
+            ("14:00-16:00", "14_16", 4, "primary"),
+            ("16:00-18:00", "16_18", 5, "primary"),
+            ("18:00-20:00", "18_20", 6, "warning"),
+            ("20:00-21:00", "20_21", 7, "warning"),
+        ],
+    ),
+    (
+        {"dict_name": "CRM客户预约状态", "dict_type": "crm_customer_appointment_status", "status": "0", "description": "CRM客户预约状态列表"},
+        [("待到访", "pending", 1, "warning"), ("已到店", "checked_in", 2, "success"), ("已面谈", "consulted", 3, "primary"), ("已爽约", "no_show", 4, "danger"), ("已取消", "cancelled", 5, "info")],
     ),
 ]
 

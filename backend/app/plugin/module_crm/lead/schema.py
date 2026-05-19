@@ -29,15 +29,28 @@ class LeadPersonPayload(BaseModel):
     wechat: str | None = Field(default=None, max_length=64, description="微信号")
     birth_date: date | None = Field(default=None, description="出生日期")
     height_cm: int | None = Field(default=None, ge=80, le=260, description="身高cm")
+    weight_kg: int | None = Field(default=None, ge=30, le=250, description="体重kg")
     ethnicity: str | None = Field(default=None, max_length=32, description="民族")
     occupation: str | None = Field(default=None, max_length=64, description="职业")
+    occupation_code: str | None = Field(default=None, max_length=32, description="标准职业")
     annual_income: str | None = Field(default=None, max_length=32, description="年收入")
     marital_status: str | None = Field(default=None, max_length=32, description="婚况")
     education: str | None = Field(default=None, max_length=32, description="学历")
+    graduated_school: str | None = Field(default=None, max_length=128, description="毕业院校")
+    major: str | None = Field(default=None, max_length=128, description="专业")
+    unit_type: str | None = Field(default=None, max_length=32, description="单位类型")
+    job_title: str | None = Field(default=None, max_length=64, description="职务")
+    work_company: str | None = Field(default=None, max_length=128, description="工作单位")
     hometown: str | None = Field(default=None, max_length=128, description="籍贯")
     residence: str | None = Field(default=None, max_length=128, description="常驻地")
     house_status: str | None = Field(default=None, max_length=32, description="房产信息")
     car_status: str | None = Field(default=None, max_length=32, description="购车信息")
+    accept_long_distance_self: bool | None = Field(default=None, description="本人是否接受异地")
+    accept_flash_marriage: bool | None = Field(default=None, description="本人是否接受闪婚")
+    willing_relocate: bool | None = Field(default=None, description="本人是否愿意搬家")
+    marriage_plan: str | None = Field(default=None, max_length=32, description="结婚计划")
+    family_background: str | None = Field(default=None, max_length=2000, description="家庭情况")
+    profile_remark: str | None = Field(default=None, max_length=2000, description="档案备注")
     photo_urls: list[str] = Field(default_factory=list, description="照片相册")
 
     @field_validator("mobile")
@@ -67,13 +80,22 @@ class LeadPersonPayload(BaseModel):
         "wechat",
         "ethnicity",
         "occupation",
+        "occupation_code",
         "annual_income",
         "marital_status",
         "education",
+        "graduated_school",
+        "major",
+        "unit_type",
+        "job_title",
+        "work_company",
         "hometown",
         "residence",
         "house_status",
         "car_status",
+        "marriage_plan",
+        "family_background",
+        "profile_remark",
     )
     @classmethod
     def strip_optional_text(cls, value: str | None) -> str | None:
@@ -182,15 +204,28 @@ class PersonOutSchema(BaseSchema, UserBySchema):
     wechat: str | None = None
     birth_date: date | None = None
     height_cm: int | None = None
+    weight_kg: int | None = None
     ethnicity: str | None = None
     occupation: str | None = None
+    occupation_code: str | None = None
     annual_income: str | None = None
     marital_status: str | None = None
     education: str | None = None
+    graduated_school: str | None = None
+    major: str | None = None
+    unit_type: str | None = None
+    job_title: str | None = None
+    work_company: str | None = None
     hometown: str | None = None
     residence: str | None = None
     house_status: str | None = None
     car_status: str | None = None
+    accept_long_distance_self: bool | None = None
+    accept_flash_marriage: bool | None = None
+    willing_relocate: bool | None = None
+    marriage_plan: str | None = None
+    family_background: str | None = None
+    profile_remark: str | None = None
     photo_urls: list[str] | None = None
 
 
@@ -220,6 +255,9 @@ class LeadOutSchema(BaseSchema, UserBySchema):
     mobile_masked: str | None = None
     wechat_masked: str | None = None
     can_view_contact: bool = False
+    age: int | None = None
+    constellation: str | None = None
+    zodiac: str | None = None
     ai_profile: dict | None = None
     partner_preference: PartnerPreferenceOutSchema | None = None
 

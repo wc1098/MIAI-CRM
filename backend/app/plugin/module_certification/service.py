@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import Request, UploadFile
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,6 +14,7 @@ from app.api.v1.module_system.params.model import ParamsModel
 from app.core.base_schema import UploadResponseSchema
 from app.core.exceptions import CustomException
 from app.core.logger import log as logger
+from app.plugin.module_crm.customer.model import CrmCustomerCertificationMaterialModel
 from app.plugin.module_crm.lead.model import CrmPersonModel
 from app.plugin.module_mp.auth.model import MiniProgramUserModel, SourceEventModel
 from app.plugin.module_mp.plaza.model import MpUnlockCouponModel
@@ -319,6 +320,80 @@ class CertificationService:
                 )
         await db.flush()
         await db.refresh(app, ["records"])
+        for record in app.records or []:
+            item = items.get(record.item_code)
+            if item:
+                await cls._attach_archived_materials_to_record(db, app, record, item)
+        await db.flush()
+        await db.refresh(app, ["records"])
+
+    @classmethod
+    async def _attach_archived_materials_to_record(
+        cls,
+        db: AsyncSession,
+        app: CertificationApplicationModel,
+        record: CertificationRecordModel,
+        item: CertificationItemModel,
+    ) -> None:
+        archive_codes = [record.item_code]
+        if record.item_code == "real_name":
+            archive_codes.append("id_card_photo")
+        archived_materials = (
+            await db.execute(
+                select(CrmCustomerCertificationMaterialModel)
+                .where(
+                    CrmCustomerCertificationMaterialModel.person_id == app.person_id,
+                    CrmCustomerCertificationMaterialModel.item_code.in_(archive_codes),
+                    CrmCustomerCertificationMaterialModel.is_deleted == False,
+                )
+                .order_by(CrmCustomerCertificationMaterialModel.id.asc())
+            )
+        ).scalars().all()
+        if not archived_materials:
+            return
+        existing_urls = set(
+            (
+                await db.execute(
+                    select(CertificationMaterialModel.file_url).where(
+                        CertificationMaterialModel.record_id == record.id,
+                        CertificationMaterialModel.is_deleted == False,
+                    )
+                )
+            ).scalars().all()
+        )
+        copied = False
+        for material in archived_materials:
+            if material.file_url in existing_urls:
+                continue
+            db.add(
+                CertificationMaterialModel(
+                    brand_id=app.brand_id,
+                    application_id=app.id,
+                    record_id=record.id,
+                    user_id=app.user_id,
+                    person_id=app.person_id,
+                    item_code=record.item_code,
+                    material_type=material.material_type,
+                    file_name=material.file_name,
+                    file_path=material.file_path,
+                    file_url=material.file_url,
+                    payload={
+                        "origin": "customer_archive",
+                        "archive_material_id": material.id,
+                        "archive_item_code": material.item_code,
+                        "archive_item_name": material.item_name,
+                    },
+                )
+            )
+            copied = True
+        if copied:
+            record.payload = {
+                **(record.payload or {}),
+                "prefilled_from_customer_archive": True,
+            }
+            if item.verify_mode == "manual" and record.record_status not in {"approved", "pending_review"}:
+                record.record_status = "pending_review"
+                record.submitted_at = record.submitted_at or datetime.now()
 
     @classmethod
     async def _photo_has_passed_face_detection(cls, db: AsyncSession, file_url: str | None) -> bool:
@@ -997,7 +1072,45 @@ class CertificationService:
             conditions.append(or_(MiniProgramUserModel.nickname.like(keyword), MiniProgramUserModel.mobile.like(keyword), CrmPersonModel.name.like(keyword), CrmPersonModel.primary_mobile.like(keyword), CrmPersonModel.display_no.like(keyword)))
         total = (await db.execute(select(func.count(FaceDetectionLogModel.id)).outerjoin(MiniProgramUserModel, FaceDetectionLogModel.user_id == MiniProgramUserModel.id).outerjoin(CrmPersonModel, FaceDetectionLogModel.person_id == CrmPersonModel.id).where(and_(*conditions)))).scalar() or 0
         rows = (await db.execute(stmt.where(and_(*conditions)).order_by(FaceDetectionLogModel.id.desc()).offset((page_no - 1) * page_size).limit(page_size))).all()
-        return {"page_no": page_no, "page_size": page_size, "total": total, "has_next": page_no * page_size < total, "items": [cls._face_log_out(log, user, person) for log, user, person in rows]}
+        fallback_person_map = await cls._face_log_person_map_by_photo_url(
+            db,
+            [log.file_url for log, _, person in rows if not person and log.file_url],
+        )
+        return {
+            "page_no": page_no,
+            "page_size": page_size,
+            "total": total,
+            "has_next": page_no * page_size < total,
+            "items": [
+                cls._face_log_out(log, user, person or fallback_person_map.get(log.file_url or ""))
+                for log, user, person in rows
+            ],
+        }
+
+    @staticmethod
+    async def _face_log_person_map_by_photo_url(
+        db: AsyncSession,
+        file_urls: list[str | None],
+    ) -> dict[str, CrmPersonModel]:
+        urls = [url for url in set(file_urls) if url]
+        if not urls:
+            return {}
+        conditions = [cast(CrmPersonModel.photo_urls, String).like(f"%{url}%") for url in urls]
+        rows = (
+            await db.execute(
+                select(CrmPersonModel).where(
+                    CrmPersonModel.is_deleted == False,
+                    CrmPersonModel.photo_urls.is_not(None),
+                    or_(*conditions),
+                )
+            )
+        ).scalars().all()
+        result: dict[str, CrmPersonModel] = {}
+        for person in rows:
+            for url in person.photo_urls or []:
+                if url in urls and url not in result:
+                    result[url] = person
+        return result
 
     @classmethod
     async def list_items(cls, db: AsyncSession) -> list[dict[str, Any]]:

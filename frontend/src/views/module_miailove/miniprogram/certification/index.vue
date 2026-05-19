@@ -96,12 +96,12 @@
             <el-table-column prop="display_no" label="编号" width="100" />
             <el-table-column prop="person_name" label="姓名" width="110" />
             <el-table-column label="图片" width="90"><template #default="{ row }"><el-image v-if="row.file_url" class="thumb" :src="ossImage(row.file_url, { w: 64, h: 64 })" :preview-src-list="ossImageList([row.file_url], { w: 1600 })" preview-teleported fit="cover" /></template></el-table-column>
-            <el-table-column prop="business_type" label="业务" width="150" />
+            <el-table-column label="业务" width="150"><template #default="{ row }">{{ faceBusinessLabel(row.business_type) }}</template></el-table-column>
             <el-table-column prop="face_count" label="人脸数" width="80" />
             <el-table-column prop="quality_score" label="质量" width="90" />
             <el-table-column prop="beauty_score" label="颜值" width="90" />
             <el-table-column prop="age" label="年龄" width="80" />
-            <el-table-column prop="gender" label="性别" width="80" />
+            <el-table-column label="性别" width="80"><template #default="{ row }">{{ faceGenderLabel(row.gender) }}</template></el-table-column>
             <el-table-column label="结果" width="90"><template #default="{ row }"><el-tag :type="row.passed ? 'success' : 'danger'">{{ row.passed ? "通过" : "拒绝" }}</el-tag></template></el-table-column>
             <el-table-column prop="error_message" label="错误" min-width="180" />
             <el-table-column prop="detected_at" label="时间" min-width="170" />
@@ -223,6 +223,29 @@ function appStatusLabel(value: string) { return appStatusOptions.find((item) => 
 function appStatusType(value: string) { if (value === "approved") return "success"; if (value === "rejected" || value === "expired") return "danger"; if (value === "pending_payment") return "info"; return "warning"; }
 function recordStatusLabel(value: string) { return ({ not_submitted: "未提交", submitted: "已提交", verifying: "核验中", pending_review: "待审核", approved: "通过", rejected: "驳回", expired: "过期" } as Record<string, string>)[value] || value; }
 function recordStatusType(value: string) { if (value === "approved") return "success"; if (value === "rejected" || value === "expired") return "danger"; if (value === "not_submitted") return "info"; return "warning"; }
+function faceBusinessLabel(value?: string) {
+  return (
+    {
+      mp_register_photo: "小程序注册照片",
+      certification_material: "认证材料",
+      crm_lead_photo: "线索照片",
+      common_image: "通用图片",
+    } as Record<string, string>
+  )[value || ""] || value || "-";
+}
+function faceGenderLabel(value?: string) {
+  return (
+    {
+      "0": "男",
+      "1": "女",
+      "2": "未知",
+      male: "男",
+      female: "女",
+      男: "男",
+      女: "女",
+    } as Record<string, string>
+  )[String(value ?? "").toLowerCase()] || value || "-";
+}
 function progressPercent(row: CertificationApplication) {
   const records = row.records || [];
   const total = row.item_codes?.length || records.length || 0;

@@ -115,32 +115,60 @@
             <template v-if="isReadOnlyMode && detail">
               <div class="readonly-stack">
                 <div class="readonly-section">
-                  <div class="section-title">基础资料</div>
+                  <div class="section-title">基本特征</div>
                   <el-descriptions :column="3" border>
                     <el-descriptions-item label="手机号">{{ detail.person.primary_mobile || "-" }}</el-descriptions-item>
                     <el-descriptions-item label="姓名">{{ detail.person.name || "-" }}</el-descriptions-item>
                     <el-descriptions-item label="性别">{{ genderLabel(detail.person.gender) }}</el-descriptions-item>
                     <el-descriptions-item label="微信号">{{ detail.person.wechat || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="年龄">{{ detail.age ? `${detail.age}岁` : "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="星座">{{ detail.constellation || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="生肖">{{ detail.zodiac || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="民族">{{ optionLabel(dictOptions.ethnicity, detail.person.ethnicity) }}</el-descriptions-item>
+                    <el-descriptions-item label="婚况">{{ optionLabel(dictOptions.maritalStatus, detail.person.marital_status) }}</el-descriptions-item>
                     <el-descriptions-item label="出生日期">{{ detail.person.birth_date || "-" }}</el-descriptions-item>
                     <el-descriptions-item label="身高">{{ detail.person.height_cm ? `${detail.person.height_cm} cm` : "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="体重">{{ detail.person.weight_kg ? `${detail.person.weight_kg} kg` : "-" }}</el-descriptions-item>
                   </el-descriptions>
                 </div>
                 <div class="readonly-section">
-                  <div class="section-title">扩展资料</div>
+                  <div class="section-title">生活与资产</div>
                   <el-descriptions :column="3" border>
-                    <el-descriptions-item label="民族">{{ optionLabel(dictOptions.ethnicity, detail.person.ethnicity) }}</el-descriptions-item>
-                    <el-descriptions-item label="职业">{{ detail.person.occupation || "-" }}</el-descriptions-item>
                     <el-descriptions-item label="年收入">{{ optionLabel(dictOptions.annualIncome, detail.person.annual_income) }}</el-descriptions-item>
-                    <el-descriptions-item label="婚况">{{ optionLabel(dictOptions.maritalStatus, detail.person.marital_status) }}</el-descriptions-item>
-                    <el-descriptions-item label="学历">{{ optionLabel(dictOptions.education, detail.person.education) }}</el-descriptions-item>
                     <el-descriptions-item label="籍贯">{{ normalizeDisplayText(detail.person.hometown || "", "hometown") || "-" }}</el-descriptions-item>
                     <el-descriptions-item label="常驻地">{{ normalizeDisplayText(detail.person.residence || "", "residence") || "-" }}</el-descriptions-item>
                     <el-descriptions-item label="住房情况">{{ optionLabel(dictOptions.houseStatus, detail.person.house_status) }}</el-descriptions-item>
                     <el-descriptions-item label="购车情况">{{ optionLabel(dictOptions.carStatus, detail.person.car_status) }}</el-descriptions-item>
+                  </el-descriptions>
+                </div>
+                <div class="readonly-section">
+                  <div class="section-title">工作与教育</div>
+                  <el-descriptions :column="3" border>
+                    <el-descriptions-item label="学历">{{ optionLabel(dictOptions.education, detail.person.education) }}</el-descriptions-item>
+                    <el-descriptions-item label="毕业院校">{{ detail.person.graduated_school || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="专业">{{ detail.person.major || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="职业">{{ optionLabel(dictOptions.occupation, detail.person.occupation_code) || detail.person.occupation || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="单位类型">{{ optionLabel(dictOptions.unitType, detail.person.unit_type) }}</el-descriptions-item>
+                    <el-descriptions-item label="职务">{{ detail.person.job_title || "-" }}</el-descriptions-item>
+                    <el-descriptions-item label="工作单位">{{ detail.person.work_company || "-" }}</el-descriptions-item>
+                  </el-descriptions>
+                </div>
+                <div class="readonly-section">
+                  <div class="section-title">择偶观念</div>
+                  <el-descriptions :column="3" border>
+                    <el-descriptions-item label="接受异地">{{ boolLabel(detail.person.accept_long_distance_self) }}</el-descriptions-item>
+                    <el-descriptions-item label="接受闪婚">{{ boolLabel(detail.person.accept_flash_marriage) }}</el-descriptions-item>
+                    <el-descriptions-item label="愿意搬家">{{ boolLabel(detail.person.willing_relocate) }}</el-descriptions-item>
+                    <el-descriptions-item label="结婚计划">{{ optionLabel(dictOptions.marriagePlan, detail.person.marriage_plan) }}</el-descriptions-item>
                     <el-descriptions-item label="来源渠道">{{ sourceLabel(detail) }}</el-descriptions-item>
                     <el-descriptions-item label="归属门店">{{ detail.store?.name || "-" }}</el-descriptions-item>
                     <el-descriptions-item label="归属人">{{ detail.owner_sales?.name || "-" }}</el-descriptions-item>
                   </el-descriptions>
+                </div>
+                <div class="readonly-section">
+                  <div class="section-title">家庭情况</div>
+                  <div class="readonly-remark">{{ detail.person.family_background || "暂无家庭情况" }}</div>
+                  <div class="readonly-remark">{{ detail.person.profile_remark || detail.description || "暂无备注" }}</div>
                 </div>
                 <div class="readonly-section">
                   <div class="section-title">照片与备注</div>
@@ -183,7 +211,8 @@
                   </el-col>
                   <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="微信号"><el-input v-model="form.wechat" clearable /></el-form-item></el-col>
                   <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="出生日期"><el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item></el-col>
-                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="身高"><el-input-number v-model="form.height_cm" :min="80" :max="260" controls-position="right" style="width: 100%" /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="身高"><el-input-number v-model="form.height_cm" :max="260" placeholder="请输入身高" controls-position="right" style="width: 100%" /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="体重"><el-input-number v-model="form.weight_kg" :max="250" placeholder="请输入体重" controls-position="right" style="width: 100%" /></el-form-item></el-col>
                 </el-row>
               </div>
 
@@ -197,7 +226,13 @@
                       </el-select>
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="职业"><el-input v-model="form.occupation" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="职业">
+                      <el-select v-model="form.occupation_code" clearable filterable style="width: 100%">
+                        <el-option v-for="item in dictOptions.occupation" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
                     <el-form-item label="年收入">
                       <el-select v-model="form.annual_income" clearable style="width: 100%">
@@ -219,6 +254,18 @@
                       </el-select>
                     </el-form-item>
                   </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="毕业院校"><el-input v-model="form.graduated_school" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="专业"><el-input v-model="form.major" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="职业补充"><el-input v-model="form.occupation" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8">
+                    <el-form-item label="单位类型">
+                      <el-select v-model="form.unit_type" clearable style="width: 100%">
+                        <el-option v-for="item in dictOptions.unitType" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="职务"><el-input v-model="form.job_title" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="工作单位"><el-input v-model="form.work_company" clearable /></el-form-item></el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
                     <el-form-item label="住房情况">
                       <el-select v-model="form.house_status" clearable style="width: 100%">
@@ -243,6 +290,12 @@
                       <el-cascader v-model="residenceValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 100%" @change="syncAddressFields" />
                     </el-form-item>
                   </el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="接受异地"><el-select v-model="form.accept_long_distance_self" clearable style="width: 100%"><el-option label="是" :value="true" /><el-option label="否" :value="false" /></el-select></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="接受闪婚"><el-select v-model="form.accept_flash_marriage" clearable style="width: 100%"><el-option label="是" :value="true" /><el-option label="否" :value="false" /></el-select></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="愿意搬家"><el-select v-model="form.willing_relocate" clearable style="width: 100%"><el-option label="是" :value="true" /><el-option label="否" :value="false" /></el-select></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="结婚计划"><el-select v-model="form.marriage_plan" clearable style="width: 100%"><el-option v-for="item in dictOptions.marriagePlan" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
+                  <el-col :span="24"><el-form-item label="家庭情况"><el-input v-model="form.family_background" type="textarea" :rows="3" /></el-form-item></el-col>
+                  <el-col :span="24"><el-form-item label="备注"><el-input v-model="form.profile_remark" type="textarea" :rows="3" /></el-form-item></el-col>
                 </el-row>
               </div>
 
@@ -652,6 +705,9 @@ const dictOptions = reactive({
   education: [] as Array<{ label: string; value: string }>,
   houseStatus: [] as Array<{ label: string; value: string }>,
   carStatus: [] as Array<{ label: string; value: string }>,
+  occupation: [] as Array<{ label: string; value: string }>,
+  unitType: [] as Array<{ label: string; value: string }>,
+  marriagePlan: [] as Array<{ label: string; value: string }>,
 });
 const addressProps = { emitPath: true };
 const addressOptions = [
@@ -758,15 +814,28 @@ function fillForm(data: LeadDetail) {
     wechat: data.person.wechat,
     birth_date: data.person.birth_date,
     height_cm: data.person.height_cm,
+    weight_kg: data.person.weight_kg,
     ethnicity: data.person.ethnicity,
     occupation: data.person.occupation,
+    occupation_code: data.person.occupation_code,
     annual_income: data.person.annual_income,
     marital_status: data.person.marital_status,
     education: data.person.education,
+    graduated_school: data.person.graduated_school,
+    major: data.person.major,
+    unit_type: data.person.unit_type,
+    job_title: data.person.job_title,
+    work_company: data.person.work_company,
     hometown: data.person.hometown,
     residence: data.person.residence,
     house_status: data.person.house_status,
     car_status: data.person.car_status,
+    accept_long_distance_self: data.person.accept_long_distance_self,
+    accept_flash_marriage: data.person.accept_flash_marriage,
+    willing_relocate: data.person.willing_relocate,
+    marriage_plan: data.person.marriage_plan,
+    family_background: data.person.family_background,
+    profile_remark: data.person.profile_remark,
     photo_urls: data.person.photo_urls || [],
     source_channel_code: data.source_channel_code,
     sync_to_miniprogram: false,
@@ -1000,6 +1069,9 @@ async function loadDictOptions() {
     education: "crm_education",
     houseStatus: "crm_house_status",
     carStatus: "crm_car_status",
+    occupation: "crm_occupation",
+    unitType: "crm_unit_type",
+    marriagePlan: "crm_marriage_plan",
   } as const;
   await Promise.all(
     Object.entries(dictMap).map(async ([key, type]) => {
@@ -1031,6 +1103,12 @@ function genderLabel(value?: string) {
 function optionLabel(options: Array<{ label: string; value: string }>, value?: string) {
   if (!value) return "-";
   return options.find((item) => item.value === value)?.label || value;
+}
+
+function boolLabel(value?: boolean | null) {
+  if (value === true) return "是";
+  if (value === false) return "否";
+  return "-";
 }
 
 function sourceLabel(row?: Pick<LeadTable, "source_channel_name" | "source_channel_code">) {
@@ -1221,15 +1299,28 @@ function fieldLabel(key: string) {
       wechat: "微信号",
       birth_date: "出生日期",
       height_cm: "身高",
+      weight_kg: "体重",
       ethnicity: "民族",
       occupation: "职业",
+      occupation_code: "标准职业",
       annual_income: "年收入",
       marital_status: "婚况",
       education: "学历",
+      graduated_school: "毕业院校",
+      major: "专业",
+      unit_type: "单位类型",
+      job_title: "职务",
+      work_company: "工作单位",
       hometown: "籍贯",
       residence: "常驻地",
       house_status: "房产信息",
       car_status: "购车信息",
+      accept_long_distance_self: "接受异地",
+      accept_flash_marriage: "接受闪婚",
+      willing_relocate: "愿意搬家",
+      marriage_plan: "结婚计划",
+      family_background: "家庭情况",
+      profile_remark: "备注",
       photo_urls: "照片",
       description: "备注",
       partner_preference: "择偶要求",
@@ -1242,6 +1333,7 @@ function fieldLabel(key: string) {
 function displayChangeValue(value: unknown, field?: string): string {
   if (value === null || value === undefined || value === "") return "未设置";
   if (Array.isArray(value)) return value.length ? value.join("、") : "未设置";
+  if (typeof value === "boolean") return boolLabel(value);
   if (typeof value === "string") {
     const dictLabel = dictValueLabel(field, value);
     if (dictLabel) return dictLabel;
@@ -1263,6 +1355,9 @@ function dictValueLabel(field: string | undefined, value: string) {
     education: dictOptions.education,
     house_status: dictOptions.houseStatus,
     car_status: dictOptions.carStatus,
+    occupation_code: dictOptions.occupation,
+    unit_type: dictOptions.unitType,
+    marriage_plan: dictOptions.marriagePlan,
   } as Record<string, Array<{ label: string; value: string }>>;
   return field && map[field] ? map[field].find((item) => item.value === value)?.label || "" : "";
 }
