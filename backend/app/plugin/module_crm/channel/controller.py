@@ -27,7 +27,21 @@ ChannelRouter = APIRouter(route_class=OperationLogRoute, prefix="/channel", tags
 async def get_obj_list_controller(
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[ChannelQueryParam, Depends()],
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:channel:query"]))],
+    auth: Annotated[
+        AuthSchema,
+        Depends(
+            AuthPermission(
+                [
+                    "crm:channel:query",
+                    "crm:lead:all:query",
+                    "crm:lead:store:query",
+                    "crm:lead:sales:query",
+                    "crm:lead:create",
+                    "crm:lead:update",
+                ]
+            )
+        ),
+    ],
 ) -> JSONResponse:
     result_dict = await ChannelService.page_service(
         auth=auth,

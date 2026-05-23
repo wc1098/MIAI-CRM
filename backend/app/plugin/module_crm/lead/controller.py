@@ -76,6 +76,78 @@ async def list_sales_private_controller(
 
 
 @LeadRouter.get(
+    "/sales-options",
+    summary="查询CRM销售选择器",
+)
+async def sales_options_controller(
+    auth: Annotated[
+        AuthSchema,
+        Depends(
+            AuthPermission(
+                [
+                    "crm:lead:store:query",
+                    "crm:lead:sales:query",
+                    "crm:customer:query",
+                    "crm:customer:visit:list",
+                ],
+                check_data_scope=False,
+            )
+        ),
+    ],
+    store_id: int | None = None,
+) -> JSONResponse:
+    result = await LeadService.sales_options_service(auth=auth, store_id=store_id)
+    return SuccessResponse(data=result, msg="查询销售选择器成功")
+
+
+@LeadRouter.get(
+    "/store-options",
+    summary="查询CRM门店选择器",
+)
+async def store_options_controller(
+    auth: Annotated[
+        AuthSchema,
+        Depends(
+            AuthPermission(
+                [
+                    "crm:lead:store:query",
+                    "crm:lead:sales:query",
+                    "crm:customer:query",
+                    "crm:customer:visit:list",
+                ],
+                check_data_scope=False,
+            )
+        ),
+    ],
+) -> JSONResponse:
+    result = await LeadService.store_options_service(auth=auth)
+    return SuccessResponse(data=result, msg="查询门店选择器成功")
+
+
+@LeadRouter.get(
+    "/source-options",
+    summary="查询CRM来源渠道选择器",
+)
+async def source_options_controller(
+    auth: Annotated[
+        AuthSchema,
+        Depends(
+            AuthPermission(
+                [
+                    "crm:lead:store:query",
+                    "crm:lead:sales:query",
+                    "crm:customer:query",
+                ],
+                check_data_scope=False,
+            )
+        ),
+    ],
+) -> JSONResponse:
+    result = await LeadService.source_options_service(auth=auth)
+    return SuccessResponse(data=result, msg="查询来源渠道选择器成功")
+
+
+@LeadRouter.get(
     "/detail/{id}",
     summary="查询线索详情",
     response_model=ResponseSchema[LeadDetailOutSchema],
@@ -131,7 +203,15 @@ async def create_controller(
 async def update_controller(
     data: LeadUpdateSchema,
     id: Annotated[int, Path(description="线索ID")],
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:lead:update"], check_data_scope=False))],
+    auth: Annotated[
+        AuthSchema,
+        Depends(
+            AuthPermission(
+                ["crm:lead:update", "crm:lead:sales:detail"],
+                check_data_scope=False,
+            )
+        ),
+    ],
 ) -> JSONResponse:
     result = await LeadService.update_service(auth=auth, id=id, data=data)
     return SuccessResponse(data=result, msg="编辑线索成功")

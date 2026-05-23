@@ -53,12 +53,29 @@ class PaymentService:
         return top.code
 
     @classmethod
-    async def _store_code(cls, db: AsyncSession, store_id: int) -> str:
+    async def _cloudpay_store_id(cls, db: AsyncSession, store_id: int) -> str:
         dept = await db.get(DeptModel, store_id)
         if not dept or dept.is_deleted:
             raise CustomException(msg="云支付门店ID获取失败：门店不存在")
         if dept.status != "0":
             raise CustomException(msg="云支付门店ID获取失败：门店已停用")
+        if dept.parent_id is not None:
+            if not dept.code:
+                raise CustomException(msg="云支付门店ID获取失败：门店编码为空")
+            return dept.code
+        result = await db.execute(
+            select(DeptModel.code)
+            .where(
+                DeptModel.parent_id == dept.id,
+                DeptModel.status == "0",
+                DeptModel.is_deleted == False,
+            )
+            .order_by(DeptModel.order.asc(), DeptModel.id.asc())
+            .limit(1)
+        )
+        first_store_code = result.scalar()
+        if first_store_code:
+            return first_store_code
         if not dept.code:
             raise CustomException(msg="云支付门店ID获取失败：门店编码为空")
         return dept.code
@@ -136,6 +153,26 @@ class PaymentService:
         }
 
     @classmethod
+    def _payment_out(
+        cls,
+        order: PaymentOrderModel,
+        payment: PaymentRecordModel,
+        response: dict[str, Any] | None = None,
+        **extra: Any,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "order_id": order.id,
+            "order_no": order.order_no,
+            "payment_id": payment.id,
+            "payment_no": payment.payment_no,
+            "expire_at": order.expire_at.isoformat() if order.expire_at else None,
+        }
+        if response is not None:
+            payload["pay_payload"] = cls._response_data(response)
+        payload.update(extra)
+        return payload
+
+    @classmethod
     async def create_cloudpay_mp_payment(
         cls,
         db: AsyncSession,
@@ -164,7 +201,7 @@ class PaymentService:
         )
         biz_content = {
             "cp_mid": await cls._top_dept_code(db, order.store_id),
-            "cp_store_id": await cls._store_code(db, order.store_id),
+            "cp_store_id": await cls._cloudpay_store_id(db, order.store_id),
             "out_order_no": order.order_no,
             "total_amount": f"{order.payable_amount:.2f}",
             "buyer_id": buyer_id,
@@ -201,31 +238,122 @@ class PaymentService:
                     },
                     trade_no=None,
                 )
-                return {
-                    "order_id": order.id,
-                    "order_no": order.order_no,
-                    "payment_id": payment.id,
-                    "payment_no": payment.payment_no,
-                    "expire_at": order.expire_at,
-                    "pay_payload": None,
-                    "wechat_pay": None,
-                    "paid": True,
-                    "message": "订单已支付，已同步业务状态",
-                }
+                return cls._payment_out(
+                    order,
+                    payment,
+                    pay_payload=None,
+                    wechat_pay=None,
+                    paid=True,
+                    message="订单已支付，已同步业务状态",
+                )
             raise
         payment.raw_response = response
         payment.payment_status = "created"
         order.pay_status = "processing"
         await db.flush()
-        return {
-            "order_id": order.id,
-            "order_no": order.order_no,
-            "payment_id": payment.id,
-            "payment_no": payment.payment_no,
-            "expire_at": order.expire_at,
-            "pay_payload": cls._response_data(response),
-            "wechat_pay": cls._wechat_pay_payload(response),
+        return cls._payment_out(order, payment, response, wechat_pay=cls._wechat_pay_payload(response))
+
+    @classmethod
+    async def create_cloudpay_precreate_payment(
+        cls,
+        db: AsyncSession,
+        *,
+        order: PaymentOrderModel,
+        pay_channel: str,
+        notify_url: str,
+        operator_id: str | None = None,
+    ) -> dict[str, Any]:
+        if order.pay_status == "paid":
+            raise CustomException(msg="订单已支付")
+        if order.expire_at and datetime.now() >= order.expire_at:
+            await cls.close_order(db, order)
+            raise CustomException(msg="订单已超时，请重新创建收款")
+        if not order.store_id:
+            raise CustomException(msg="订单缺少归属门店，无法发起支付")
+
+        payment = PaymentRecordModel(
+            order_id=order.id,
+            payment_no=cls._order_no("T"),
+            channel="cloudpay",
+            pay_method=pay_channel,
+            amount=order.payable_amount,
+            payment_status="pending",
+            merchant_trade_no=order.order_no,
+        )
+        biz_content = {
+            "cp_mid": await cls._top_dept_code(db, order.store_id),
+            "cp_store_id": await cls._cloudpay_store_id(db, order.store_id),
+            "out_order_no": order.order_no,
+            "total_amount": f"{order.payable_amount:.2f}",
+            "subject": order.subject,
+            "pay_channel": pay_channel,
+            "body": order.subject[:128],
+            "operator_id": operator_id,
+            "notify_url": notify_url,
         }
+        payment.raw_request = {key: value for key, value in biz_content.items() if value not in (None, "")}
+        db.add(payment)
+        await db.flush()
+        response = await CloudPayClient.execute("ant.antfin.eco.cloudpay.trade.precreate", payment.raw_request)
+        payment.raw_response = response
+        payment.payment_status = "created"
+        order.pay_status = "processing"
+        await db.flush()
+        return cls._payment_out(order, payment, response)
+
+    @classmethod
+    async def create_cloudpay_barcode_payment(
+        cls,
+        db: AsyncSession,
+        *,
+        order: PaymentOrderModel,
+        auth_code: str,
+        pay_channel: str | None,
+        notify_url: str,
+        operator_id: str | None = None,
+    ) -> dict[str, Any]:
+        if order.pay_status == "paid":
+            raise CustomException(msg="订单已支付")
+        if order.expire_at and datetime.now() >= order.expire_at:
+            await cls.close_order(db, order)
+            raise CustomException(msg="订单已超时，请重新创建收款")
+        if not order.store_id:
+            raise CustomException(msg="订单缺少归属门店，无法发起支付")
+
+        payment = PaymentRecordModel(
+            order_id=order.id,
+            payment_no=cls._order_no("T"),
+            channel="cloudpay",
+            pay_method=pay_channel or "barcode",
+            amount=order.payable_amount,
+            payment_status="pending",
+            merchant_trade_no=order.order_no,
+        )
+        biz_content = {
+            "cp_mid": await cls._top_dept_code(db, order.store_id),
+            "cp_store_id": await cls._cloudpay_store_id(db, order.store_id),
+            "out_order_no": order.order_no,
+            "scene": "bar_code",
+            "total_amount": f"{order.payable_amount:.2f}",
+            "auth_code": auth_code,
+            "subject": order.subject,
+            "body": order.subject[:128],
+            "operator_id": operator_id,
+            "pay_channel": pay_channel,
+            "notify_url": notify_url,
+        }
+        payment.raw_request = {key: value for key, value in biz_content.items() if value not in (None, "")}
+        db.add(payment)
+        await db.flush()
+        response = await CloudPayClient.execute("ant.antfin.eco.cloudpay.trade.pay", payment.raw_request)
+        payment.raw_response = response
+        payment.payment_status = "created"
+        order.pay_status = "processing"
+        paid = cls._payload_success(response)
+        if paid:
+            await cls.mark_order_paid(db, order, response, cls._payload_trade_no(response))
+        await db.flush()
+        return cls._payment_out(order, payment, response, paid=paid)
 
     @classmethod
     async def close_order(cls, db: AsyncSession, order: PaymentOrderModel) -> None:
@@ -237,57 +365,51 @@ class PaymentService:
         await db.flush()
 
     @classmethod
-    def _payload_order_no(cls, payload: dict[str, Any]) -> str | None:
-        for key in ("out_order_no", "out_trade_no", "merchant_trade_no"):
-            value = payload.get(key)
-            if value:
-                return str(value)
+    def _payload_sources(cls, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        sources = [payload]
         data = payload.get("data")
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except ValueError:
+                data = None
         if isinstance(data, dict):
+            sources.append(data)
+        return sources
+
+    @classmethod
+    def _payload_order_no(cls, payload: dict[str, Any]) -> str | None:
+        for source in cls._payload_sources(payload):
             for key in ("out_order_no", "out_trade_no", "merchant_trade_no"):
-                value = data.get(key)
+                value = source.get(key)
                 if value:
                     return str(value)
         return None
 
     @classmethod
     def _payload_trade_no(cls, payload: dict[str, Any]) -> str | None:
-        for key in ("trans_no", "trade_no", "channel_trade_no"):
-            value = payload.get(key)
-            if value:
-                return str(value)
-        data = payload.get("data")
-        if isinstance(data, dict):
+        for source in cls._payload_sources(payload):
             for key in ("trans_no", "trade_no", "channel_trade_no"):
-                value = data.get(key)
+                value = source.get(key)
                 if value:
                     return str(value)
         return None
 
     @classmethod
     def _payload_amount(cls, payload: dict[str, Any], default: Decimal) -> Decimal:
-        for key in ("total_amount", "receipt_amount", "buyer_pay_amount"):
-            value = payload.get(key)
-            if value not in (None, ""):
-                return Decimal(str(value))
-        data = payload.get("data")
-        if isinstance(data, dict):
+        for source in cls._payload_sources(payload):
             for key in ("total_amount", "receipt_amount", "buyer_pay_amount"):
-                value = data.get(key)
+                value = source.get(key)
                 if value not in (None, ""):
                     return Decimal(str(value))
         return default
 
     @classmethod
     def _payload_success(cls, payload: dict[str, Any]) -> bool:
-        values = {
-            str(payload.get(key) or "").upper()
-            for key in ("trade_status", "order_status", "pay_status", "status")
-        }
-        data = payload.get("data")
-        if isinstance(data, dict):
+        values: set[str] = set()
+        for source in cls._payload_sources(payload):
             values |= {
-                str(data.get(key) or "").upper()
+                str(source.get(key) or "").upper()
                 for key in ("trade_status", "order_status", "pay_status", "status")
             }
         return bool(values & cls.SUCCESS_TRADE_STATUSES)
@@ -298,25 +420,24 @@ class PaymentService:
         db: AsyncSession,
         payload: dict[str, Any],
         verify_result: bool,
+        signature: str | None = None,
         verify_error: str | None = None,
-    ) -> None:
+    ) -> str | None:
         order_no = cls._payload_order_no(payload)
         trade_no = cls._payload_trade_no(payload)
-        log = PaymentCallbackLogModel(
+        callback_log = PaymentCallbackLogModel(
             channel="cloudpay",
             merchant_trade_no=order_no,
             channel_trade_no=trade_no,
             payload=payload,
-            signature=payload.get("sign"),
+            signature=signature or payload.get("sign") or payload.get("signature"),
             verify_result=verify_result,
             process_status="pending",
             received_at=datetime.now(),
         )
-        db.add(log)
+        db.add(callback_log)
         await db.flush()
         try:
-            if not verify_result:
-                raise CustomException(msg=verify_error or "云支付通知验签失败")
             if not order_no:
                 raise CustomException(msg="云支付通知缺少商户订单号")
             result = await db.execute(
@@ -328,15 +449,58 @@ class PaymentService:
             order = result.scalars().first()
             if not order:
                 raise CustomException(msg="本地支付订单不存在")
+            if not verify_result:
+                if "缺少签名" in (verify_error or ""):
+                    await cls._verify_unsigned_cloudpay_callback(db, order, payload, trade_no)
+                    verify_result = True
+                    callback_log.verify_result = True
+                    log.info(f"云支付无签名通知二次查询校验成功: order_no={order_no}, trade_no={trade_no}")
+                else:
+                    raise CustomException(msg=verify_error or "云支付通知验签失败")
             if cls._payload_success(payload):
                 await cls.mark_order_paid(db, order, payload, trade_no)
-            log.process_status = "success"
-            log.processed_at = datetime.now()
+            callback_log.process_status = "success"
+            callback_log.processed_at = datetime.now()
+            log.info(f"云支付通知处理成功: order_no={order_no}, trade_no={trade_no}, pay_status={order.pay_status}")
+            return None
         except Exception as exc:
-            log.process_status = "failed"
-            log.error_message = str(exc)
-            log.processed_at = datetime.now()
-            return
+            callback_log.process_status = "failed"
+            callback_log.error_message = str(exc)
+            callback_log.processed_at = datetime.now()
+            log.error(f"云支付通知处理失败: order_no={order_no}, trade_no={trade_no}, error={exc}")
+            return str(exc)
+
+    @classmethod
+    async def _verify_unsigned_cloudpay_callback(
+        cls,
+        db: AsyncSession,
+        order: PaymentOrderModel,
+        payload: dict[str, Any],
+        trade_no: str | None,
+    ) -> None:
+        if not order.store_id:
+            raise CustomException(msg="订单缺少归属门店，无法校验云支付通知")
+        query_payload = {
+            "cp_mid": await cls._top_dept_code(db, order.store_id),
+            "cp_store_id": await cls._cloudpay_store_id(db, order.store_id),
+            "out_order_no": order.order_no,
+            "trans_no": trade_no,
+        }
+        response = await CloudPayClient.execute(
+            "ant.antfin.eco.cloudpay.trade.query",
+            {key: value for key, value in query_payload.items() if value not in (None, "")},
+        )
+        data = cls._response_data(response)
+        query_data = data if isinstance(data, dict) else response
+        if not cls._payload_success(query_data):
+            raise CustomException(msg="云支付通知二次查询未确认支付成功", data=response)
+        query_amount = cls._payload_amount(query_data, order.payable_amount)
+        notify_amount = cls._payload_amount(payload, order.payable_amount)
+        if query_amount != notify_amount or query_amount != order.payable_amount:
+            raise CustomException(msg="云支付通知金额与本地订单不一致", data={"notify": payload, "query": response})
+        query_trade_no = cls._payload_trade_no(query_data)
+        if trade_no and query_trade_no and trade_no != query_trade_no:
+            raise CustomException(msg="云支付通知交易号与二次查询不一致", data={"notify": payload, "query": response})
 
     @classmethod
     async def mark_order_paid(
@@ -382,3 +546,7 @@ class PaymentService:
             from app.plugin.module_certification.service import CertificationService
 
             await CertificationService.on_payment_success(db, order)
+        elif order.biz_type == "contract_receipt":
+            from app.plugin.module_crm.receipt.service import ReceiptService
+
+            await ReceiptService.on_payment_success(db, order, payload, trade_no)

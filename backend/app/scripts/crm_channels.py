@@ -156,12 +156,58 @@ LEAD_DICTS = [
         ],
     ),
     (
+        {"dict_name": "CRM客户过程记录类型", "dict_type": "crm_customer_process_record_type", "status": "0", "description": "CRM客户过程记录类型列表"},
+        [
+            ("普通跟进", "follow", 1, "primary"),
+            ("邀约到店", "appointment", 2, "warning"),
+            ("到店面谈", "consultation", 3, "success"),
+            ("服务沟通", "service_communication", 20, "primary"),
+            ("需求确认", "service_requirement_confirm", 21, "success"),
+            ("推荐说明", "service_recommendation_explain", 22, "warning"),
+            ("约见反馈", "service_meeting_feedback", 23, "primary"),
+            ("续费沟通", "service_renewal_communication", 24, "success"),
+            ("关单沟通", "service_close_communication", 25, "info"),
+            ("其他", "other", 99, "info"),
+        ],
+    ),
+    (
+        {"dict_name": "统一时间轴来源", "dict_type": "unified_timeline_source", "status": "0", "description": "统一过程时间轴来源列表"},
+        [
+            ("线索", "lead", 1, "primary"),
+            ("销售", "sales", 2, "success"),
+            ("到店", "visit", 3, "warning"),
+            ("合同", "contract", 4, "danger"),
+            ("收款", "receipt", 5, "success"),
+            ("服务", "service", 6, "primary"),
+            ("系统", "system", 7, "info"),
+        ],
+    ),
+    (
+        {"dict_name": "CRM线索跟进常用语", "dict_type": "crm_lead_follow_phrase", "status": "0", "description": "CRM线索跟进常用语列表"},
+        [
+            ("已电话沟通，客户有初步意向。", "phone_interested", 1, "primary"),
+            ("微信已添加，等待客户回复。", "wechat_waiting", 2, "success"),
+            ("客户暂时不方便，约定下次联系。", "next_contact", 3, "warning"),
+            ("客户无明确需求，后续观察。", "observe_later", 4, "info"),
+        ],
+    ),
+    (
         {"dict_name": "CRM客户意向等级", "dict_type": "crm_customer_intention_level", "status": "0", "description": "CRM客户意向等级列表"},
         [("高", "high", 1, "success"), ("中", "medium", 2, "warning"), ("低", "low", 3, "info")],
     ),
     (
         {"dict_name": "CRM客户到访目的", "dict_type": "crm_customer_visit_purpose", "status": "0", "description": "CRM客户到访目的列表"},
-        [("资料完善", "profile", 1, "primary"), ("服务介绍", "service_intro", 2, "success"), ("面谈沟通", "consultation", 3, "warning"), ("签约沟通", "signing", 4, "danger")],
+        [
+            ("资料完善", "profile", 1, "primary"),
+            ("服务介绍", "service_intro", 2, "success"),
+            ("面谈沟通", "consultation", 3, "warning"),
+            ("签约沟通", "signing", 4, "danger"),
+            ("服务沟通", "service_communication", 20, "primary"),
+            ("资料补充", "service_profile_completion", 21, "success"),
+            ("深访沟通", "service_deep_interview", 22, "warning"),
+            ("续费沟通", "service_renewal", 23, "danger"),
+            ("其他", "other", 99, "info"),
+        ],
     ),
     (
         {"dict_name": "CRM客户预约时段", "dict_type": "crm_customer_appointment_slot", "status": "0", "description": "CRM客户预约时段列表"},
@@ -178,6 +224,82 @@ LEAD_DICTS = [
     (
         {"dict_name": "CRM客户预约状态", "dict_type": "crm_customer_appointment_status", "status": "0", "description": "CRM客户预约状态列表"},
         [("待到访", "pending", 1, "warning"), ("已到店", "checked_in", 2, "success"), ("已面谈", "consulted", 3, "primary"), ("已爽约", "no_show", 4, "danger"), ("已取消", "cancelled", 5, "info")],
+    ),
+    (
+        {"dict_name": "CRM VIP等级", "dict_type": "crm_vip_level", "status": "0", "description": "CRM VIP等级列表"},
+        [("银", "silver", 1, "info"), ("金", "gold", 2, "warning"), ("铂金", "platinum", 3, "primary"), ("钻石", "diamond", 4, "success")],
+    ),
+    (
+        {"dict_name": "CRM VIP服务状态", "dict_type": "crm_vip_status", "status": "0", "description": "CRM VIP服务状态列表"},
+        [("待分配", "pending_assign", 1, "warning"), ("服务中", "serving", 2, "success"), ("已暂停", "paused", 3, "info"), ("已关单", "closed", 4, "danger"), ("已过期", "expired", 5, "danger")],
+    ),
+    (
+        {"dict_name": "CRM合同状态", "dict_type": "crm_contract_status", "status": "0", "description": "CRM合同状态列表"},
+        [("草稿", "draft", 1, "info"), ("已签", "signed", 2, "warning"), ("待审核", "pending_review", 3, "warning"), ("待收款", "pending_payment", 4, "primary"), ("已生效", "effective", 5, "success"), ("已到期", "expired", 6, "danger"), ("已作废", "voided", 7, "danger")],
+    ),
+    (
+        {"dict_name": "CRM收款类型", "dict_type": "crm_contract_receipt_type", "status": "0", "description": "CRM收款类型列表"},
+        [("首款", "deposit", 1, "warning"), ("全款", "full", 2, "success"), ("尾款", "final", 3, "primary"), ("补款", "additional", 4, "info"), ("退款登记", "refund", 5, "danger"), ("其他", "other", 99, "info")],
+    ),
+    (
+        {"dict_name": "CRM支付方式", "dict_type": "crm_contract_pay_method", "status": "0", "description": "CRM支付方式列表"},
+        [("待选择", "pending", 1, "warning"), ("支付宝", "alipay", 2, "primary"), ("微信", "wechat", 3, "success"), ("现金", "cash", 4, "info"), ("银行转账", "bank_transfer", 5, "warning")],
+    ),
+    (
+        {"dict_name": "CRM收款状态", "dict_type": "crm_contract_receipt_status", "status": "0", "description": "CRM收款状态列表"},
+        [("待复核", "pending", 1, "warning"), ("待支付", "pending_payment", 2, "warning"), ("已确认", "approved", 3, "success"), ("已驳回", "rejected", 4, "danger"), ("已作废", "voided", 5, "info"), ("已冲正", "reversed", 6, "danger"), ("退款登记", "refund_registered", 7, "danger")],
+    ),
+    (
+        {"dict_name": "CRM支付场景", "dict_type": "crm_contract_payment_scene", "status": "0", "description": "CRM支付场景列表"},
+        [("待选择", "pending", 1, "warning"), ("线下确认", "offline", 2, "info"), ("扫码支付", "qrcode", 3, "primary"), ("条码支付", "barcode", 4, "success"), ("冲正", "reverse", 5, "danger"), ("退款登记", "refund_register", 6, "danger")],
+    ),
+    (
+        {"dict_name": "服务工单状态", "dict_type": "service_case_status", "status": "0", "description": "服务工单状态列表"},
+        [("待分配", "pending_assign", 1, "warning"), ("服务中", "serving", 2, "success"), ("待关单审核", "pending_close_review", 3, "warning"), ("已关单", "closed", 4, "info"), ("已过期", "expired", 5, "danger"), ("已重开", "reopened", 6, "primary")],
+    ),
+    (
+        {"dict_name": "服务池类型", "dict_type": "service_pool_type", "status": "0", "description": "服务池类型列表"},
+        [("待分配", "pending_assign", 1, "warning"), ("红娘私有", "matchmaker_private", 2, "success"), ("服务公海", "service_public", 3, "primary"), ("已关单", "closed", 4, "info")],
+    ),
+    (
+        {"dict_name": "服务权益类型", "dict_type": "service_entitlement_type", "status": "0", "description": "服务权益类型列表"},
+        [("推荐", "recommendation", 1, "primary"), ("约见", "meeting", 2, "success"), ("课程", "course", 3, "warning")],
+    ),
+    (
+        {"dict_name": "服务核销状态", "dict_type": "service_usage_status", "status": "0", "description": "服务核销状态列表"},
+        [("有效", "active", 1, "success"), ("已作废", "void", 2, "danger"), ("已回滚", "rolled_back", 3, "warning")],
+    ),
+    (
+        {"dict_name": "服务深访类型", "dict_type": "deep_interview_type", "status": "0", "description": "服务深访类型列表"},
+        [("首次深访", "first", 1, "primary"), ("阶段深访", "stage", 2, "success"), ("结案深访", "closing", 3, "warning")],
+    ),
+    (
+        {"dict_name": "关单审核状态", "dict_type": "close_review_status", "status": "0", "description": "关单审核状态列表"},
+        [("未申请", "none", 1, "info"), ("待审核", "pending", 2, "warning"), ("已通过", "approved", 3, "success"), ("已驳回", "rejected", 4, "danger")],
+    ),
+    (
+        {"dict_name": "备选库来源", "dict_type": "candidate_source_type", "status": "0", "description": "备选库来源列表"},
+        [("本门店搜索加入", "store_search", 1, "primary"), ("红娘手动新增", "manual_create", 2, "success"), ("本门店审核加入", "store_review_join", 3, "warning"), ("品牌审核加入", "brand_review_join", 4, "success")],
+    ),
+    (
+        {"dict_name": "候选发现范围", "dict_type": "candidate_search_scope", "status": "0", "description": "候选发现范围列表"},
+        [("本门店", "store", 1, "primary"), ("品牌", "brand", 2, "success")],
+    ),
+    (
+        {"dict_name": "备选加入申请状态", "dict_type": "candidate_join_request_status", "status": "0", "description": "备选库加入申请状态列表"},
+        [("待审核", "pending", 1, "warning"), ("已通过", "approved", 2, "success"), ("已驳回", "rejected", 3, "danger"), ("已撤回", "withdrawn", 4, "info")],
+    ),
+    (
+        {"dict_name": "备选私有标签", "dict_type": "candidate_private_tag", "status": "0", "description": "红娘备选库私有标签建议项"},
+        [
+            ("形象好", "good_appearance", 1, "success"),
+            ("沟通顺畅", "good_communication", 2, "primary"),
+            ("高学历", "high_education", 3, "warning"),
+            ("高收入", "high_income", 4, "warning"),
+            ("本地稳定", "local_stable", 5, "success"),
+            ("适合约见", "meeting_ready", 6, "primary"),
+            ("资料待补充", "profile_incomplete", 7, "info"),
+        ],
     ),
 ]
 
@@ -199,6 +321,12 @@ def validate_crm_channels() -> dict[str, int]:
             raise ValueError(f"invalid crm channel code: {row['channel_code']}")
         if not row["channel_type"]:
             raise ValueError(f"empty crm channel type: {row['channel_code']}")
+    for dict_type, dict_rows in LEAD_DICTS:
+        for label, value, sort, _ in dict_rows:
+            if sort < 1:
+                raise ValueError(
+                    f"{dict_type['dict_type']} has invalid dict_sort: {value}={sort} ({label})"
+                )
     return {"channels": len(channel_codes)}
 
 

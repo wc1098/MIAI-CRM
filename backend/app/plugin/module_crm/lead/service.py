@@ -4,14 +4,20 @@ from io import BytesIO
 from typing import Any
 
 import pandas as pd
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import UploadFile
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, create_engine, func, or_, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.pool import NullPool
 
 from app.api.v1.module_system.auth.schema import AuthSchema
 from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.user.model import UserModel
+from app.config.setting import get_settings
+from app.core.database import async_db_session
 from app.core.exceptions import CustomException
+from app.core.logger import log
 from app.plugin.module_crm.preference.schema import PartnerPreferenceSaveSchema
 from app.plugin.module_crm.preference.service import PartnerPreferenceService
 from app.plugin.module_match.service import MatchProfileService
@@ -45,6 +51,9 @@ from .schema import (
     LeadUpdateSchema,
 )
 
+LEAD_RECLAIM_WORKER_JOB_ID = "crm_lead_reclaim_worker"
+DEFAULT_RECLAIM_WORKER_INTERVAL_SECONDS = 3600
+
 
 class LeadService:
     """线索服务层"""
@@ -70,6 +79,68 @@ class LeadService:
         "归属人",
         "备注",
     ]
+
+    @classmethod
+    def register_scheduler(cls) -> None:
+        """注册线索自动回公海任务。"""
+
+        from app.core.ap_scheduler import scheduler
+
+        scheduler.add_job(
+            func=cls.process_overdue_reclaim_tasks,
+            trigger=IntervalTrigger(seconds=cls._reclaim_worker_interval_seconds(), timezone="Asia/Shanghai"),
+            id=LEAD_RECLAIM_WORKER_JOB_ID,
+            name="CRM线索无跟进自动回公海任务",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            jobstore="default",
+            executor="default",
+        )
+
+    @classmethod
+    def _reclaim_worker_interval_seconds(cls) -> int:
+        return cls._sync_int_param(
+            "crm.lead.reclaim.worker_interval_seconds",
+            DEFAULT_RECLAIM_WORKER_INTERVAL_SECONDS,
+            300,
+            86400,
+        )
+
+    @classmethod
+    def _sync_int_param(cls, key: str, default: int, min_value: int = 1, max_value: int | None = None) -> int:
+        engine = None
+        try:
+            settings = get_settings()
+            engine = create_engine(settings.SYNC_DB_URI, poolclass=NullPool)
+            with engine.connect() as conn:
+                value = conn.execute(
+                    text(
+                        """
+                        select config_value
+                        from sys_param
+                        where config_key = :key
+                          and is_deleted = false
+                        limit 1
+                        """
+                    ),
+                    {"key": key},
+                ).scalar()
+        except Exception:
+            log.exception(f"读取系统参数失败，使用默认值: {key}={default}")
+            return default
+        finally:
+            if engine is not None:
+                engine.dispose()
+        try:
+            parsed = int(value) if value not in (None, "") else default
+        except (TypeError, ValueError):
+            parsed = default
+        if parsed < min_value:
+            return min_value
+        if max_value is not None and parsed > max_value:
+            return max_value
+        return parsed
 
     @classmethod
     def _role_codes(cls, auth: AuthSchema) -> set[str]:
@@ -212,6 +283,35 @@ class LeadService:
         return user
 
     @classmethod
+    def _validate_miniprogram_sync_required(cls, data: LeadCreateSchema) -> None:
+        missing = []
+        required_fields = [
+            ("mobile", "手机号"),
+            ("name", "姓名"),
+            ("gender", "性别"),
+            ("wechat", "微信号"),
+            ("birth_date", "出生日期"),
+            ("height_cm", "身高"),
+            ("ethnicity", "民族"),
+            ("occupation", "职业"),
+            ("annual_income", "年收入"),
+            ("marital_status", "婚况"),
+            ("education", "学历"),
+            ("hometown", "籍贯"),
+            ("residence", "常驻地"),
+            ("house_status", "房产信息"),
+            ("car_status", "购车信息"),
+        ]
+        for field, label in required_fields:
+            value = getattr(data, field)
+            if value is None or value == "":
+                missing.append(label)
+        if not data.photo_urls:
+            missing.append("照片")
+        if missing:
+            raise CustomException(msg=f"同步到小程序前请补齐：{'、'.join(missing)}")
+
+    @classmethod
     def _can_view_contact(cls, auth: AuthSchema, lead: CrmLeadProfileModel) -> bool:
         if cls._is_brand_admin(auth) or cls._is_store_mgr(auth):
             return True
@@ -230,11 +330,61 @@ class LeadService:
         return {row[0]: row[1] for row in result.all()}
 
     @classmethod
+    async def sales_options_service(cls, auth: AuthSchema, store_id: int | None = None) -> list[dict]:
+        conditions: list[Any] = [UserModel.is_deleted == False, UserModel.status == "0"]
+        if cls._is_brand_admin(auth):
+            if store_id:
+                conditions.append(UserModel.dept_id == store_id)
+        elif auth.user and auth.user.dept_id:
+            conditions.append(UserModel.dept_id == auth.user.dept_id)
+        else:
+            return []
+
+        result = await auth.db.execute(
+            select(UserModel)
+            .where(and_(*conditions))
+            .options(selectinload(UserModel.roles), selectinload(UserModel.positions))
+            .order_by(UserModel.id.asc())
+        )
+        users = result.scalars().all()
+        data: list[dict] = []
+        for user in users:
+            role_codes = {role.code for role in user.roles or [] if role.status == "0"}
+            position_names = {position.name for position in user.positions or [] if position.status == "0"}
+            if "SALES" not in role_codes and "销售" not in position_names:
+                continue
+            data.append({"id": user.id, "name": user.name, "dept_id": user.dept_id})
+        return data
+
+    @classmethod
     async def _dept_names(cls, auth: AuthSchema, ids: set[int]) -> dict[int, str]:
         if not ids:
             return {}
         result = await auth.db.execute(select(DeptModel.id, DeptModel.name).where(DeptModel.id.in_(ids)))
         return {row[0]: row[1] for row in result.all()}
+
+    @classmethod
+    async def store_options_service(cls, auth: AuthSchema) -> list[dict]:
+        conditions: list[Any] = [
+            DeptModel.is_deleted == False,
+            DeptModel.status == "0",
+            DeptModel.parent_id.is_not(None),
+        ]
+        if not cls._is_brand_admin(auth):
+            if not auth.user or not auth.user.dept_id:
+                return []
+            conditions.append(DeptModel.id == auth.user.dept_id)
+        result = await auth.db.execute(select(DeptModel.id, DeptModel.name).where(and_(*conditions)).order_by(DeptModel.order.asc(), DeptModel.id.asc()))
+        return [{"id": row[0], "name": row[1]} for row in result.all()]
+
+    @classmethod
+    async def source_options_service(cls, auth: AuthSchema) -> list[dict]:
+        result = await auth.db.execute(
+            select(CrmChannelModel.channel_code, CrmChannelModel.channel_name)
+            .where(CrmChannelModel.is_deleted == False, CrmChannelModel.status == "0")
+            .order_by(CrmChannelModel.sort.asc(), CrmChannelModel.id.asc())
+        )
+        return [{"id": index + 1, "name": row[1], "code": row[0]} for index, row in enumerate(result.all())]
 
     @classmethod
     async def check_mobile_service(cls, auth: AuthSchema, mobile: str) -> dict:
@@ -268,6 +418,7 @@ class LeadService:
         dept_names = await cls._dept_names(auth, {lead.store_id for lead in leads if lead.store_id})
         ai_profile_map = await PersonAiProfileService.admin_info_map(auth.db, {lead.person_id for lead in leads})
         preference_map = await PartnerPreferenceService.map_current(auth.db, {lead.person_id for lead in leads})
+        store_rules = await cls._store_rules_map(auth.db, {lead.store_id for lead in leads if lead.store_id})
         data = []
         for lead in leads:
             item = LeadOutSchema.model_validate(lead).model_dump()
@@ -294,8 +445,43 @@ class LeadService:
             item["zodiac"] = cls._zodiac(lead.person.birth_date)
             item["ai_profile"] = ai_profile_map.get(lead.person_id, {"profile": None, "latest_task": None})
             item["partner_preference"] = preference_map.get(lead.person_id)
+            item.update(cls._protect_info(lead, store_rules.get(lead.store_id or 0)))
             data.append(item)
         return data
+
+    @classmethod
+    async def _store_rules_map(cls, db: AsyncSession, store_ids: set[int]) -> dict[int, CrmLeadStoreRuleModel]:
+        if not store_ids:
+            return {}
+        result = await db.execute(
+            select(CrmLeadStoreRuleModel).where(
+                CrmLeadStoreRuleModel.store_id.in_(store_ids),
+                CrmLeadStoreRuleModel.is_deleted == False,
+            )
+        )
+        return {rule.store_id: rule for rule in result.scalars().all()}
+
+    @classmethod
+    def _protect_info(cls, lead: CrmLeadProfileModel, rule: CrmLeadStoreRuleModel | None) -> dict:
+        empty = {"protect_due_at": None, "protect_remaining_days": None, "protect_warning_level": None}
+        if lead.pool_type != "sales_private" or not lead.assigned_at or not lead.owner_sales_id or lead.lead_type not in {"new", "second_hand"}:
+            return empty
+        days = rule.no_follow_reclaim_days if rule else 7
+        due_at = lead.assigned_at + timedelta(days=days)
+        if lead.latest_follow_at and lead.latest_follow_at >= lead.assigned_at:
+            return {"protect_due_at": due_at, "protect_remaining_days": None, "protect_warning_level": "followed"}
+        now = datetime.now()
+        remaining_seconds = (due_at - now).total_seconds()
+        remaining_days = max(0, int((remaining_seconds + 86399) // 86400))
+        if remaining_seconds <= 0:
+            level = "expired"
+        elif remaining_days <= 1:
+            level = "danger"
+        elif remaining_days <= 2:
+            level = "warning"
+        else:
+            level = "normal"
+        return {"protect_due_at": due_at, "protect_remaining_days": remaining_days, "protect_warning_level": level}
 
     @classmethod
     async def _write_lifecycle(
@@ -320,7 +506,11 @@ class LeadService:
 
     @classmethod
     async def _store_rule(cls, auth: AuthSchema, store_id: int) -> CrmLeadStoreRuleModel:
-        result = await auth.db.execute(
+        return await cls._store_rule_by_db(auth.db, store_id, operator_id=auth.user.id if auth.user else None)
+
+    @classmethod
+    async def _store_rule_by_db(cls, db: AsyncSession, store_id: int, operator_id: int | None = None) -> CrmLeadStoreRuleModel:
+        result = await db.execute(
             select(CrmLeadStoreRuleModel).where(
                 CrmLeadStoreRuleModel.store_id == store_id,
                 CrmLeadStoreRuleModel.is_deleted == False,
@@ -330,14 +520,33 @@ class LeadService:
         if rule:
             return rule
         rule = CrmLeadStoreRuleModel(store_id=store_id, allow_sales_claim=False, no_follow_reclaim_days=7)
-        cls._stamp_create(auth, rule)
-        auth.db.add(rule)
-        await auth.db.flush()
+        if operator_id:
+            rule.created_id = operator_id
+            rule.updated_id = operator_id
+        db.add(rule)
+        await db.flush()
         return rule
 
     @classmethod
     async def recycle_overdue_service(cls, auth: AuthSchema) -> int:
-        result = await auth.db.execute(
+        return await cls.recycle_overdue_by_db(auth.db, operator_id=auth.user.id if auth.user else None)
+
+    @classmethod
+    async def process_overdue_reclaim_tasks(cls) -> None:
+        async with async_db_session() as db:
+            try:
+                count = await cls.recycle_overdue_by_db(db)
+                await db.commit()
+                if count:
+                    log.info(f"CRM线索无跟进自动回公海完成: {count}条")
+            except Exception:
+                await db.rollback()
+                log.exception("CRM线索无跟进自动回公海任务执行失败")
+                raise
+
+    @classmethod
+    async def recycle_overdue_by_db(cls, db: AsyncSession, operator_id: int | None = None) -> int:
+        result = await db.execute(
             select(CrmLeadProfileModel)
             .where(
                 CrmLeadProfileModel.pool_type == "sales_private",
@@ -353,7 +562,7 @@ class LeadService:
         for lead in result.scalars().all():
             if not lead.store_id or not lead.assigned_at:
                 continue
-            rule = await cls._store_rule(auth, lead.store_id)
+            rule = await cls._store_rule_by_db(db, lead.store_id, operator_id=operator_id)
             due_at = lead.assigned_at + timedelta(days=rule.no_follow_reclaim_days)
             if now < due_at:
                 continue
@@ -364,12 +573,15 @@ class LeadService:
             lead.owner_sales_id = None
             lead.lead_type = "second_hand"
             lead.last_recycled_at = now
-            cls._stamp_update(auth, lead)
-            await cls._write_lifecycle(
-                auth,
-                lead,
-                "auto_reclaim",
-                {
+            if operator_id:
+                lead.updated_id = operator_id
+            record = CrmLeadLifecycleModel(
+                brand_id=lead.brand_id,
+                lead_id=lead.id,
+                person_id=lead.person_id,
+                operation_type="auto_reclaim",
+                operator_user_id=operator_id,
+                change_detail={
                     "from_pool": "sales_private",
                     "to_pool": "store_pool",
                     "from_owner_sales_id": old_owner,
@@ -377,9 +589,13 @@ class LeadService:
                     "reason": f"{rule.no_follow_reclaim_days}天未跟进自动回门店公海",
                 },
             )
+            if operator_id:
+                record.created_id = operator_id
+                record.updated_id = operator_id
+            db.add(record)
             count += 1
         if count:
-            await auth.db.flush()
+            await db.flush()
         return count
 
     @classmethod
@@ -431,7 +647,7 @@ class LeadService:
         raise CustomException(msg="无权限访问该线索", code=10403, status_code=403)
 
     @classmethod
-    async def _get_lead(cls, auth: AuthSchema, id: int) -> CrmLeadProfileModel:
+    async def _get_lead(cls, auth: AuthSchema, id: int, action: str = "read") -> CrmLeadProfileModel:
         result = await auth.db.execute(
             select(CrmLeadProfileModel)
             .where(CrmLeadProfileModel.id == id, CrmLeadProfileModel.is_deleted == False)
@@ -440,7 +656,7 @@ class LeadService:
         lead = result.scalars().first()
         if not lead:
             raise CustomException(msg="线索不存在")
-        await cls._ensure_access(auth, lead)
+        await cls._ensure_access(auth, lead, action=action)
         return lead
 
     @classmethod
@@ -532,11 +748,54 @@ class LeadService:
         data["process_records"] = [
             LeadProcessOutSchema.model_validate(row).model_dump() for row in process_result.scalars().all()
         ]
-        data["lifecycle_records"] = [
-            LeadLifecycleOutSchema.model_validate(row).model_dump() for row in lifecycle_result.scalars().all()
+        lifecycle_rows = list(lifecycle_result.scalars().all())
+        lifecycle_records = [
+            LeadLifecycleOutSchema.model_validate(row).model_dump() for row in lifecycle_rows
         ]
+        await cls._decorate_lifecycle_change_detail(auth, lifecycle_records)
+        data["lifecycle_records"] = lifecycle_records
         data["partner_preference_versions"] = await PartnerPreferenceService.versions_out(auth.db, lead.person_id, 10)
         return LeadDetailOutSchema.model_validate(data).model_dump()
+
+    @classmethod
+    async def _decorate_lifecycle_change_detail(cls, auth: AuthSchema, records: list[dict]) -> None:
+        user_ids: set[int] = set()
+        dept_ids: set[int] = set()
+
+        def collect(value: Any) -> None:
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key.endswith("owner_sales_id") and item:
+                        user_ids.add(int(item))
+                    elif key == "store_id" and item:
+                        dept_ids.add(int(item))
+                    else:
+                        collect(item)
+            elif isinstance(value, list):
+                for item in value:
+                    collect(item)
+
+        for record in records:
+            collect(record.get("change_detail"))
+
+        user_names = await cls._user_names(auth, user_ids)
+        dept_names = await cls._dept_names(auth, dept_ids)
+
+        def decorate(value: Any) -> None:
+            if isinstance(value, dict):
+                for key, item in list(value.items()):
+                    if key.endswith("owner_sales_id") and item:
+                        value[f"{key}_name"] = user_names.get(int(item))
+                    elif key == "store_id" and item:
+                        value["store_name"] = dept_names.get(int(item))
+                    else:
+                        decorate(item)
+            elif isinstance(value, list):
+                for item in value:
+                    decorate(item)
+
+        for record in records:
+            decorate(record.get("change_detail"))
 
     @classmethod
     async def _resolve_owner_defaults(
@@ -565,6 +824,8 @@ class LeadService:
 
     @classmethod
     async def create_service(cls, auth: AuthSchema, data: LeadCreateSchema) -> dict:
+        if data.sync_to_miniprogram:
+            cls._validate_miniprogram_sync_required(data)
         exist_result = await auth.db.execute(
             select(CrmPersonModel).where(
                 CrmPersonModel.primary_mobile == data.mobile,
@@ -674,7 +935,7 @@ class LeadService:
 
     @classmethod
     async def update_service(cls, auth: AuthSchema, id: int, data: LeadUpdateSchema) -> dict:
-        lead = await cls._get_lead(auth, id)
+        lead = await cls._get_lead(auth, id, action="update")
         old = LeadPersonPayload(
             mobile=lead.person.primary_mobile,
             name=lead.person.name,
@@ -707,15 +968,7 @@ class LeadService:
             photo_urls=lead.person.photo_urls or [],
         ).model_dump()
         if data.mobile != lead.person.primary_mobile:
-            exists = await auth.db.execute(
-                select(CrmPersonModel).where(
-                    CrmPersonModel.primary_mobile == data.mobile,
-                    CrmPersonModel.id != lead.person_id,
-                    CrmPersonModel.is_deleted == False,
-                )
-            )
-            if exists.scalars().first():
-                raise CustomException(msg="更新失败，手机号已存在")
+            raise CustomException(msg="手机号不允许编辑")
         for field, value in data.model_dump(exclude={"source_channel_code", "description", "partner_preference"}).items():
             target = "primary_mobile" if field == "mobile" else field
             setattr(lead.person, target, value)
@@ -740,7 +993,7 @@ class LeadService:
                 PartnerPreferenceSaveSchema(**data.partner_preference.model_dump(), source_type="admin", source_id=str(lead.id)),
                 auth=auth,
             )
-            changes["partner_preference"] = {"from": "updated", "to": "updated"}
+            changes["partner_preference"] = "已更新"
         if data.description != old_description:
             changes["description"] = {"from": old_description, "to": data.description}
         if changes:
@@ -892,6 +1145,7 @@ class LeadService:
     async def get_store_rule_service(cls, auth: AuthSchema, store_id: int) -> dict:
         if not (cls._is_brand_admin(auth) or (cls._is_store_mgr(auth) and auth.user and auth.user.dept_id == store_id)):
             raise CustomException(msg="无权限查看门店线索规则", code=10403, status_code=403)
+        await cls._ensure_actual_store(auth.db, store_id)
         rule = await cls._store_rule(auth, store_id)
         return LeadStoreRuleSchema.model_validate(rule).model_dump()
 
@@ -899,11 +1153,20 @@ class LeadService:
     async def set_store_rule_service(cls, auth: AuthSchema, store_id: int, data: LeadStoreRuleSchema) -> None:
         if not (cls._is_brand_admin(auth) or (cls._is_store_mgr(auth) and auth.user and auth.user.dept_id == store_id)):
             raise CustomException(msg="无权限设置门店线索规则", code=10403, status_code=403)
+        await cls._ensure_actual_store(auth.db, store_id)
         rule = await cls._store_rule(auth, store_id)
         rule.allow_sales_claim = data.allow_sales_claim
         rule.no_follow_reclaim_days = data.no_follow_reclaim_days
         cls._stamp_update(auth, rule)
         await auth.db.flush()
+
+    @classmethod
+    async def _ensure_actual_store(cls, db: AsyncSession, store_id: int) -> None:
+        store = await db.get(DeptModel, store_id)
+        if not store or store.is_deleted or store.status != "0":
+            raise CustomException(msg="门店不存在或已停用")
+        if store.parent_id is None:
+            raise CustomException(msg="线索规则只能配置实际门店，不能配置品牌/总部节点")
 
     @classmethod
     async def download_template_service(cls) -> bytes:

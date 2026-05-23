@@ -54,12 +54,20 @@ const AuthAPI = {
     });
   },
 
-  /** 免登录 */
-  autoLogin(token: string) {
+  /** 创建本机快速登录凭证 */
+  createQuickLoginDevice() {
+    return request<ApiResponse<QuickLoginDeviceResult>>({
+      url: `${API_PATH}/auto-login/device`,
+      method: "post",
+    });
+  },
+
+  /** 本机快速登录 */
+  autoLogin(body: QuickLoginPayload) {
     return request<ApiResponse<LoginResult>>({
       url: `${API_PATH}/auto-login`,
       method: "post",
-      params: { token },
+      data: body,
     });
   },
 };
@@ -112,5 +120,18 @@ export interface AutoLoginUser {
 /** 免登录Token响应 */
 export interface AutoLoginToken {
   token: string;
+  user: AutoLoginUser;
+}
+
+/** 本机快速登录请求 */
+export interface QuickLoginPayload {
+  user_id: number;
+  device_token: string;
+}
+
+/** 本机快速登录凭证响应 */
+export interface QuickLoginDeviceResult {
+  device_token: string;
+  expires_at: string;
   user: AutoLoginUser;
 }

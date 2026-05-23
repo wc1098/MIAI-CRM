@@ -91,12 +91,12 @@
           </el-form-item>
         </el-form>
 
-        <div flex-center gap-10px>
+        <!-- <div flex-center gap-10px>
           <el-text size="default">{{ t("login.noAccount") }}</el-text>
           <el-link type="primary" underline="never" @click="toOtherForm('register')">
             {{ t("login.reg") }}
           </el-link>
-        </div>
+        </div> -->
       </el-tab-pane>
 
       <!-- 快速登录 -->
@@ -116,9 +116,9 @@
             >
               <el-option
                 v-for="user in autoLoginUsers"
-                :key="user.id"
+                :key="user.user_id"
                 :label="`${user.username}@${user.name}`"
-                :value="user.id"
+                :value="user.user_id"
               />
             </el-select>
           </template>
@@ -126,10 +126,18 @@
             <div class="auto-login-users">
               <div
                 v-for="user in autoLoginUsers"
-                :key="user.id"
+                :key="user.user_id"
                 class="auto-login-user-item"
-                @click="handleAutoLogin(user.id)"
+                @click="handleAutoLogin(user.user_id)"
               >
+                <el-button
+                  class="remove-quick-login"
+                  :icon="Close"
+                  circle
+                  text
+                  size="small"
+                  @click.stop="removeQuickLoginAccount(user.user_id)"
+                />
                 <el-avatar :size="60" :src="user.avatar || ''" class="user-avatar">
                   <el-icon size="24"><User /></el-icon>
                 </el-avatar>
@@ -143,7 +151,7 @@
     </el-tabs>
 
     <!-- 第三方登录 -->
-    <div class="third-party-login">
+    <!-- <div class="third-party-login">
       <div class="divider-container">
         <div class="divider-line"></div>
         <span class="divider-text">{{ t("login.otherLoginMethods") }}</span>
@@ -163,7 +171,7 @@
           <div text-20px cursor-pointer class="i-svg:gitee" />
         </CommonWrapper>
       </div>
-    </div>
+    </div> -->
   </div>
 </template>
 <script setup lang="ts">
@@ -171,15 +179,12 @@ import type { FormInstance } from "element-plus";
 import { LocationQuery, RouteLocationRaw, useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { onActivated, onMounted, watch } from "vue";
-import AuthAPI, {
-  type AutoLoginUser,
-  type LoginFormData,
-  type CaptchaInfo,
-} from "@/api/module_system/auth";
+import AuthAPI, { type LoginFormData, type CaptchaInfo } from "@/api/module_system/auth";
 import { useAppStore, useUserStore, useSettingsStore } from "@/store";
 import CommonWrapper from "@/components/CommonWrapper/index.vue";
-import { User, Loading, Lock } from "@element-plus/icons-vue";
+import { User, Loading, Lock, Close } from "@element-plus/icons-vue";
 import { Auth } from "@/utils/auth";
+import { QuickLoginStorage, type QuickLoginAccount } from "@/utils/quickLogin";
 
 const { t } = useI18n();
 const userStore = useUserStore();
@@ -201,7 +206,7 @@ const router = useRouter();
 // 组件挂载时获取验证码和免登录用户列表
 onMounted(() => {
   getCaptcha();
-  getAutoLoginUsers();
+  loadQuickLoginAccounts();
 });
 
 // 组件激活时获取验证码（适用于KeepAlive缓存的情况）
@@ -254,18 +259,20 @@ const captchaState = reactive<CaptchaInfo>({
   img_base: "",
 });
 
-// 免登录用户列表
-const autoLoginUsers = ref<AutoLoginUser[]>([]);
+// 本机快速登录账号列表
+const autoLoginUsers = ref<QuickLoginAccount[]>([]);
 const autoLoginLoading = ref(false);
 
-// 获取免登录用户列表
-async function getAutoLoginUsers() {
-  try {
-    const response = await AuthAPI.getAutoLoginUsers();
-    autoLoginUsers.value = response.data.data || [];
-  } catch (error) {
-    console.error("获取免登录用户列表失败:", error);
+function loadQuickLoginAccounts() {
+  autoLoginUsers.value = QuickLoginStorage.getAccounts();
+}
+
+function removeQuickLoginAccount(userId: number) {
+  QuickLoginStorage.removeAccount(userId);
+  if (selectedUserId.value === userId) {
+    selectedUserId.value = null;
   }
+  loadQuickLoginAccounts();
 }
 
 // 免登录
@@ -275,26 +282,31 @@ async function handleAutoLogin(userId: number) {
   try {
     autoLoginLoading.value = true;
 
-    // 1. 获取免登录Token
-    const tokenResponse = await AuthAPI.getAutoLoginToken(userId);
-    const { token } = tokenResponse.data.data;
+    const account = autoLoginUsers.value.find((item) => item.user_id === userId);
+    if (!account) {
+      ElMessage.warning("本机快速登录账号已不存在");
+      return;
+    }
 
-    // 2. 使用Token登录
-    const loginResponse = await AuthAPI.autoLogin(token);
+    // 1. 使用本机凭证登录
+    const loginResponse = await AuthAPI.autoLogin({
+      user_id: account.user_id,
+      device_token: account.device_token,
+    });
     const loginData = loginResponse.data.data;
 
-    // 3. 设置登录状态
+    // 2. 设置登录状态
     userStore.rememberMe = true;
     Auth.setTokens(loginData.access_token, loginData.refresh_token, true);
 
-    // 4. 获取用户信息
+    // 3. 获取用户信息
     await userStore.getUserInfo();
 
-    // 5. 跳转
+    // 4. 跳转
     const redirect = resolveRedirectTarget(route.query);
     await router.replace(redirect);
 
-    // 6. 显示引导
+    // 5. 显示引导
     if (settingsStore.showGuide) {
       appStore.showGuide(true);
     }
@@ -302,7 +314,9 @@ async function handleAutoLogin(userId: number) {
     ElMessage.success("登录成功");
   } catch (error: any) {
     console.error("免登录失败:", error);
-    ElMessage.error(error?.response?.data?.msg || "登录失败");
+    QuickLoginStorage.removeAccount(userId);
+    loadQuickLoginAccounts();
+    ElMessage.error(error?.response?.data?.msg || "快速登录失败，请重新账号密码登录");
   } finally {
     autoLoginLoading.value = false;
   }
@@ -379,6 +393,14 @@ async function handleLoginSubmit() {
 
     // 2. 执行登录
     await userStore.login(loginForm);
+    await userStore.getUserInfo();
+    try {
+      const deviceResponse = await AuthAPI.createQuickLoginDevice();
+      QuickLoginStorage.saveDevice(deviceResponse.data.data);
+      loadQuickLoginAccounts();
+    } catch (error) {
+      console.error("创建本机快速登录凭证失败:", error);
+    }
 
     // 4. 登录成功，让路由守卫处理跳转逻辑
     // 解析目标地址，但不直接跳转
@@ -548,6 +570,7 @@ function toOtherForm(type: "register" | "resetPwd") {
     padding: 10px 0;
 
     .auto-login-user-item {
+      position: relative;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -562,11 +585,23 @@ function toOtherForm(type: "register" | "resetPwd") {
       box-shadow: var(--el-box-shadow-light);
       transition: all 0.3s ease;
 
+      .remove-quick-login {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+
       &:hover {
         background-color: var(--el-color-primary-light-9);
         border-color: var(--el-color-primary);
         box-shadow: var(--el-box-shadow);
         transform: translateY(-2px);
+
+        .remove-quick-login {
+          opacity: 1;
+        }
       }
 
       .user-avatar {

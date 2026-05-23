@@ -162,6 +162,13 @@ class CustomerProcessCreateSchema(BaseModel):
     next_action: str | None = Field(default=None, max_length=255, description="下一步动作")
     enter_signing: bool = Field(default=False, description="是否进入签约推进")
 
+    @field_validator("next_follow_at", "scheduled_at", mode="before")
+    @classmethod
+    def empty_datetime_to_none(cls, value: datetime | str | None) -> datetime | str | None:
+        if value == "":
+            return None
+        return value
+
     @field_validator("method")
     @classmethod
     def validate_method(cls, value: str | None) -> str | None:
@@ -306,7 +313,7 @@ class CustomerProcessOutSchema(BaseSchema, UserBySchema):
     model_config = ConfigDict(from_attributes=True)
 
     brand_id: int
-    customer_id: int
+    customer_id: int | None = None
     person_id: int
     record_type: str
     occurred_at: DateTimeStr

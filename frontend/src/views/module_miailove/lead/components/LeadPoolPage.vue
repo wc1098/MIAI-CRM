@@ -41,6 +41,7 @@
             <el-button v-hasPerm="['crm:lead:assign']" icon="UserFilled" :disabled="!selectedIds.length" @click="openAssign">分配</el-button>
             <el-button v-if="view === 'storePool'" v-hasPerm="['crm:lead:sales:claim']" icon="TakeawayBox" :disabled="!selectedIds.length" @click="claimSelected">领取</el-button>
             <el-button v-hasPerm="['crm:lead:import']" icon="Upload" @click="importVisible = true">导入</el-button>
+            <el-button v-if="canManageLeadRule" v-hasPerm="['crm:lead:rule:query']" icon="Setting" @click="openRule">线索规则</el-button>
           </div>
         </div>
       </template>
@@ -63,6 +64,18 @@
           <template #default="{ row }">{{ sourceLabel(row) }}</template>
         </el-table-column>
         <el-table-column prop="latest_follow_at" label="最后跟进时间" min-width="170" />
+        <el-table-column v-if="view === 'salesPrivate'" label="保护期" min-width="150">
+          <template #default="{ row }">
+            <div class="protect-cell">
+              <el-tag :type="protectTagType(row.protect_warning_level)" effect="light">
+                {{ protectLabel(row) }}
+              </el-tag>
+              <span v-if="protectTip(row)" :class="['protect-tip', { 'protect-tip--danger': row.protect_warning_level === 'danger' || row.protect_warning_level === 'expired' }]">
+                {{ protectTip(row) }}
+              </span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column label="归属人" min-width="120">
           <template #default="{ row }">{{ row.owner_sales?.name || "-" }}</template>
         </el-table-column>
@@ -72,7 +85,7 @@
         <el-table-column fixed="right" label="操作" width="220">
           <template #default="{ row }">
             <el-button v-hasPerm="['crm:lead:all:detail', 'crm:lead:store:detail', 'crm:lead:sales:detail']" link type="primary" icon="View" @click="openDetail(row.id)">详情</el-button>
-            <el-button v-hasPerm="['crm:lead:update']" link type="primary" icon="Edit" @click="openEdit(row.id)">编辑</el-button>
+            <el-button v-if="canEditLead(row)" v-hasPerm="leadEditPerms" link type="primary" icon="Edit" @click="openEdit(row.id)">编辑</el-button>
             <el-button v-hasPerm="['crm:lead:process']" link type="warning" icon="ChatDotRound" @click="openProcess(row.id)">过程</el-button>
           </template>
         </el-table-column>
@@ -209,9 +222,9 @@
                       </el-radio-group>
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="微信号"><el-input v-model="form.wechat" clearable /></el-form-item></el-col>
-                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="出生日期"><el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item></el-col>
-                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="身高"><el-input-number v-model="form.height_cm" :max="260" placeholder="请输入身高" controls-position="right" style="width: 100%" /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="微信号" :required="isMpRequired"><el-input v-model="form.wechat" clearable /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="出生日期" :required="isMpRequired"><el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item></el-col>
+                  <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="身高" :required="isMpRequired"><el-input-number v-model="form.height_cm" :max="260" placeholder="请输入身高" controls-position="right" style="width: 100%" /></el-form-item></el-col>
                   <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="体重"><el-input-number v-model="form.weight_kg" :max="250" placeholder="请输入体重" controls-position="right" style="width: 100%" /></el-form-item></el-col>
                 </el-row>
               </div>
@@ -220,35 +233,35 @@
                 <div class="section-title">扩展资料</div>
                 <el-row :gutter="16">
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="民族">
+                    <el-form-item label="民族" :required="isMpRequired">
                       <el-select v-model="form.ethnicity" clearable filterable style="width: 100%">
                         <el-option v-for="item in dictOptions.ethnicity" :key="item.value" :label="item.label" :value="item.value" />
                       </el-select>
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="职业">
+                    <el-form-item label="职业" :required="isMpRequired">
                       <el-select v-model="form.occupation_code" clearable filterable style="width: 100%">
                         <el-option v-for="item in dictOptions.occupation" :key="item.value" :label="item.label" :value="item.value" />
                       </el-select>
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="年收入">
+                    <el-form-item label="年收入" :required="isMpRequired">
                       <el-select v-model="form.annual_income" clearable style="width: 100%">
                         <el-option v-for="item in dictOptions.annualIncome" :key="item.value" :label="item.label" :value="item.value" />
                       </el-select>
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="婚况">
+                    <el-form-item label="婚况" :required="isMpRequired">
                       <el-select v-model="form.marital_status" clearable style="width: 100%">
                         <el-option v-for="item in dictOptions.maritalStatus" :key="item.value" :label="item.label" :value="item.value" />
                       </el-select>
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="学历">
+                    <el-form-item label="学历" :required="isMpRequired">
                       <el-select v-model="form.education" clearable style="width: 100%">
                         <el-option v-for="item in dictOptions.education" :key="item.value" :label="item.label" :value="item.value" />
                       </el-select>
@@ -267,26 +280,26 @@
                   <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="职务"><el-input v-model="form.job_title" clearable /></el-form-item></el-col>
                   <el-col :xs="24" :sm="12" :lg="8"><el-form-item label="工作单位"><el-input v-model="form.work_company" clearable /></el-form-item></el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="住房情况">
+                    <el-form-item label="住房情况" :required="isMpRequired">
                       <el-select v-model="form.house_status" clearable style="width: 100%">
                         <el-option v-for="item in dictOptions.houseStatus" :key="item.value" :label="item.label" :value="item.value" />
                       </el-select>
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="购车情况">
+                    <el-form-item label="购车情况" :required="isMpRequired">
                       <el-select v-model="form.car_status" clearable style="width: 100%">
                         <el-option v-for="item in dictOptions.carStatus" :key="item.value" :label="item.label" :value="item.value" />
                       </el-select>
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="籍贯">
+                    <el-form-item label="籍贯" :required="isMpRequired">
                       <el-cascader v-model="hometownValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 100%" @change="syncAddressFields" />
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :lg="8">
-                    <el-form-item label="常驻地">
+                    <el-form-item label="常驻地" :required="isMpRequired">
                       <el-cascader v-model="residenceValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 100%" @change="syncAddressFields" />
                     </el-form-item>
                   </el-col>
@@ -331,7 +344,7 @@
                 <div class="section-title">照片与备注</div>
                 <el-row :gutter="16">
                   <el-col :span="24">
-                    <el-form-item label="照片">
+                    <el-form-item label="照片" :required="isMpRequired">
                       <el-upload
                         v-model:file-list="photoFileList"
                         list-type="picture-card"
@@ -366,7 +379,7 @@
             />
           </el-tab-pane>
 
-          <el-tab-pane label="认证情况" name="certification" v-if="detail">
+          <el-tab-pane label="认证情况" name="certification" v-if="detail && canLoadCertification">
             <div v-loading="certificationLoading" class="certification-tab">
               <template v-if="certification">
                 <el-descriptions :column="3" border>
@@ -540,7 +553,7 @@
       <template #footer>
         <div class="drawer-footer">
           <el-button @click="detailVisible = false">{{ isReadOnlyMode ? "关闭" : "取消" }}</el-button>
-          <el-button v-if="!isReadOnlyMode" v-hasPerm="['crm:lead:create', 'crm:lead:update']" type="primary" @click="submitForm">保存</el-button>
+          <el-button v-if="canSaveLead" v-hasPerm="leadSavePerms" type="primary" @click="submitForm">保存</el-button>
         </div>
       </template>
     </el-drawer>
@@ -582,7 +595,7 @@
         </el-form-item>
         <el-form-item label="常用语">
           <el-select placeholder="快捷输入" clearable style="width: 100%" @change="appendPhrase">
-            <el-option v-for="item in phrases" :key="item" :label="item" :value="item" />
+            <el-option v-for="item in dictOptions.followPhrase" :key="item.value" :label="item.label" :value="item.label" />
           </el-select>
         </el-form-item>
         <el-form-item label="内容/原因">
@@ -616,6 +629,35 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="ruleVisible" title="线索规则" width="540px">
+      <el-form v-loading="ruleLoading" :model="ruleForm" label-width="170px">
+        <el-form-item v-if="isBrandAdmin" label="适用门店">
+          <el-select v-model="ruleStoreId" filterable placeholder="请选择实际门店" style="width: 100%" @change="loadRule">
+            <el-option v-for="item in deptOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-else label="适用门店">
+          <el-input :model-value="currentUser?.dept_name || '-'" disabled />
+        </el-form-item>
+        <el-form-item label="允许销售自行领取">
+          <el-switch v-model="ruleForm.allow_sales_claim" active-text="开启" inactive-text="关闭" />
+        </el-form-item>
+        <el-form-item label="无跟进回公海天数">
+          <el-input-number v-model="ruleForm.no_follow_reclaim_days" :min="1" :max="90" controls-position="right" style="width: 180px" />
+        </el-form-item>
+        <el-alert
+          type="info"
+          show-icon
+          :closable="false"
+          :title="ruleTip"
+        />
+      </el-form>
+      <template #footer>
+        <el-button @click="ruleVisible = false">取消</el-button>
+        <el-button v-hasPerm="['crm:lead:rule:update']" type="primary" :loading="ruleSaving" :disabled="!ruleStoreId" @click="submitRule">保存</el-button>
+      </template>
+    </el-dialog>
+
     <ElImageViewer
       v-if="photoPreviewVisible"
       :url-list="photoPreviewUrls"
@@ -635,19 +677,20 @@ import LeadAPI, {
   type LeadForm,
   type LeadImportResult,
   type LeadPageQuery,
+  type LeadStoreRule,
   type LeadTable,
   type LeadView,
 } from "@/api/module_crm/lead";
-import ChannelAPI from "@/api/module_crm/channel";
-import DeptAPI, { type DeptTable } from "@/api/module_system/dept";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
 import UserAPI, { type UserInfo } from "@/api/module_system/user";
 import CertificationAdminAPI, { type CertificationPersonSummary, type CertificationRecord } from "@/api/module_certification/admin";
 import { ossImage, ossImageList } from "@/utils/ossImage";
 import { uploadImageDirect } from "@/utils/upload";
+import { useUserStore } from "@/store";
 import PartnerPreferenceForm from "@/views/module_miailove/components/PartnerPreferenceForm.vue";
 
 const props = defineProps<{ view: LeadView; title: string }>();
+const userStore = useUserStore();
 
 const loading = ref(false);
 const rows = ref<LeadTable[]>([]);
@@ -657,6 +700,9 @@ const detailVisible = ref(false);
 const assignVisible = ref(false);
 const processVisible = ref(false);
 const importVisible = ref(false);
+const ruleVisible = ref(false);
+const ruleLoading = ref(false);
+const ruleSaving = ref(false);
 const activeTab = ref("profile");
 const detail = ref<LeadDetail>();
 const certification = ref<CertificationPersonSummary>();
@@ -676,6 +722,7 @@ const photoPreviewUrls = ref<string[]>([]);
 const photoPreviewIndex = ref(0);
 const hometownValue = ref<string[]>([]);
 const residenceValue = ref<string[]>([]);
+const ruleStoreId = ref<number>();
 
 const query = reactive<LeadPageQuery>({
   page_no: 1,
@@ -685,15 +732,15 @@ const query = reactive<LeadPageQuery>({
 const defaultForm = (): LeadForm => ({
   mobile: "",
   name: "",
-  gender: "0",
+  gender: "",
   photo_urls: [],
-  source_channel_code: "MANUAL_CREATE",
   sync_to_miniprogram: false,
 });
 
 const form = reactive<LeadForm>(defaultForm());
 const assignForm = reactive({ store_id: undefined as number | undefined, owner_sales_id: undefined as number | undefined, remark: "" });
 const processForm = reactive({ action_type: "follow", follow_method: "phone", content: "", next_follow_at: "" });
+const ruleForm = reactive<LeadStoreRule>({ allow_sales_claim: false, no_follow_reclaim_days: 7 });
 
 const channelOptions = ref<Array<{ label: string; value: string }>>([]);
 const deptOptions = ref<Array<{ label: string; value: number }>>([]);
@@ -708,6 +755,7 @@ const dictOptions = reactive({
   occupation: [] as Array<{ label: string; value: string }>,
   unitType: [] as Array<{ label: string; value: string }>,
   marriagePlan: [] as Array<{ label: string; value: string }>,
+  followPhrase: [] as Array<{ label: string; value: string }>,
 });
 const addressProps = { emitPath: true };
 const addressOptions = [
@@ -760,7 +808,6 @@ const actionOptions = [
   { label: "释放", value: "release" },
   { label: "转建档客户", value: "convert_customer" },
 ];
-const phrases = ["已电话沟通，客户有初步意向。", "微信已添加，等待客户回复。", "客户暂时不方便，约定下次联系。", "客户无明确需求，后续观察。"];
 const sourceFallbackLabels: Record<string, string> = {
   "1": "小程序注册用户",
   MINIAPP_REGISTER: "小程序注册",
@@ -775,12 +822,28 @@ const rules = {
   name: [{ required: true, message: "请输入姓名", trigger: "blur" }],
   gender: [{ required: true, message: "请选择性别", trigger: "change" }],
 };
+const leadEditPerms = ["crm:lead:update", "crm:lead:sales:detail"];
+const leadSavePerms = ["crm:lead:create", ...leadEditPerms];
 
 const view = computed(() => props.view);
 const title = computed(() => props.title);
 const drawerTitle = computed(() => ({ create: "新增线索", detail: "线索详情", edit: "编辑线索" })[drawerMode.value]);
 const isReadOnlyMode = computed(() => drawerMode.value === "detail");
 const currentRoleCodes = computed(() => new Set((currentUser.value?.roles || []).map((role) => role.code)));
+const isBrandAdmin = computed(() => Boolean(currentUser.value?.is_superuser || currentRoleCodes.value.has("ADMIN") || currentRoleCodes.value.has("HQ_OPS")));
+const isStoreManager = computed(() => currentRoleCodes.value.has("STORE_MGR"));
+const canManageLeadRule = computed(() => (view.value === "all" || view.value === "storePool") && (isBrandAdmin.value || isStoreManager.value));
+const canSaveLead = computed(() => !isReadOnlyMode.value && (!editingId.value || canEditLead(detail.value)));
+const isMpRequired = computed(() => !editingId.value && Boolean(form.sync_to_miniprogram));
+const canLoadCertification = computed(() =>
+  Boolean(
+    currentUser.value?.is_superuser ||
+      userStore.prems.includes("operation:miniprogram:certification:query") ||
+      userStore.prems.includes("crm:person:detail")
+  )
+);
+const currentRuleStoreName = computed(() => deptOptions.value.find((item) => item.value === ruleStoreId.value)?.label || currentUser.value?.dept_name || "-");
+const ruleTip = computed(() => `当前配置门店：${currentRuleStoreName.value}。本规则只作用于实际门店；关闭自行领取后，该门店销售的门店公海列表为空。`);
 const autoStoreName = computed(() => {
   if (detail.value) return detail.value.store?.name || "-";
   if (currentRoleCodes.value.has("SALES") || currentRoleCodes.value.has("STORE_MGR")) return currentUser.value?.dept_name || "-";
@@ -792,6 +855,35 @@ const autoOwnerName = computed(() => {
   return "未分配";
 });
 const certificationRecords = computed<CertificationRecord[]>(() => (certification.value?.applications || []).flatMap((item) => item.records || []));
+
+function canEditLead(row?: Pick<LeadTable, "owner_sales_id" | "store_id">) {
+  if (!row) return false;
+  if (isBrandAdmin.value) return true;
+  if (isStoreManager.value && row.store_id === currentUser.value?.dept_id) return true;
+  return row.owner_sales_id === currentUser.value?.id;
+}
+
+function miniprogramRequiredMissing(photoUrls: string[]) {
+  const checks: Array<[string, unknown]> = [
+    ["手机号", form.mobile],
+    ["姓名", form.name],
+    ["性别", form.gender],
+    ["微信号", form.wechat],
+    ["出生日期", form.birth_date],
+    ["身高", form.height_cm],
+    ["民族", form.ethnicity],
+    ["职业", form.occupation],
+    ["年收入", form.annual_income],
+    ["婚况", form.marital_status],
+    ["学历", form.education],
+    ["籍贯", form.hometown],
+    ["常驻地", form.residence],
+    ["房产信息", form.house_status],
+    ["购车信息", form.car_status],
+    ["照片", photoUrls.length],
+  ];
+  return checks.filter(([, value]) => value === undefined || value === null || value === "" || value === 0).map(([label]) => label);
+}
 
 function resetForm() {
   Object.assign(form, defaultForm());
@@ -891,7 +983,7 @@ async function openEdit(id: number) {
 
 async function loadCertification(personId?: number) {
   certification.value = undefined;
-  if (!personId) return;
+  if (!personId || !canLoadCertification.value) return;
   certificationLoading.value = true;
   try {
     const res = await CertificationAdminAPI.getPersonSummary(personId);
@@ -915,9 +1007,17 @@ async function submitForm() {
   if (mobileCheckMessage.value) return;
   syncAddressFields();
   form.partner_preference = preferenceFormRef.value?.getValue();
+  const photoUrls = photoFileList.value.map((item) => item.url).filter((url): url is string => Boolean(url));
+  if (!editingId.value && form.sync_to_miniprogram) {
+    const missing = miniprogramRequiredMissing(photoUrls);
+    if (missing.length) {
+      ElMessage.warning(`同步到小程序前请补齐：${missing.join("、")}`);
+      return;
+    }
+  }
   const payload = {
     ...form,
-    photo_urls: photoFileList.value.map((item) => item.url).filter((url): url is string => Boolean(url)),
+    photo_urls: photoUrls,
   };
   if (!editingId.value) {
     delete payload.store_id;
@@ -941,6 +1041,47 @@ function handleSelectionChange(selection: LeadTable[]) {
 function openAssign() {
   Object.assign(assignForm, { store_id: undefined, owner_sales_id: undefined, remark: "" });
   assignVisible.value = true;
+}
+
+async function openRule() {
+  await ensureOptionsLoaded();
+  const defaultStoreId = isBrandAdmin.value
+    ? Number(query.store_id || deptOptions.value[0]?.value)
+    : Number(currentUser.value?.dept_id);
+  if (!Number.isFinite(defaultStoreId) || !defaultStoreId) {
+    ElMessage.warning("当前账号未关联门店，无法配置线索规则");
+    return;
+  }
+  ruleStoreId.value = defaultStoreId;
+  ruleVisible.value = true;
+  await loadRule();
+}
+
+async function loadRule() {
+  if (!ruleStoreId.value) return;
+  ruleLoading.value = true;
+  try {
+    const res = await LeadAPI.getStoreRule(ruleStoreId.value);
+    Object.assign(ruleForm, res.data.data || { allow_sales_claim: false, no_follow_reclaim_days: 7 });
+  } finally {
+    ruleLoading.value = false;
+  }
+}
+
+async function submitRule() {
+  if (!ruleStoreId.value) return;
+  ruleSaving.value = true;
+  try {
+    await LeadAPI.setStoreRule(ruleStoreId.value, {
+      allow_sales_claim: ruleForm.allow_sales_claim,
+      no_follow_reclaim_days: ruleForm.no_follow_reclaim_days,
+    });
+    ElMessage.success("线索规则已保存");
+    ruleVisible.value = false;
+    fetchList();
+  } finally {
+    ruleSaving.value = false;
+  }
 }
 
 async function submitAssign() {
@@ -1048,15 +1189,15 @@ async function ensureOptionsLoaded() {
 
 async function loadOptions() {
   const [channelRes, deptRes, userRes, currentUserRes] = await Promise.all([
-    ChannelAPI.listChannel({ page_no: 1, page_size: 100 }),
-    DeptAPI.listDept(),
-    UserAPI.listUser({ page_no: 1, page_size: 100 } as any),
+    LeadAPI.sourceOptions(),
+    LeadAPI.storeOptions(),
+    LeadAPI.salesOptions(),
     UserAPI.getCurrentUserInfo(),
   ]);
   currentUser.value = currentUserRes.data.data;
-  channelOptions.value = (channelRes.data.data.items || []).map((item) => ({ label: item.channel_name || item.channel_code || "", value: item.channel_code || "" }));
-  deptOptions.value = flattenDept(deptRes.data.data || []);
-  userOptions.value = (userRes.data.data.items || []).map((item: any) => ({ label: item.name || item.username || String(item.id), value: item.id }));
+  channelOptions.value = (channelRes.data.data || []).map((item) => ({ label: item.name || item.code || "", value: item.code || "" }));
+  deptOptions.value = (deptRes.data.data || []).map((item) => ({ label: item.name || String(item.id), value: item.id! }));
+  userOptions.value = (userRes.data.data || []).map((item) => ({ label: item.name || String(item.id), value: item.id! }));
   await loadDictOptions();
   optionsLoaded.value = true;
 }
@@ -1072,6 +1213,7 @@ async function loadDictOptions() {
     occupation: "crm_occupation",
     unitType: "crm_unit_type",
     marriagePlan: "crm_marriage_plan",
+    followPhrase: "crm_lead_follow_phrase",
   } as const;
   await Promise.all(
     Object.entries(dictMap).map(async ([key, type]) => {
@@ -1082,14 +1224,6 @@ async function loadDictOptions() {
       }));
     })
   );
-}
-
-function flattenDept(list: DeptTable[], prefix = ""): Array<{ label: string; value: number }> {
-  return list.flatMap((item) => {
-    const label = `${prefix}${item.name}`;
-    const current = typeof item.id === "number" ? [{ label, value: item.id }] : [];
-    return [...current, ...flattenDept(item.children || [], `${prefix}${item.name}/`)];
-  });
 }
 
 function leadTypeLabel(value: string) {
@@ -1117,6 +1251,34 @@ function sourceLabel(row?: Pick<LeadTable, "source_channel_name" | "source_chann
   const code = row.source_channel_code || "";
   if (!code) return "-";
   return channelOptions.value.find((item) => item.value === code)?.label || sourceFallbackLabels[code] || code;
+}
+
+function protectTagType(level?: string) {
+  return (
+    {
+      followed: "success",
+      expired: "danger",
+      danger: "danger",
+      warning: "warning",
+      normal: "info",
+    } as const
+  )[level || ""] || "info";
+}
+
+function protectLabel(row: LeadTable) {
+  const level = row.protect_warning_level;
+  if (!level) return "-";
+  if (level === "followed") return "已跟进";
+  if (level === "expired") return "待回收";
+  if (typeof row.protect_remaining_days === "number") return `剩余 ${row.protect_remaining_days} 天`;
+  return "-";
+}
+
+function protectTip(row: LeadTable) {
+  if (!row.protect_warning_level || row.protect_warning_level === "followed") return "";
+  if (row.protect_warning_level === "expired") return "已超过保护期";
+  if (row.protect_warning_level === "danger") return "请尽快跟进";
+  return row.protect_due_at ? `到期 ${row.protect_due_at}` : "";
 }
 
 function aiStatusLabel(value?: string) {
@@ -1242,14 +1404,14 @@ function actionLabel(value: string) {
 function formatChange(value?: Record<string, unknown>, operationType?: string) {
   if (!value) return "-";
   if (operationType === "create") {
-    return `创建到${poolTypeLabel(String(value.pool_type || ""))}${formatNullableId("归属门店", value.store_id)}${formatNullableId("归属人", value.owner_sales_id)}`;
+    return `创建到${poolTypeLabel(String(value.pool_type || ""))}${formatNullableId("归属门店", value.store_id, value.store_name)}${formatNullableId("归属人", value.owner_sales_id, value.owner_sales_id_name)}`;
   }
   if (operationType === "assign" && value.to && typeof value.to === "object") {
     const to = value.to as Record<string, unknown>;
-    return `调整为${poolTypeLabel(String(to.pool_type || ""))}${leadTypeChangeText(to.lead_type)}${formatNullableId("归属门店", to.store_id)}${formatNullableId("归属人", to.owner_sales_id)}`;
+    return `调整为${poolTypeLabel(String(to.pool_type || ""))}${leadTypeChangeText(to.lead_type)}${formatNullableId("归属门店", to.store_id, to.store_name)}${formatNullableId("归属人", to.owner_sales_id, to.owner_sales_id_name)}`;
   }
   if (operationType === "claim") {
-    return `从${poolTypeLabel(String(value.from_pool || ""))}领取到${poolTypeLabel(String(value.to_pool || ""))}${formatNullableId("归属人", value.to_owner_sales_id)}`;
+    return `从${poolTypeLabel(String(value.from_pool || ""))}领取到${poolTypeLabel(String(value.to_pool || ""))}${formatNullableId("归属人", value.to_owner_sales_id, value.to_owner_sales_id_name)}`;
   }
   if (operationType === "auto_reclaim") {
     return String(value.reason || `从${poolTypeLabel(String(value.from_pool || ""))}回到${poolTypeLabel(String(value.to_pool || ""))}`);
@@ -1265,8 +1427,27 @@ function formatChange(value?: Record<string, unknown>, operationType?: string) {
     .join("；");
 }
 
-function formatNullableId(label: string, value: unknown) {
-  return value ? `，${label}ID ${value}` : `，未设置${label}`;
+function formatNullableId(label: string, value: unknown, name?: unknown) {
+  return value ? `，${label}${String(name || idDisplayName(label, value))}` : `，未设置${label}`;
+}
+
+function idDisplayName(label: string, value: unknown) {
+  const id = Number(value);
+  if (label.includes("门店")) {
+    return deptName(id) || `ID ${value}`;
+  }
+  if (label.includes("归属人")) {
+    return userName(id) || `ID ${value}`;
+  }
+  return `ID ${value}`;
+}
+
+function deptName(id: number) {
+  return deptOptions.value.find((item) => item.value === id)?.label || (detail.value?.store?.id === id ? detail.value.store.name : "");
+}
+
+function userName(id: number) {
+  return userOptions.value.find((item) => item.value === id)?.label || (detail.value?.owner_sales?.id === id ? detail.value.owner_sales.name : "");
 }
 
 function leadTypeChangeText(value: unknown) {
@@ -1274,6 +1455,9 @@ function leadTypeChangeText(value: unknown) {
 }
 
 function fieldChangeText(key: string, value: unknown) {
+  if (key === "partner_preference") {
+    return `${fieldLabel(key)}：已更新`;
+  }
   if (value && typeof value === "object" && ("from" in value || "to" in value)) {
     const change = value as { from?: unknown; to?: unknown };
     return `${fieldLabel(key)}：${displayChangeValue(change.from, key)} → ${displayChangeValue(change.to, key)}`;
@@ -1334,7 +1518,13 @@ function displayChangeValue(value: unknown, field?: string): string {
   if (value === null || value === undefined || value === "") return "未设置";
   if (Array.isArray(value)) return value.length ? value.join("、") : "未设置";
   if (typeof value === "boolean") return boolLabel(value);
+  if (typeof value === "number") {
+    const name = idFieldName(field, value);
+    if (name) return name;
+  }
   if (typeof value === "string") {
+    const name = idFieldName(field, value);
+    if (name) return name;
     const dictLabel = dictValueLabel(field, value);
     if (dictLabel) return dictLabel;
     if (["hq_pool", "store_pool", "sales_private"].includes(value)) return poolTypeLabel(value);
@@ -1343,6 +1533,18 @@ function displayChangeValue(value: unknown, field?: string): string {
   }
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function idFieldName(field: string | undefined, value: string | number) {
+  const id = Number(value);
+  if (!Number.isFinite(id)) return "";
+  if (field?.includes("store_id")) {
+    return deptName(id);
+  }
+  if (field?.includes("owner_sales_id")) {
+    return userName(id);
+  }
+  return "";
 }
 
 function dictValueLabel(field: string | undefined, value: string) {
@@ -1575,6 +1777,23 @@ onMounted(() => {
   display: block;
   margin-top: 6px;
   color: var(--el-text-color-secondary);
+}
+
+.protect-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.protect-tip {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.protect-tip--danger {
+  color: var(--el-color-danger);
 }
 
 .import-actions {

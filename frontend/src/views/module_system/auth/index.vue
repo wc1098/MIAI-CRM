@@ -163,9 +163,9 @@ const showVoteNotification = () => {
   });
 };
 
-onMounted(() => {
-  setTimeout(showVoteNotification, 500);
-});
+// onMounted(() => {
+//   setTimeout(showVoteNotification, 500);
+// });
 
 onBeforeUnmount(() => {
   if (notificationInstance) {

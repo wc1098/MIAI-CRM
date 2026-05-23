@@ -5,6 +5,7 @@ import pandas as pd
 from fastapi import UploadFile
 
 from app.api.v1.module_system.auth.schema import AuthSchema
+from app.api.v1.module_system.auth.service import AutoLoginService
 from app.api.v1.module_system.dept.crud import DeptCRUD
 from app.api.v1.module_system.menu.crud import MenuCRUD
 from app.api.v1.module_system.menu.schema import MenuOutSchema
@@ -382,6 +383,9 @@ class UserService:
             if user.is_superuser:
                 raise CustomException(msg="超级管理员状态不能修改")
         await UserCRUD(auth).set_available_crud(ids=data.ids, status=data.status)
+        if data.status == "1":
+            for user_id in data.ids:
+                await AutoLoginService.revoke_user_quick_login_devices_service(auth.db, user_id)
 
     @classmethod
     async def upload_avatar_service(cls, base_url: str, file: UploadFile) -> dict:
@@ -437,6 +441,7 @@ class UserService:
         new_user = await UserCRUD(auth).change_password_crud(
             id=user.id, password_hash=new_password_hash
         )
+        await AutoLoginService.revoke_user_quick_login_devices_service(auth.db, user.id)
         return UserOutSchema.model_validate(new_user).model_dump()
 
     @classmethod
@@ -468,6 +473,7 @@ class UserService:
         new_user = await UserCRUD(auth).change_password_crud(
             id=data.id, password_hash=new_password_hash
         )
+        await AutoLoginService.revoke_user_quick_login_devices_service(auth.db, data.id)
         return UserOutSchema.model_validate(new_user).model_dump()
 
     @classmethod
@@ -528,6 +534,7 @@ class UserService:
         new_user = await UserCRUD(auth).forget_password_crud(
             id=user.id, password_hash=new_password_hash
         )
+        await AutoLoginService.revoke_user_quick_login_devices_service(auth.db, user.id)
         return UserOutSchema.model_validate(new_user).model_dump()
 
     @classmethod

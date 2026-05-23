@@ -34,6 +34,7 @@ SCENE_CONFIG: dict[str, UploadSceneConfig] = {
     "mp_register_photo": UploadSceneConfig("mp/register-photo", 4 * 1024 * 1024, IMAGE_MIME_TYPES),
     "certification_material": UploadSceneConfig("certification/material", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
     "crm_lead_photo": UploadSceneConfig("crm/lead-photo", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
+    "crm_contract_attachment": UploadSceneConfig("crm/contract-attachment", 12 * 1024 * 1024, (*IMAGE_MIME_TYPES, "application/pdf")),
     "event_cover": UploadSceneConfig("event/cover", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
     "common_image": UploadSceneConfig("common/image", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
 }

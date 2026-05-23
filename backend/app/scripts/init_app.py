@@ -51,10 +51,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
         await DictDataService().init_dict_service(redis=app.state.redis)
         log.info("✅ Redis数据字典初始化完成")
         await SchedulerUtil.init_scheduler(redis=app.state.redis)
+        from app.plugin.module_crm.lead.service import LeadService
         from app.plugin.module_match.service import MatchProfileService
         from app.plugin.module_profile_ai.service import PersonAiProfileService
         from app.plugin.module_subscription.service import SubscriptionService
 
+        LeadService.register_scheduler()
         PersonAiProfileService.register_scheduler()
         MatchProfileService.register_scheduler()
         SubscriptionService.register_scheduler()

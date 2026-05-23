@@ -35,8 +35,8 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="toolbar">
-          <div class="toolbar-title">客户列表</div>
-          <div class="toolbar-note">仅展示当前处于客户运营阶段的建档客户</div>
+          <div class="toolbar-title">{{ isDealPage ? "成交客户" : "客户列表" }}</div>
+          <div class="toolbar-note">{{ isDealPage ? "展示已成交并转入 VIP 的客户，支持后续续费和加购" : "仅展示当前处于客户运营阶段的建档客户" }}</div>
         </div>
       </template>
 
@@ -75,8 +75,9 @@
           <template #default="{ row }">
             <div class="table-actions">
               <el-button v-hasPerm="['crm:customer:detail']" link type="primary" icon="View" @click="openDetail(row.id)">详情</el-button>
-              <el-button v-hasPerm="['crm:customer:follow']" link type="primary" icon="ChatDotRound" @click="openProcess(row.id, 'follow')">跟进</el-button>
-              <el-dropdown trigger="click">
+              <el-button v-if="isDealPage" v-hasPerm="['crm:contract:create']" link type="success" icon="DocumentAdd" @click="createContract(row.id)">新增合同</el-button>
+              <el-button v-else v-hasPerm="['crm:customer:follow']" link type="primary" icon="ChatDotRound" @click="openProcess(row.id, 'follow')">跟进</el-button>
+              <el-dropdown v-if="!isDealPage" trigger="click">
                 <el-button link type="primary" icon="ArrowDown">更多</el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
@@ -188,40 +189,27 @@
           </template>
 
           <el-form v-else ref="formRef" :model="form" :rules="rules" label-width="92px" class="profile-form">
-            <el-row :gutter="16">
-              <el-col :xs="24" :md="8"><el-form-item label="手机号" prop="mobile"><el-input v-model="form.mobile" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="姓名" prop="name"><el-input v-model="form.name" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="性别" prop="gender"><el-radio-group v-model="form.gender"><el-radio-button value="0">男</el-radio-button><el-radio-button value="1">女</el-radio-button><el-radio-button value="2">未知</el-radio-button></el-radio-group></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="微信号"><el-input v-model="form.wechat" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="出生日期"><el-date-picker v-model="form.birth_date" value-format="YYYY-MM-DD" type="date" style="width: 100%" /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="身高"><el-input-number v-model="form.height_cm" :max="260" placeholder="请输入身高" style="width: 100%" /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="体重"><el-input-number v-model="form.weight_kg" :max="250" placeholder="请输入体重" style="width: 100%" /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="民族"><el-select v-model="form.ethnicity" clearable filterable style="width: 100%"><el-option v-for="item in dictOptions.ethnicity" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="职业"><el-select v-model="form.occupation_code" clearable filterable style="width: 100%"><el-option v-for="item in dictOptions.occupation" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="年收入"><el-select v-model="form.annual_income" clearable style="width: 100%"><el-option v-for="item in dictOptions.annualIncome" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="婚况"><el-select v-model="form.marital_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.maritalStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="学历"><el-select v-model="form.education" clearable style="width: 100%"><el-option v-for="item in dictOptions.education" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="毕业院校"><el-input v-model="form.graduated_school" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="专业"><el-input v-model="form.major" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="职业补充"><el-input v-model="form.occupation" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="单位类型"><el-select v-model="form.unit_type" clearable style="width: 100%"><el-option v-for="item in dictOptions.unitType" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="职务"><el-input v-model="form.job_title" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="工作单位"><el-input v-model="form.work_company" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="身份证号"><el-input v-model="form.id_card_no" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="籍贯"><el-input v-model="form.hometown" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="常驻地"><el-input v-model="form.residence" clearable /></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="房产"><el-select v-model="form.house_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.houseStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="车辆"><el-select v-model="form.car_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.carStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="接受异地"><el-select v-model="form.accept_long_distance_self" clearable style="width: 100%"><el-option label="是" :value="true" /><el-option label="否" :value="false" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="接受闪婚"><el-select v-model="form.accept_flash_marriage" clearable style="width: 100%"><el-option label="是" :value="true" /><el-option label="否" :value="false" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="愿意搬家"><el-select v-model="form.willing_relocate" clearable style="width: 100%"><el-option label="是" :value="true" /><el-option label="否" :value="false" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="结婚计划"><el-select v-model="form.marriage_plan" clearable style="width: 100%"><el-option v-for="item in dictOptions.marriagePlan" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :xs="24" :md="8"><el-form-item label="当前阶段"><el-select v-model="form.current_stage" style="width: 100%"><el-option v-for="item in stageOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-              <el-col :span="24"><el-form-item label="家庭情况"><el-input v-model="form.family_background" type="textarea" :rows="3" /></el-form-item></el-col>
-              <el-col :span="24"><el-form-item label="备注"><el-input v-model="form.profile_remark" type="textarea" :rows="3" /></el-form-item></el-col>
-              <el-col :span="24"><el-form-item label="个人介绍"><el-input v-model="form.profile_intro" type="textarea" :rows="3" /></el-form-item></el-col>
-              <el-col :span="24"><el-form-item label="照片"><el-upload v-model:file-list="photoFileList" list-type="picture-card" accept="image/*" multiple :http-request="uploadPhoto" :on-remove="removePhoto"><span>上传</span></el-upload></el-form-item></el-col>
-            </el-row>
+            <person-profile-fields :form="form" :dict-options="dictOptions" mobile-disabled>
+              <template #photo>
+                <el-form-item label="照片">
+                  <el-upload v-model:file-list="photoFileList" list-type="picture-card" accept="image/*" multiple :http-request="uploadPhoto" :on-remove="removePhoto">
+                    <el-icon><Plus /></el-icon>
+                  </el-upload>
+                </el-form-item>
+              </template>
+            </person-profile-fields>
+            <div class="form-section">
+              <div class="section-title">客户经营</div>
+              <el-row :gutter="16">
+                <el-col :xs="24" :md="8">
+                  <el-form-item label="当前阶段">
+                    <el-select v-model="form.current_stage" style="width: 100%">
+                      <el-option v-for="item in stageOptions" :key="item.value" :label="item.label" :value="item.value" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
             <div class="save-bar">
               <el-button type="primary" icon="Check" @click="submitProfile">保存客户资料</el-button>
             </div>
@@ -278,7 +266,7 @@
           </div>
           <el-timeline>
             <el-timeline-item v-for="item in mergedProcess" :key="`${item.source}-${item.id}`" :timestamp="String(item.occurred_at || item.created_time || '')">
-              <div class="timeline-title">{{ sourceLabel(item.source) }} · {{ operatorName(item) }} · {{ processTypeLabel(String(item.record_type || '')) }} · {{ item.result || "无结果" }}</div>
+              <div class="timeline-title">{{ sourceLabel(item.source) }} · {{ operatorName(item) }} · {{ processTypeLabel(String(item.record_type || '')) }} · {{ processResultLabel(item) }}</div>
               <div class="timeline-content">{{ item.content }}</div>
               <div v-for="line in processExtraLines(item)" :key="line" class="timeline-extra">{{ line }}</div>
               <div v-if="item.next_follow_at" class="timeline-extra">下次跟进：{{ item.next_follow_at }}</div>
@@ -296,7 +284,44 @@
         </el-tab-pane>
 
         <el-tab-pane label="合同收款" name="contract">
-          <el-empty description="合同、收款与转VIP能力将在后续阶段接入" />
+          <div class="contract-tab-toolbar">
+            <el-button v-hasPerm="['crm:contract:create']" type="primary" icon="Plus" @click="goContractCreate">去合同管理创建合同</el-button>
+          </div>
+          <el-table :data="customerContracts" border size="small">
+            <el-table-column prop="contract_no" label="合同编号" min-width="170" show-overflow-tooltip />
+            <el-table-column prop="contract_name" label="合同名称" min-width="150" show-overflow-tooltip />
+            <el-table-column label="合同金额" width="110">
+              <template #default="{ row }">¥{{ Number(row.contract_amount || 0).toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column label="已收金额" min-width="170">
+              <template #default="{ row }">
+                <div class="payment-progress">
+                  <div class="payment-progress__text">¥{{ Number(row.received_amount || 0).toFixed(2) }} / ¥{{ Number(row.contract_amount || 0).toFixed(2) }} · {{ progressPercent(row.payment_progress) }}%</div>
+                  <el-progress :percentage="progressPercent(row.payment_progress)" :stroke-width="6" :show-text="false" />
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="支付状态" width="100">
+              <template #default="{ row }">{{ paymentStatusLabel(row.payment_status) }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">{{ contractStatusLabel(row.contract_status) }}</template>
+            </el-table-column>
+            <el-table-column label="有效期限" min-width="180">
+              <template #default="{ row }">{{ row.validity_period || `${row.start_date} 至 ${row.end_date}` }}</template>
+            </el-table-column>
+            <el-table-column label="收款" min-width="180">
+              <template #default="{ row }">
+                <span v-if="!row.receipts?.length">暂无</span>
+                <span v-else>{{ formatContractReceipts(row.receipts) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column fixed="right" label="操作" width="110">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="goContractDetail(row.id)">查看合同</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </el-tab-pane>
       </el-tabs>
     </el-drawer>
@@ -406,8 +431,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "element-plus";
 import type { UploadFile, UploadRequestOptions } from "element-plus";
+import { Plus } from "@element-plus/icons-vue";
 
 import CustomerAPI, {
   type CustomerDetail,
@@ -420,11 +447,11 @@ import CustomerAPI, {
   type CustomerProcessType,
   type CustomerTable,
 } from "@/api/module_crm/customer";
-import type { PartnerPreference } from "@/api/module_crm/lead";
-import DeptAPI from "@/api/module_system/dept";
+import ContractAPI, { type ContractTable } from "@/api/module_crm/contract";
+import LeadAPI, { type PartnerPreference } from "@/api/module_crm/lead";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
-import UserAPI from "@/api/module_system/user";
 import PartnerPreferenceForm from "@/views/module_miailove/components/PartnerPreferenceForm.vue";
+import PersonProfileFields from "@/views/module_miailove/components/PersonProfileFields.vue";
 import { ossImage, ossImageList } from "@/utils/ossImage";
 import { uploadImageDirect } from "@/utils/upload";
 
@@ -432,6 +459,9 @@ const loading = ref(false);
 const rows = ref<CustomerTable[]>([]);
 const total = ref(0);
 const query = reactive<CustomerPageQuery>({ page_no: 1, page_size: 10 });
+const route = useRoute();
+const router = useRouter();
+const isDealPage = computed(() => route.path.includes("/customer/deal"));
 const detailVisible = ref(false);
 const detail = ref<CustomerDetail>();
 const activeTab = ref("overview");
@@ -446,6 +476,7 @@ const transferVisible = ref(false);
 const returnVisible = ref(false);
 const printVisible = ref(false);
 const printCard = ref<CustomerPrintCard>();
+const customerContracts = ref<ContractTable[]>([]);
 
 type TimelineItem = Record<string, unknown> & {
   id?: number | string;
@@ -502,6 +533,8 @@ const dictOptions = reactive({
   visitPurpose: [] as Array<{ label: string; value: string }>,
   appointmentSlot: [] as Array<{ label: string; value: string }>,
   appointmentStatus: [] as Array<{ label: string; value: string }>,
+  contractStatus: [] as Array<{ label: string; value: string }>,
+  receiptStatus: [] as Array<{ label: string; value: string }>,
 });
 
 const stageOptions = [
@@ -578,12 +611,17 @@ function materialsByItem(itemCode: string) {
 async function fetchList() {
   loading.value = true;
   try {
-    const res = await CustomerAPI.listCustomer(query);
+    const res = isDealPage.value ? await CustomerAPI.listDealCustomer(query) : await CustomerAPI.listCustomer(query);
     rows.value = res.data.data.items || [];
     total.value = res.data.data.total || 0;
   } finally {
     loading.value = false;
   }
+}
+
+function createContract(customerId?: number) {
+  if (!customerId) return;
+  router.push({ path: "/miailove/crm/contract", query: { customer_id: customerId } });
 }
 
 function resetQuery() {
@@ -596,6 +634,7 @@ async function openDetail(id?: number) {
   await ensureOptionsLoaded();
   const res = await CustomerAPI.detailCustomer(id);
   detail.value = res.data.data;
+  await fetchCustomerContracts(id);
   fillForm(detail.value);
   readOnly.value = true;
   activeTab.value = "overview";
@@ -697,6 +736,16 @@ async function submitProcess() {
   if (payload.method === "appointment" && payload.scheduled_at && payload.scheduled_at.length === 10) {
     payload.scheduled_at = `${payload.scheduled_at} 00:00:00`;
   }
+  if (!payload.next_follow_at) delete payload.next_follow_at;
+  if (!payload.scheduled_at) delete payload.scheduled_at;
+  if (!payload.appointment_slot) delete payload.appointment_slot;
+  if (!payload.visit_purpose) delete payload.visit_purpose;
+  if (!payload.promised_gift) delete payload.promised_gift;
+  if (!payload.need_summary) delete payload.need_summary;
+  if (!payload.budget_range) delete payload.budget_range;
+  if (!payload.main_objection) delete payload.main_objection;
+  if (!payload.intention_level) delete payload.intention_level;
+  if (!payload.next_action) delete payload.next_action;
   await CustomerAPI.createUnifiedProcess(processCustomerId.value, payload);
   ElMessage.success("过程记录已保存");
   processVisible.value = false;
@@ -819,9 +868,9 @@ async function ensureOptionsLoaded() {
 }
 
 async function loadOptions() {
-  const [deptRes, userRes] = await Promise.all([DeptAPI.listDept(), UserAPI.listUser({ page_no: 1, page_size: 100 } as any)]);
-  deptOptions.value = flattenDept(deptRes.data.data || []);
-  userOptions.value = (userRes.data.data.items || []).map((item: any) => ({ label: item.name || item.username || String(item.id), value: item.id }));
+  const [deptRes, userRes] = await Promise.all([LeadAPI.storeOptions(), LeadAPI.salesOptions()]);
+  deptOptions.value = (deptRes.data.data || []).map((item) => ({ label: item.name || String(item.id), value: item.id! }));
+  userOptions.value = (userRes.data.data || []).map((item) => ({ label: item.name || String(item.id), value: item.id! }));
   await loadDictOptions();
   optionsLoaded = true;
 }
@@ -843,6 +892,8 @@ async function loadDictOptions() {
     visitPurpose: "crm_customer_visit_purpose",
     appointmentSlot: "crm_customer_appointment_slot",
     appointmentStatus: "crm_customer_appointment_status",
+    contractStatus: "crm_contract_status",
+    receiptStatus: "crm_contract_receipt_status",
   } as const;
   await Promise.all(
     Object.entries(dictMap).map(async ([key, type]) => {
@@ -850,14 +901,6 @@ async function loadDictOptions() {
       dictOptions[key as keyof typeof dictOptions] = ((res.data.data as DictDataTable[]) || []).map((item) => ({ label: item.dict_label || item.dict_value || "", value: item.dict_value || "" }));
     })
   );
-}
-
-function flattenDept(list: any[], prefix = ""): Array<{ label: string; value: number }> {
-  return list.flatMap((item) => {
-    const label = `${prefix}${item.name}`;
-    const current = typeof item.id === "number" ? [{ label, value: item.id }] : [];
-    return [...current, ...flattenDept(item.children || [], `${prefix}${item.name}/`)];
-  });
 }
 
 function stageLabel(value?: string) {
@@ -881,6 +924,18 @@ function processTypeLabel(value?: string) {
   )[value || ""] || value || "";
 }
 
+function processResultLabel(item: ProcessItem) {
+  const result = String(item.result || "");
+  if (!result) return "无结果";
+  if (item.record_type === "visit_checkin" || item.record_type === "consultation") {
+    return stageLabel(result);
+  }
+  if (["pending", "checked_in", "consulted", "no_show", "cancelled"].includes(result)) {
+    return optionLabel(dictOptions.appointmentStatus, result);
+  }
+  return result;
+}
+
 function genderLabel(value?: string) {
   return ({ "0": "男", "1": "女", "2": "未知" } as Record<string, string>)[value || ""] || "-";
 }
@@ -888,6 +943,41 @@ function genderLabel(value?: string) {
 function optionLabel(options: Array<{ label: string; value: string }>, value?: string) {
   if (!value) return "-";
   return options.find((item) => item.value === value)?.label || value;
+}
+
+function contractStatusLabel(value?: string) {
+  return optionLabel(dictOptions.contractStatus, value);
+}
+
+function receiptStatusLabel(value?: string) {
+  return optionLabel(dictOptions.receiptStatus, value);
+}
+
+function progressPercent(value?: string | number) {
+  const percent = Number(value ?? 0);
+  if (!Number.isFinite(percent)) return 0;
+  return Math.max(0, Math.min(100, Math.round(percent)));
+}
+
+function paymentStatusLabel(value?: string) {
+  return ({ unpaid: "未支付", partial: "部分支付", settled: "已结清" } as Record<string, string>)[value || ""] || value || "-";
+}
+
+function formatContractReceipts(receipts: ContractTable["receipts"] = []) {
+  return receipts.map((item) => `${receiptStatusLabel(item.receipt_status)} ¥${Number(item.amount || 0).toFixed(2)}`).join("；");
+}
+
+async function fetchCustomerContracts(customerId: number) {
+  const res = await ContractAPI.listContract({ page_no: 1, page_size: 20, customer_id: customerId });
+  customerContracts.value = res.data.data.items || [];
+}
+
+function goContractCreate() {
+  window.location.hash = `/miailove/crm/contract?customer_id=${detail.value?.id || ""}`;
+}
+
+function goContractDetail(id?: number) {
+  window.location.hash = `/miailove/crm/contract?contract_id=${id || ""}`;
 }
 
 function processExtraLines(item: ProcessItem) {
@@ -938,6 +1028,22 @@ function lifecycleLabel(value: string) {
       contact_unlock: "联系方式解锁",
       invalid: "标记无效",
       release: "释放线索",
+      contract_create: "创建合同草稿",
+      contract_update: "编辑合同草稿",
+      contract_attachment: "上传合同影像",
+      contract_attachment_delete: "删除合同影像",
+      contract_sign: "合同已签",
+      contract_submit_review: "合同提交审核",
+      contract_review: "合同审核",
+      contract_review_skipped: "合同免审通过",
+      contract_void: "合同作废",
+      contract_receipt_submit: "提交收款",
+      contract_receipt_confirm: "确认收款",
+      contract_receipt_review: "审核收款",
+      contract_receipt_void: "作废收款",
+      contract_receipt_reverse: "收款冲正",
+      contract_receipt_refund_register: "登记退款",
+      contract_first_payment_effective: "首款到账生效",
     } as Record<string, string>
   )[value] || value;
 }
@@ -966,6 +1072,9 @@ function formatChange(value?: Record<string, unknown>, operationType?: string) {
 }
 
 function fieldChangeText(key: string, value: unknown) {
+  if (key === "partner_preference") {
+    return `${fieldLabel(key)}：已更新`;
+  }
   if (value && typeof value === "object" && ("from" in value || "to" in value)) {
     const change = value as { from?: unknown; to?: unknown };
     return `${fieldLabel(key)}：${displayChangeValue(change.from, key)} → ${displayChangeValue(change.to, key)}`;
@@ -1032,7 +1141,13 @@ function displayChangeValue(value: unknown, field?: string): string {
   if (value === null || value === undefined || value === "") return "未设置";
   if (Array.isArray(value)) return value.length ? value.join("、") : "未设置";
   if (typeof value === "boolean") return boolLabel(value);
+  if (typeof value === "number") {
+    const name = idFieldName(field, value);
+    if (name) return name;
+  }
   if (typeof value === "string") {
+    const name = idFieldName(field, value);
+    if (name) return name;
     const dictLabel = dictValueLabel(field, value);
     if (dictLabel) return dictLabel;
     if (["hq_pool", "store_pool", "sales_private"].includes(value)) {
@@ -1046,6 +1161,18 @@ function displayChangeValue(value: unknown, field?: string): string {
   }
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function idFieldName(field: string | undefined, value: string | number) {
+  const id = Number(value);
+  if (!Number.isFinite(id)) return "";
+  if (field?.includes("store_id")) {
+    return deptOptions.value.find((item) => item.value === id)?.label || "";
+  }
+  if (field?.includes("owner_sales_id") || field?.includes("owner_user_id")) {
+    return userOptions.value.find((item) => item.value === id)?.label || "";
+  }
+  return "";
 }
 
 function dictValueLabel(field: string | undefined, value: string) {
@@ -1134,6 +1261,19 @@ onMounted(() => {
 .table-actions :deep(.el-dropdown) {
   display: inline-flex;
   align-items: center;
+}
+
+.payment-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.payment-progress__text {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
 }
 
 .drawer-head,

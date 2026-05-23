@@ -30,6 +30,9 @@
         <el-table-column label="到访目的" min-width="130">
           <template #default="{ row }">{{ optionLabel(dictOptions.visitPurpose, row.visit_purpose) }}</template>
         </el-table-column>
+        <el-table-column label="邀约来源" min-width="100">
+          <template #default="{ row }"><el-tag :type="row.appointment_source === 'service' ? 'success' : 'primary'">{{ sourceLabel(row.appointment_source) }}</el-tag></template>
+        </el-table-column>
         <el-table-column prop="promised_gift" label="到店礼" min-width="130" show-overflow-tooltip />
         <el-table-column prop="operator_user_name" label="邀约人" min-width="120" />
         <el-table-column label="状态" min-width="110">
@@ -41,7 +44,7 @@
             <el-button v-hasPerm="['crm:customer:visit:consultation']" link type="primary" :disabled="!['pending', 'checked_in'].includes(row.appointment_status || '')" @click="openConsultation(row)">记录面谈</el-button>
             <el-button v-hasPerm="['crm:customer:visit:no_show']" link type="warning" :disabled="row.appointment_status !== 'pending'" @click="noShow(row)">标记爽约</el-button>
             <el-button v-hasPerm="['crm:customer:visit:cancel']" link type="danger" :disabled="row.appointment_status !== 'pending'" @click="cancel(row)">取消预约</el-button>
-            <el-button link type="primary" @click="goCustomer">查看客户</el-button>
+            <el-button link type="primary" @click="openCustomerDetail(row)">查看客户</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -65,19 +68,20 @@
         <el-button type="primary" @click="submitConsultation">保存</el-button>
       </template>
     </el-dialog>
+
+    <customer-detail-drawer v-model="customerDetailVisible" :customer-id="customerDetailId" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 
 import CustomerAPI, { type CustomerVisitConsultationForm, type CustomerVisitQuery, type CustomerVisitRecord } from "@/api/module_crm/customer";
+import LeadAPI from "@/api/module_crm/lead";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
-import UserAPI from "@/api/module_system/user";
+import CustomerDetailDrawer from "@/views/module_miailove/customer/components/CustomerDetailDrawer.vue";
 
-const router = useRouter();
 const loading = ref(false);
 const rows = ref<CustomerVisitRecord[]>([]);
 const total = ref(0);
@@ -85,6 +89,8 @@ const query = reactive<CustomerVisitQuery>({ page_no: 1, page_size: 10 });
 const queryDateRange = ref<string[]>();
 const userOptions = ref<Array<{ label: string; value: number }>>([]);
 const consultationVisible = ref(false);
+const customerDetailVisible = ref(false);
+const customerDetailId = ref<number>();
 const activeProcessId = ref<number>();
 const consultationForm = reactive<CustomerVisitConsultationForm>({ content: "", enter_signing: false });
 
@@ -153,13 +159,39 @@ async function submitConsultation() {
   fetchList();
 }
 
-function goCustomer() {
-  router.push("/miailove/customer/list");
+async function openCustomerDetail(row: CustomerVisitRecord) {
+  const customerId = row.customer?.id || (row as CustomerVisitRecord & { customer_id?: number }).customer_id;
+  if (!customerId) {
+    ElMessage.warning("当前到店记录缺少客户ID");
+    return;
+  }
+  customerDetailId.value = customerId;
+  customerDetailVisible.value = true;
 }
 
 function optionLabel(options: Array<{ label: string; value: string }>, value?: string) {
   if (!value) return "-";
-  return options.find((item) => item.value === value)?.label || value;
+  return options.find((item) => item.value === value)?.label || visitPurposeFallback(value);
+}
+
+function sourceLabel(value?: string) {
+  return value === "service" ? "服务邀约" : "销售邀约";
+}
+
+function visitPurposeFallback(value: string) {
+  return (
+    {
+      service_communication: "服务沟通",
+      service_profile_completion: "资料补充",
+      service_deep_interview: "深访沟通",
+      service_renewal: "续费沟通",
+      service_intro: "服务介绍",
+      consultation: "面谈沟通",
+      signing: "签约沟通",
+      profile: "资料完善",
+      other: "其他",
+    } as Record<string, string>
+  )[value] || value;
 }
 
 function formatDate(value?: string) {
@@ -167,8 +199,8 @@ function formatDate(value?: string) {
 }
 
 async function loadOptions() {
-  const [userRes] = await Promise.all([UserAPI.listUser({ page_no: 1, page_size: 100 } as any), loadDictOptions()]);
-  userOptions.value = (userRes.data.data.items || []).map((item: any) => ({ label: item.name || item.username || String(item.id), value: item.id }));
+  const [userRes] = await Promise.all([LeadAPI.salesOptions(), loadDictOptions()]);
+  userOptions.value = (userRes.data.data || []).map((item) => ({ label: item.name || String(item.id), value: item.id! }));
 }
 
 async function loadDictOptions() {

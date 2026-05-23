@@ -10,6 +10,7 @@
 export const ACCESS_TOKEN_KEY = "access_token";
 export const REFRESH_TOKEN_KEY = "refresh_token";
 export const REMEMBER_ME_KEY = "remember_me";
+export const QUICK_LOGIN_ACCOUNTS_KEY = "quick_login_accounts";
 
 // 📊 数据缓存相关
 export const DICT_CACHE_KEY = "dict_cache";
@@ -42,6 +43,7 @@ export const AUTH_KEYS = {
   ACCESS_TOKEN: ACCESS_TOKEN_KEY,
   REFRESH_TOKEN: REFRESH_TOKEN_KEY,
   REMEMBER_ME: REMEMBER_ME_KEY,
+  QUICK_LOGIN_ACCOUNTS: QUICK_LOGIN_ACCOUNTS_KEY,
 } as const;
 
 // 缓存相关键集合

@@ -290,13 +290,14 @@ class UploadUtil:
 
         try:
             with Image.open(BytesIO(content)) as image:
+                original_format = image.format
                 image = ImageOps.exif_transpose(image)
                 width, height = image.size
                 should_resize = max(width, height) > IMAGE_COMPRESS_MAX_SIDE
                 should_compress = len(content) > IMAGE_COMPRESS_MAX_BYTES
 
                 if not should_resize and not should_compress:
-                    return content, image.get_format_mimetype() or ""
+                    return content, Image.MIME.get(original_format or "", "")
 
                 if should_resize:
                     image.thumbnail((IMAGE_COMPRESS_MAX_SIDE, IMAGE_COMPRESS_MAX_SIDE))

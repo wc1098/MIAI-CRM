@@ -13,11 +13,14 @@ from app.core.router_class import OperationLogRoute
 from app.core.security import CustomOAuth2PasswordRequestForm
 
 from .schema import (
+    AuthSchema,
     AutoLoginTokenSchema,
     AutoLoginUserSchema,
     CaptchaOutSchema,
     JWTOutSchema,
     LogoutPayloadSchema,
+    QuickLoginDeviceSchema,
+    QuickLoginPayloadSchema,
     RefreshTokenPayloadSchema,
 )
 from .service import AutoLoginService, CaptchaService, LoginService
@@ -160,11 +163,11 @@ async def logout_controller(
 @AuthRouter.get(
     "/auto-login/users",
     summary="获取免登录用户列表",
-    description="获取可用于免登录快速登录的用户列表",
+    description="兼容旧接口：仅允许已登录用户查看可用于快速登录的用户列表",
     response_model=list[AutoLoginUserSchema],
 )
 async def get_auto_login_users_controller(
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    auth: Annotated[AuthSchema, Depends(get_current_user)],
 ) -> JSONResponse:
     """
     获取免登录用户列表
@@ -175,19 +178,20 @@ async def get_auto_login_users_controller(
     返回:
     - list[AutoLoginUserSchema]: 免登录用户列表
     """
-    users = await AutoLoginService.get_auto_login_users_service(db=db)
+    if not auth.user:
+        return ErrorResponse(msg="认证已失效")
+    users = await AutoLoginService.get_auto_login_users_service(db=auth.db)
     return SuccessResponse(data=users, msg="获取成功")
 
 
 @AuthRouter.post(
     "/auto-login/token",
     summary="获取免登录Token",
-    description="根据用户ID生成免登录Token",
+    description="旧快速登录Token接口已废弃，请使用本机快速登录凭证接口",
     response_model=AutoLoginTokenSchema,
 )
 async def get_auto_login_token_controller(
-    redis: Annotated[Redis, Depends(redis_getter)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    auth: Annotated[AuthSchema, Depends(get_current_user)],
     user_id: int,
 ) -> JSONResponse:
     """
@@ -201,10 +205,25 @@ async def get_auto_login_token_controller(
     返回:
     - AutoLoginTokenSchema: 免登录Token和用户信息
     """
-    result = await AutoLoginService.create_auto_login_token_service(
-        redis=redis, db=db, user_id=user_id
-    )
-    return SuccessResponse(data=result, msg="获取成功")
+    if not auth.user or auth.user.id != user_id:
+        return ErrorResponse(msg="不允许为其他账号生成免登录Token")
+    return ErrorResponse(msg="旧快速登录Token接口已废弃，请重新账号密码登录")
+
+
+@AuthRouter.post(
+    "/auto-login/device",
+    summary="创建本机快速登录凭证",
+    description="账号密码登录成功后，为当前账号签发本机快速登录凭证",
+    response_model=QuickLoginDeviceSchema,
+)
+async def create_quick_login_device_controller(
+    auth: Annotated[AuthSchema, Depends(get_current_user)],
+) -> JSONResponse:
+    """
+    创建本机快速登录凭证。
+    """
+    result = await AutoLoginService.create_quick_login_device_service(auth=auth)
+    return SuccessResponse(data=result.model_dump(), msg="获取成功")
 
 
 @AuthRouter.post(
@@ -217,7 +236,7 @@ async def auto_login_controller(
     request: Request,
     redis: Annotated[Redis, Depends(redis_getter)],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    token: str,
+    payload: QuickLoginPayloadSchema,
 ) -> JSONResponse:
     """
     免登录
@@ -232,7 +251,7 @@ async def auto_login_controller(
     - JWTOutSchema: JWT令牌信息
     """
     login_token = await AutoLoginService.auto_login_service(
-        request=request, redis=redis, db=db, token=token
+        request=request, redis=redis, db=db, payload=payload
     )
     log.info("用户免登录成功")
     return SuccessResponse(data=login_token.model_dump(), msg="登录成功")

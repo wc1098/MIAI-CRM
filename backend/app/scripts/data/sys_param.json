@@ -114,7 +114,7 @@
   {
     "config_name": "接口白名单",
     "config_key": "white_api_list_path",
-    "config_value": "[\"/api/v1/system/auth/login\", \"/api/v1/system/auth/token/refresh\", \"/api/v1/system/auth/captcha/get\", \"/api/v1/system/auth/logout\", \"/api/v1/system/config/info\", \"/api/v1/system/user/current/info\", \"/api/v1/system/notice/available\", \"/api/v1/system/auth/auto-login/users\", \"/api/v1/system/auth/auto-login/token\", \"/api/v1/system/auth/auto-login\"]",
+    "config_value": "[\"/api/v1/system/auth/login\", \"/api/v1/system/auth/token/refresh\", \"/api/v1/system/auth/captcha/get\", \"/api/v1/system/auth/logout\", \"/api/v1/system/config/info\", \"/api/v1/system/user/current/info\", \"/api/v1/system/notice/available\", \"/api/v1/system/auth/auto-login/device\", \"/api/v1/system/auth/auto-login\"]",
     "config_type": true,
     "status": "0",
     "description": "初始化数据"
@@ -590,5 +590,45 @@
     "config_type": true,
     "status": "0",
     "description": "按用户、手机号、身份证脱敏值统计的每日实名认证调用上限"
+  },
+  {
+    "config_name": "服务允许超额核销",
+    "config_key": "service.allow_overuse",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "是否允许服务红娘超额核销合同权益；超额时必须填写原因"
+  },
+  {
+    "config_name": "服务关单需要审核",
+    "config_key": "service.close_requires_review",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "服务红娘发起关单后是否需要店长及以上审核"
+  },
+  {
+    "config_name": "首次深访提醒天数",
+    "config_key": "service.first_interview_remind_days",
+    "config_value": "0",
+    "config_type": true,
+    "status": "0",
+    "description": "VIP分配后首次深访提醒天数，0表示仅展示未深访状态不做强制超时"
+  },
+  {
+    "config_name": "本门店备选加入需要审核",
+    "config_key": "service.candidate.store_join_requires_review",
+    "config_value": "true",
+    "config_type": true,
+    "status": "0",
+    "description": "本门店范围候选加入备选库是否需要门店管理员审批；品牌范围始终需要审核"
+  },
+  {
+    "config_name": "线索自动回公海扫描间隔秒",
+    "config_key": "crm.lead.reclaim.worker_interval_seconds",
+    "config_value": "3600",
+    "config_type": true,
+    "status": "0",
+    "description": "CRM线索无跟进自动回门店公海定时任务扫描间隔秒，修改后需重启后端服务生效"
   }
 ]

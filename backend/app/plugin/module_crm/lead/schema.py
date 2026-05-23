@@ -108,7 +108,7 @@ class LeadPersonPayload(BaseModel):
 class LeadCreateSchema(LeadPersonPayload):
     """线索创建模型"""
 
-    source_channel_code: str | None = Field(default="MANUAL_CREATE", max_length=64, description="来源渠道编码")
+    source_channel_code: str | None = Field(default=None, max_length=64, description="来源渠道编码")
     store_id: int | None = Field(default=None, description="归属门店ID")
     owner_sales_id: int | None = Field(default=None, description="归属销售ID")
     sync_to_miniprogram: bool = Field(default=False, description="是否同步为待绑定小程序用户")
@@ -247,6 +247,9 @@ class LeadOutSchema(BaseSchema, UserBySchema):
     assigned_at: DateTimeStr | None = None
     last_recycled_at: DateTimeStr | None = None
     converted_customer_at: DateTimeStr | None = None
+    protect_due_at: DateTimeStr | None = None
+    protect_remaining_days: int | None = None
+    protect_warning_level: str | None = None
     description: str | None = None
     person: PersonOutSchema
     source_channel_name: str | None = None

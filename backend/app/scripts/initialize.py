@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.module_system.auth.model import UserQuickLoginDeviceModel
 from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.dict.model import DictDataModel, DictTypeModel
 from app.api.v1.module_system.menu.model import MenuModel
@@ -41,6 +42,7 @@ class InitializeData:
             PositionModel,
             UserModel,
             UserRolesModel,
+            UserQuickLoginDeviceModel,
         ]
 
     async def __init_create_table(self) -> None:

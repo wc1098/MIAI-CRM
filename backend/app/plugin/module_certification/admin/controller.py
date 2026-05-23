@@ -80,7 +80,10 @@ async def admin_certification_application_detail_controller(
 @CertificationAdminRouter.get("/person/{person_id}/summary", summary="人员认证概览")
 async def admin_certification_person_summary_controller(
     person_id: int,
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["operation:miniprogram:certification:query"]))],
+    auth: Annotated[
+        AuthSchema,
+        Depends(AuthPermission(["operation:miniprogram:certification:query", "crm:person:detail"])),
+    ],
 ) -> JSONResponse:
     result = await CertificationService.admin_person_summary(auth.db, person_id)
     return SuccessResponse(data=result, msg="获取人员认证概览成功")

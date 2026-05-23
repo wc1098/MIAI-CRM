@@ -209,5 +209,41 @@ def sync_permissions(
     asyncio.run(_sync())
 
 
+@fastapiadmin_cli.command(
+    name="backfill-service-workbench",
+    help="补齐已生效合同缺失的服务工单和权益账本, 运行 python main.py backfill-service-workbench --env=dev",
+)
+def backfill_service_workbench(
+    env: Annotated[
+        EnvironmentEnum, typer.Option("--env", help="运行环境 (dev, prod)")
+    ] = EnvironmentEnum.DEV,
+) -> None:
+    """
+    幂等补齐服务工作台基础数据。
+
+    参数:
+    - env (EnvironmentEnum): 运行环境。
+
+    返回:
+    - None
+    """
+    import asyncio
+
+    os.environ["ENVIRONMENT"] = env.value
+    from app.config.setting import get_settings
+    from app.core.database import async_db_session
+    from app.plugin.module_service.vip.service import VipService
+
+    get_settings.cache_clear()
+
+    async def _backfill() -> None:
+        async with async_db_session() as session:
+            async with session.begin():
+                stats = await VipService.backfill_effective_contract_service_cases(session)
+                typer.echo(f"服务工作台补偿完成: {stats}")
+
+    asyncio.run(_backfill())
+
+
 if __name__ == "__main__":
     fastapiadmin_cli()

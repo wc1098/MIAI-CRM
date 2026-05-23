@@ -90,3 +90,20 @@ class AutoLoginTokenSchema(BaseModel):
 
     token: str = Field(..., description="免登录Token")
     user: AutoLoginUserSchema = Field(..., description="用户信息")
+
+
+class QuickLoginPayloadSchema(BaseModel):
+    """本机快速登录请求。"""
+
+    user_id: int = Field(..., description="用户ID")
+    device_token: str = Field(..., min_length=1, description="本机快速登录凭证")
+
+
+class QuickLoginDeviceSchema(BaseModel):
+    """本机快速登录设备凭证响应。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    device_token: str = Field(..., description="本机快速登录凭证")
+    expires_at: datetime = Field(..., description="过期时间")
+    user: AutoLoginUserSchema = Field(..., description="用户信息")

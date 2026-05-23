@@ -45,6 +45,20 @@ async def list_controller(
 
 
 @CustomerRouter.get(
+    "/deal/list",
+    summary="查询成交客户列表",
+    response_model=ResponseSchema[list[CustomerOutSchema]],
+)
+async def deal_list_controller(
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[CustomerQueryParam, Depends()],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:customer:deal:query"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await CustomerService.deal_page_service(auth=auth, page_no=page.page_no, page_size=page.page_size, search=search)
+    return SuccessResponse(data=result, msg="查询成交客户列表成功")
+
+
+@CustomerRouter.get(
     "/detail/{id}",
     summary="查询客户总档案",
     response_model=ResponseSchema[CustomerDetailOutSchema],

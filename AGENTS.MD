@@ -6,13 +6,15 @@
 
 - 后端：`backend/`，技术栈为 FastAPI、SQLAlchemy 2.x、Pydantic 2.x、Alembic、Redis、APScheduler、Uvicorn。
 - 前端：`frontend/`，技术栈为 Vue 3、Vite、TypeScript、Element Plus、Pinia、Vue Router、Axios。
+- 婚恋小程序前端：`uniapp_miniprogram/`，技术栈为 Vue 3、uni-app、uview3、ColorUI。
+- 数据库: PostgreSQL 、Redis
 - 文档：`README.md`、`backend/README.md`、`frontend/README.md`、`docs/fastapiadmin.md`、`docs/婚恋小程序-智慧门店大屏-CRM对接-PRD-v1.md`。
 
 默认开发端口：
 
 - 前端：`http://127.0.0.1:5180`
-- 后端：`http://127.0.0.1:8001`
-- Swagger：`http://127.0.0.1:8001/docs`
+- 后端：`http://127.0.0.1:8000`
+- Swagger：`http://127.0.0.1:8000/docs`
 - API 前缀：`/api/v1`
 
 ## 重要业务口径

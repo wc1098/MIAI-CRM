@@ -19,6 +19,7 @@ from app.plugin.module_crm.preference.schema import PartnerPreferenceSaveSchema
 from app.plugin.module_crm.preference.service import PartnerPreferenceService
 from app.plugin.module_match.service import MatchProfileService
 from app.plugin.module_profile_ai.service import PersonAiProfileService
+from app.plugin.module_service.vip.model import ServiceCaseModel
 
 from .model import (
     CrmCustomerCertificationMaterialModel,
@@ -91,6 +92,10 @@ class CustomerService:
     @classmethod
     def _is_reception(cls, auth: AuthSchema) -> bool:
         return "RECEPTION" in cls._role_codes(auth)
+
+    @classmethod
+    def _is_matchmaker(cls, auth: AuthSchema) -> bool:
+        return "MATCHMAKER" in cls._role_codes(auth)
 
     @classmethod
     def _is_owner_staff(cls, auth: AuthSchema) -> bool:
@@ -185,6 +190,21 @@ class CustomerService:
         return bool(auth.user and customer.owner_user_id == auth.user.id)
 
     @classmethod
+    def _served_customer_ids(cls, auth: AuthSchema):
+        return select(ServiceCaseModel.customer_id).where(
+            ServiceCaseModel.owner_matchmaker_id == auth.user.id,
+            ServiceCaseModel.is_deleted == False,
+            ServiceCaseModel.case_status.in_({"serving", "reopened", "pending_close_review"}),
+        )
+
+    @classmethod
+    async def _is_serving_customer(cls, auth: AuthSchema, customer_id: int) -> bool:
+        if not auth.user or not cls._is_matchmaker(auth):
+            return False
+        result = await auth.db.execute(cls._served_customer_ids(auth).where(ServiceCaseModel.customer_id == customer_id))
+        return result.scalars().first() is not None
+
+    @classmethod
     def _can_view_id_card(cls, auth: AuthSchema, customer: CrmCustomerProfileModel) -> bool:
         if cls._is_brand_admin(auth):
             return True
@@ -250,7 +270,30 @@ class CustomerService:
     def _scope_conditions(cls, auth: AuthSchema) -> list[Any]:
         conditions: list[Any] = [
             CrmCustomerProfileModel.is_deleted == False,
-            CrmCustomerProfileModel.ended_at.is_(None),
+        ]
+        if auth.user and cls._is_matchmaker(auth):
+            conditions.append(or_(CrmCustomerProfileModel.ended_at.is_(None), CrmCustomerProfileModel.id.in_(cls._served_customer_ids(auth))))
+        else:
+            conditions.append(CrmCustomerProfileModel.ended_at.is_(None))
+        if cls._is_brand_admin(auth):
+            return conditions
+        if not auth.user:
+            conditions.append(CrmCustomerProfileModel.id == -1)
+            return conditions
+        if cls._is_store_mgr(auth) or cls._is_reception(auth):
+            conditions.append(CrmCustomerProfileModel.store_id == (auth.user.dept_id or -1))
+            return conditions
+        if cls._is_matchmaker(auth):
+            conditions.append(or_(CrmCustomerProfileModel.owner_user_id == auth.user.id, CrmCustomerProfileModel.id.in_(cls._served_customer_ids(auth))))
+        else:
+            conditions.append(CrmCustomerProfileModel.owner_user_id == auth.user.id)
+        return conditions
+
+    @classmethod
+    def _deal_scope_conditions(cls, auth: AuthSchema) -> list[Any]:
+        conditions: list[Any] = [
+            CrmCustomerProfileModel.is_deleted == False,
+            CrmCustomerProfileModel.converted_vip_at.is_not(None),
         ]
         if cls._is_brand_admin(auth):
             return conditions
@@ -260,7 +303,10 @@ class CustomerService:
         if cls._is_store_mgr(auth) or cls._is_reception(auth):
             conditions.append(CrmCustomerProfileModel.store_id == (auth.user.dept_id or -1))
             return conditions
-        conditions.append(CrmCustomerProfileModel.owner_user_id == auth.user.id)
+        if cls._is_matchmaker(auth):
+            conditions.append(or_(CrmCustomerProfileModel.owner_user_id == auth.user.id, CrmCustomerProfileModel.id.in_(cls._served_customer_ids(auth))))
+        else:
+            conditions.append(CrmCustomerProfileModel.owner_user_id == auth.user.id)
         return conditions
 
     @classmethod
@@ -283,6 +329,11 @@ class CustomerService:
             raise CustomException(msg="无权限访问该客户", code=10403, status_code=403)
         same_store = customer.store_id == user.dept_id
         is_owner = customer.owner_user_id == user.id
+        is_serving_customer = await cls._is_serving_customer(auth, customer.id)
+        if action == "read" and is_serving_customer:
+            return
+        if action in {"update", "follow", "appointment", "visit_checkin", "consultation", "no_show", "appointment_cancel"} and is_serving_customer:
+            return
         if action == "read" and ((cls._is_store_mgr(auth) or cls._is_reception(auth)) and same_store or is_owner):
             return
         if action in {"update", "return_lead"} and (is_owner or (cls._is_store_mgr(auth) and same_store)):
@@ -375,6 +426,8 @@ class CustomerService:
         if not record:
             raise CustomException(msg="预约记录不存在")
         await cls._get_customer(auth, record.customer_id, action)
+        if cls._is_matchmaker(auth) and auth.user and record.operator_user_id != auth.user.id:
+            raise CustomException(msg="服务红娘只能操作自己发起的邀约", code=10403, status_code=403)
         if record.record_type != "appointment":
             raise CustomException(msg="只能操作邀约记录")
         return record
@@ -385,10 +438,21 @@ class CustomerService:
         dept_names = await cls._dept_names(auth, {row.store_id for row in customers if row.store_id})
         ai_profile_map = await PersonAiProfileService.admin_info_map(auth.db, {row.person_id for row in customers})
         preference_map = await PartnerPreferenceService.map_current(auth.db, {row.person_id for row in customers})
+        served_ids: set[int] = set()
+        if auth.user and cls._is_matchmaker(auth) and customers:
+            served_result = await auth.db.execute(
+                select(ServiceCaseModel.customer_id).where(
+                    ServiceCaseModel.customer_id.in_({row.id for row in customers}),
+                    ServiceCaseModel.owner_matchmaker_id == auth.user.id,
+                    ServiceCaseModel.is_deleted == False,
+                    ServiceCaseModel.case_status.in_({"serving", "reopened", "pending_close_review"}),
+                )
+            )
+            served_ids = set(served_result.scalars().all())
         data = []
         for customer in customers:
             item = CustomerOutSchema.model_validate(customer).model_dump()
-            can_view_contact = cls._can_view_contact(auth, customer)
+            can_view_contact = cls._can_view_contact(auth, customer) or customer.id in served_ids
             can_view_id_card = cls._can_view_id_card(auth, customer)
             item["can_view_contact"] = can_view_contact
             item["can_view_id_card"] = can_view_id_card
@@ -427,6 +491,28 @@ class CustomerService:
         search: CustomerQueryParam | None = None,
     ) -> dict:
         conditions = cls._scope_conditions(auth)
+        return await cls._page_with_conditions(auth=auth, page_no=page_no, page_size=page_size, search=search, conditions=conditions)
+
+    @classmethod
+    async def deal_page_service(
+        cls,
+        auth: AuthSchema,
+        page_no: int,
+        page_size: int,
+        search: CustomerQueryParam | None = None,
+    ) -> dict:
+        conditions = cls._deal_scope_conditions(auth)
+        return await cls._page_with_conditions(auth=auth, page_no=page_no, page_size=page_size, search=search, conditions=conditions)
+
+    @classmethod
+    async def _page_with_conditions(
+        cls,
+        auth: AuthSchema,
+        page_no: int,
+        page_size: int,
+        search: CustomerQueryParam | None,
+        conditions: list[Any],
+    ) -> dict:
         if search:
             if search.keyword:
                 conditions.append(
@@ -772,15 +858,7 @@ class CustomerService:
             "description": customer.description,
         }
         if data.mobile != customer.person.primary_mobile:
-            exists = await auth.db.execute(
-                select(CrmPersonModel).where(
-                    CrmPersonModel.primary_mobile == data.mobile,
-                    CrmPersonModel.id != customer.person_id,
-                    CrmPersonModel.is_deleted == False,
-                )
-            )
-            if exists.scalars().first():
-                raise CustomException(msg="更新失败，手机号已存在")
+            raise CustomException(msg="手机号不允许编辑")
         person_fields = data.model_dump(
             exclude={"partner_preference", "current_stage", "next_follow_at", "description"}
         )
@@ -805,7 +883,7 @@ class CustomerService:
                 ),
                 auth=auth,
             )
-            changes["partner_preference"] = {"from": "updated", "to": "updated"}
+            changes["partner_preference"] = "已更新"
         cls._stamp_update(auth, customer.person)
         cls._stamp_update(auth, customer)
         if changes:
@@ -962,14 +1040,28 @@ class CustomerService:
             if user_id
         }
         user_names = await cls._user_names(auth, user_ids)
+        service_cases = []
+        if rows:
+            service_cases = (
+                await auth.db.execute(
+                    select(ServiceCaseModel.customer_id, ServiceCaseModel.owner_matchmaker_id).where(
+                        ServiceCaseModel.customer_id.in_({customer.id for _, customer, _ in rows}),
+                        ServiceCaseModel.is_deleted == False,
+                        ServiceCaseModel.case_status.in_({"serving", "reopened", "pending_close_review"}),
+                    )
+                )
+            ).all()
+        service_owner_by_customer = {customer_id: owner_id for customer_id, owner_id in service_cases if owner_id}
         items = []
         for record, customer, person in rows:
-            can_view = cls._can_view_contact(auth, customer)
+            appointment_source = "service" if service_owner_by_customer.get(customer.id) == record.operator_user_id else "sales"
+            can_view = cls._can_view_contact(auth, customer) or (appointment_source == "service" and auth.user and record.operator_user_id == auth.user.id)
             items.append(
                 {
                     **CustomerProcessOutSchema.model_validate(record).model_dump(),
                     "operator_user_name": user_names.get(record.operator_user_id or 0),
                     "checked_in_user_name": user_names.get(record.checked_in_user_id or 0),
+                    "appointment_source": appointment_source,
                     "customer": {
                         "id": customer.id,
                         "current_stage": customer.current_stage,

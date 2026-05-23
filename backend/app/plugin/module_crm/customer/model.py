@@ -74,7 +74,7 @@ class CrmCustomerProcessRecordModel(ModelMixin, UserMixin):
     customer_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("crm_customer_profile.id", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
         comment="客户ID",
     )

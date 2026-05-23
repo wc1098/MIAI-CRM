@@ -2,7 +2,7 @@ import request from "@/utils/request";
 
 const API_PATH = "/common/upload";
 
-export type UploadScene = "mp_register_photo" | "certification_material" | "crm_lead_photo" | "event_cover" | "common_image";
+export type UploadScene = "mp_register_photo" | "certification_material" | "crm_lead_photo" | "crm_contract_attachment" | "event_cover" | "common_image";
 
 export interface OssPolicyRequest {
   scene: UploadScene;

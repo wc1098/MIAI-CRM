@@ -1,10 +1,13 @@
+import hashlib
 import json
+import secrets
 import uuid
 from datetime import datetime, timedelta
 from typing import NewType
 
 from fastapi import Request
 from redis.asyncio.client import Redis
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from user_agents import parse
 
@@ -26,6 +29,7 @@ from app.utils.common_util import get_random_character
 from app.utils.hash_bcrpy_util import PwdUtil
 from app.utils.ip_local_util import IpLocalUtil
 
+from .model import UserQuickLoginDeviceModel
 from .schema import (
     AuthSchema,
     AutoLoginTokenSchema,
@@ -34,6 +38,8 @@ from .schema import (
     JWTOutSchema,
     JWTPayloadSchema,
     LogoutPayloadSchema,
+    QuickLoginDeviceSchema,
+    QuickLoginPayloadSchema,
     RefreshTokenPayloadSchema,
 )
 
@@ -412,6 +418,11 @@ class AutoLoginService:
     AUTO_LOGIN_PREFIX = "fastapiadmin:auto_login:"
     # Token有效期(秒) - 5分钟
     TOKEN_EXPIRE = 300
+    DEVICE_TOKEN_EXPIRE_DAYS = 30
+
+    @staticmethod
+    def _hash_device_token(device_token: str) -> str:
+        return hashlib.sha256(device_token.encode("utf-8")).hexdigest()
 
     @classmethod
     async def get_auto_login_users_service(cls, db: AsyncSession) -> list[AutoLoginUserSchema]:
@@ -508,8 +519,61 @@ class AutoLoginService:
         )
 
     @classmethod
+    async def create_quick_login_device_service(
+        cls, auth: AuthSchema
+    ) -> QuickLoginDeviceSchema:
+        """
+        为当前已登录用户创建本机快速登录凭证。
+        """
+        if not auth.user or not auth.user.id:
+            raise CustomException(msg="用户不存在")
+
+        auth_user = auth.user
+        if auth_user.status == "1":
+            raise CustomException(msg="用户已被停用")
+
+        device_token = secrets.token_urlsafe(48)
+        token_hash = cls._hash_device_token(device_token)
+        expires_at = datetime.now() + timedelta(days=cls.DEVICE_TOKEN_EXPIRE_DAYS)
+
+        device = UserQuickLoginDeviceModel(
+            user_id=auth_user.id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+        )
+        auth.db.add(device)
+        await auth.db.flush()
+
+        return QuickLoginDeviceSchema(
+            device_token=device_token,
+            expires_at=expires_at,
+            user=AutoLoginUserSchema(
+                id=auth_user.id,
+                username=auth_user.username,
+                name=auth_user.name,
+                avatar=auth_user.avatar,
+            ),
+        )
+
+    @classmethod
+    async def revoke_user_quick_login_devices_service(
+        cls, db: AsyncSession, user_id: int
+    ) -> None:
+        """
+        撤销指定用户所有未撤销的本机快速登录凭证。
+        """
+        await db.execute(
+            update(UserQuickLoginDeviceModel)
+            .where(
+                UserQuickLoginDeviceModel.user_id == user_id,
+                UserQuickLoginDeviceModel.revoked_at.is_(None),
+            )
+            .values(revoked_at=datetime.now())
+        )
+
+    @classmethod
     async def auto_login_service(
-        cls, request: Request, redis: Redis, db: AsyncSession, token: str
+        cls, request: Request, redis: Redis, db: AsyncSession, payload: QuickLoginPayloadSchema
     ) -> JWTOutSchema:
         """
         免登录
@@ -526,22 +590,10 @@ class AutoLoginService:
         异常:
         - CustomException: Token无效或过期时抛出异常
         """
-        from sqlalchemy import select
-
         from app.api.v1.module_system.user.model import UserModel
 
-        # 验证Token
-        token_key = f"{cls.AUTO_LOGIN_PREFIX}{token}"
-        token_data_str = await RedisCURD(redis).get(token_key)
-
-        if not token_data_str:
-            raise CustomException(msg="免登录Token已过期或无效")
-
-        token_data = json.loads(token_data_str)
-        user_id = token_data.get("user_id")
-
         # 查询用户
-        stmt = select(UserModel).where(UserModel.id == user_id)
+        stmt = select(UserModel).where(UserModel.id == payload.user_id)
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -551,8 +603,21 @@ class AutoLoginService:
         if user.status == "1":
             raise CustomException(msg="用户已被停用")
 
-        # 删除已使用的Token
-        await RedisCURD(redis).delete(token_key)
+        now = datetime.now()
+        token_hash = cls._hash_device_token(payload.device_token)
+        stmt = select(UserQuickLoginDeviceModel).where(
+            UserQuickLoginDeviceModel.user_id == user.id,
+            UserQuickLoginDeviceModel.token_hash == token_hash,
+            UserQuickLoginDeviceModel.revoked_at.is_(None),
+            UserQuickLoginDeviceModel.expires_at > now,
+        )
+        device_result = await db.execute(stmt)
+        device = device_result.scalar_one_or_none()
+        if not device:
+            raise CustomException(msg="本机快速登录已失效，请重新账号密码登录")
+
+        device.last_used_at = now
+        await db.flush()
 
         # 使用LoginService创建token
         jwt_token = await LoginService.create_token_service(

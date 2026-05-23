@@ -77,6 +77,28 @@ const LeadAPI = {
     });
   },
 
+  salesOptions(storeId?: number) {
+    return request<ApiResponse<CommonType[]>>({
+      url: `${API_PATH}/sales-options`,
+      method: "get",
+      params: { store_id: storeId },
+    });
+  },
+
+  storeOptions() {
+    return request<ApiResponse<CommonType[]>>({
+      url: `${API_PATH}/store-options`,
+      method: "get",
+    });
+  },
+
+  sourceOptions() {
+    return request<ApiResponse<Array<CommonType & { code?: string }>>>({
+      url: `${API_PATH}/source-options`,
+      method: "get",
+    });
+  },
+
   setStoreRule(storeId: number, body: LeadStoreRule) {
     return request<ApiResponse>({
       url: `${API_PATH}/store-rule/${storeId}`,
@@ -249,6 +271,9 @@ export interface LeadTable extends BaseType {
   next_follow_at?: string;
   assigned_at?: string;
   last_recycled_at?: string;
+  protect_due_at?: string;
+  protect_remaining_days?: number;
+  protect_warning_level?: string;
   converted_customer_at?: string;
   description?: string;
   person: LeadPerson;

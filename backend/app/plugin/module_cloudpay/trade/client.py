@@ -59,7 +59,7 @@ class CloudPayClient:
     def build_sign_content(cls, params: dict[str, Any]) -> str:
         parts = []
         for key in sorted(params.keys()):
-            if key == "sign":
+            if key in {"sign", "signature"}:
                 continue
             value = params[key]
             if value is None or value == "":
@@ -128,9 +128,9 @@ class CloudPayClient:
             return False
 
     @classmethod
-    async def verify_response_payload(cls, payload: dict[str, Any]) -> bool:
+    async def verify_response_payload(cls, payload: dict[str, Any], signature: str | None = None) -> bool:
         config = await cls.get_config()
-        signature = payload.get("sign")
+        signature = signature or payload.get("sign") or payload.get("signature")
         if not signature:
             raise CustomException(msg="云支付通知缺少签名")
         sign_content = cls.build_sign_content(payload)

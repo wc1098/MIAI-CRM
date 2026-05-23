@@ -60,7 +60,7 @@ class EventAdminService:
         if cls._is_brand_admin(auth):
             return conditions
         if cls._is_store_mgr(auth) and auth.user:
-            conditions.extend([EventModel.store_id == auth.user.dept_id, EventModel.created_id == auth.user.id])
+            conditions.append(EventModel.store_id == auth.user.dept_id)
             return conditions
         conditions.append(EventModel.created_id == (auth.user.id if auth.user else -1))
         return conditions
@@ -69,7 +69,7 @@ class EventAdminService:
     async def _ensure_manage_access(cls, auth: AuthSchema, event: EventModel) -> None:
         if cls._is_brand_admin(auth):
             return
-        if cls._is_store_mgr(auth) and auth.user and event.store_id == auth.user.dept_id and event.created_id == auth.user.id:
+        if cls._is_store_mgr(auth) and auth.user and event.store_id == auth.user.dept_id:
             return
         if auth.user and event.created_id == auth.user.id:
             return

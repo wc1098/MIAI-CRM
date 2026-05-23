@@ -11,6 +11,13 @@ const CustomerAPI = {
       params: query,
     });
   },
+  listDealCustomer(query?: CustomerPageQuery) {
+    return request<ApiResponse<PageResult<CustomerTable[]>>>({
+      url: `${API_PATH}/deal/list`,
+      method: "get",
+      params: query,
+    });
+  },
   detailCustomer(id: number) {
     return request<ApiResponse<CustomerDetail>>({
       url: `${API_PATH}/detail/${id}`,
@@ -345,6 +352,7 @@ export interface CustomerVisitQuery extends PageQuery {
 }
 
 export interface CustomerVisitRecord extends CustomerProcessRecord {
+  appointment_source?: "sales" | "service";
   customer?: {
     id: number;
     current_stage?: string;

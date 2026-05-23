@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.module_system.menu.model import MenuModel
@@ -68,8 +68,8 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
     """
     Idempotently sync the role, menu, and default role-menu permission matrix.
 
-    Existing rows are matched by role code and menu permission/route path. The sync adds
-    missing role-menu grants but does not remove manual grants.
+    Existing rows are matched by role code and menu permission/route path. Built-in
+    role-menu grants are converged to the permission matrix.
     """
     stats = {
         "positions_created": 0,
@@ -79,6 +79,7 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
         "menus_created": 0,
         "menus_updated": 0,
         "role_menus_created": 0,
+        "role_menus_deleted": 0,
         "role_menus_skipped": 0,
     }
 
@@ -136,7 +137,7 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
 
     await db.flush()
 
-    menu_result = await db.execute(select(MenuModel))
+    menu_result = await db.execute(select(MenuModel).where(MenuModel.is_deleted == False, MenuModel.status == "0"))
     menus = menu_result.scalars().all()
     menus_by_permission = {m.permission: m for m in menus if m.permission}
     menus_by_route = {m.route_path: m for m in menus if m.route_path}
@@ -145,6 +146,11 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
         (m.parent_id, m.permission, m.title): m
         for m in menus
         if m.type == 3 and m.permission
+    }
+    menus_by_button_title_key = {
+        (m.parent_id, m.title): m
+        for m in menus
+        if m.type == 3 and m.title
     }
 
     for node, key, _ in _iter_menu_tree(menu_rows):
@@ -164,6 +170,8 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
         menu = menus_by_key.get(key)
         if menu is None and node.get("type") == 3:
             menu = menus_by_button_key.get((parent_id, node.get("permission"), node.get("title")))
+        if menu is None and node.get("type") == 3:
+            menu = menus_by_button_title_key.get((parent_id, node.get("title")))
         if menu is None:
             menu = MenuModel(**payload)
             db.add(menu)
@@ -175,6 +183,8 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
                 menus_by_route[menu.route_path] = menu
             if menu.type == 3 and menu.permission:
                 menus_by_button_key[(menu.parent_id, menu.permission, menu.title)] = menu
+            if menu.type == 3 and menu.title:
+                menus_by_button_title_key[(menu.parent_id, menu.title)] = menu
             stats["menus_created"] += 1
             continue
 
@@ -219,12 +229,37 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
         if "*" in permissions:
             target_ids = set(all_menu_ids)
         else:
-            target_ids = {
+            base_ids = {
                 menu.id
                 for permission in permissions
                 for menu in menus_by_permission.get(permission, [])
+                if menu.type != 3
             }
-        for menu_id in with_ancestors(target_ids):
+            target_ids = with_ancestors(base_ids)
+            button_ids = {
+                menu.id
+                for permission in permissions
+                for menu in menus_by_permission.get(permission, [])
+                if menu.type == 3 and menu.parent_id in target_ids
+            }
+            target_ids.update(button_ids)
+        stale_pairs = {
+            pair
+            for pair in existing_pairs
+            if pair[0] == role.id and pair[1] not in target_ids
+        }
+        if stale_pairs:
+            stale_menu_ids = {menu_id for _, menu_id in stale_pairs}
+            await db.execute(
+                delete(RoleMenusModel).where(
+                    RoleMenusModel.role_id == role.id,
+                    RoleMenusModel.menu_id.in_(stale_menu_ids),
+                )
+            )
+            existing_pairs.difference_update(stale_pairs)
+            stats["role_menus_deleted"] += len(stale_pairs)
+
+        for menu_id in target_ids:
             pair = (role.id, menu_id)
             if pair in existing_pairs:
                 stats["role_menus_skipped"] += 1
@@ -232,6 +267,19 @@ async def sync_permission_matrix(db: AsyncSession) -> dict[str, int]:
             db.add(RoleMenusModel(role_id=role.id, menu_id=menu_id))
             existing_pairs.add(pair)
             stats["role_menus_created"] += 1
+
+    await db.flush()
+    disabled_delete = await db.execute(
+        text(
+            """
+            delete from sys_role_menus rm
+            using sys_menu m
+            where rm.menu_id = m.id
+              and (m.is_deleted = true or m.status <> '0')
+            """
+        )
+    )
+    stats["role_menus_deleted"] += disabled_delete.rowcount or 0
 
     await db.flush()
     return stats
