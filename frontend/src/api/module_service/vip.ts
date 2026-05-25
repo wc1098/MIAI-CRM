@@ -378,9 +378,27 @@ export interface ServiceCertification {
   file_path?: string;
   file_url: string;
   payload?: Record<string, unknown>;
+  ocr_result?: IdCardOcrResult;
   collected_by?: number;
   collected_by_name?: string;
   created_time?: string;
+  certification_record_id?: number;
+  certification_record_status?: "not_submitted" | "pending_review" | "approved" | "rejected";
+  certification_reject_reason?: string;
+  certification_reviewed_at?: string;
+}
+
+export interface IdCardOcrResult {
+  status: "success" | "failed" | "skipped";
+  card_side?: "front" | "back" | "unknown";
+  id_card_no_masked?: string;
+  name?: string;
+  sex?: string;
+  birth_date?: string;
+  address?: string;
+  issue_authority?: string;
+  valid_period?: string;
+  message?: string;
 }
 
 export interface ServiceCertificationArchiveItem {

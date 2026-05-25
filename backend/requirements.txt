@@ -3,6 +3,7 @@ agno==2.5.8
 aiofiles==24.1.0                         # 文件操作
 alibabacloud_cloudauth20190307>=3.0.0,<4.0.0
 alibabacloud_facebody20191230>=5.0.0,<6.0.0
+alibabacloud_ocr_api20210707>=3.1.2,<4.0.0
 aiosqlite==0.17.0                      # sqlite 异步操作数据库
 alembic==1.15.1                        # 数据库迁移
 apscheduler==3.11.0                  # 定时任务

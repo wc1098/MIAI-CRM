@@ -423,7 +423,6 @@
       "crm:receipt:detail",
       "crm:receipt:query",
       "crm:receipt:submit_offline",
-      "module_system:dept:query",
       "service:candidate:add_backup",
       "service:candidate:borrow",
       "service:candidate:create",

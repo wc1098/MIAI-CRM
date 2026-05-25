@@ -13,7 +13,8 @@ from app.api.v1.module_system.position.model import PositionModel
 from app.api.v1.module_system.role.model import RoleModel
 from app.api.v1.module_system.user.model import UserModel
 from app.core.exceptions import CustomException
-from app.plugin.module_certification.model import CertificationItemModel
+from app.plugin.module_certification.model import CertificationItemModel, CertificationRecordModel
+from app.plugin.module_certification.service import CertificationService
 from app.plugin.module_crm.contract.model import (
     CrmContractItemModel,
     CrmContractModel,
@@ -644,22 +645,30 @@ class VipService:
         )
         rows = result.scalars().all()
         users = await cls._user_names(auth.db, {row.collected_by for row in rows} | {row.created_id for row in rows})
-        return [
-            {
-                "id": row.id,
-                "item_code": row.item_code,
-                "item_name": row.item_name,
-                "material_type": row.material_type,
-                "file_name": row.file_name,
-                "file_path": row.file_path,
-                "file_url": row.file_url,
-                "payload": row.payload,
-                "collected_by": row.collected_by,
-                "collected_by_name": users.get(row.collected_by) or users.get(row.created_id),
-                "created_time": row.created_time,
-            }
-            for row in rows
-        ]
+        record_map = await CustomerService._certification_record_map(auth, CustomerService._certification_record_ids(rows))
+        items = []
+        for row in rows:
+            material_out = CustomerService._certification_material_out(row, record_map)
+            items.append(
+                {
+                    "id": row.id,
+                    "item_code": row.item_code,
+                    "item_name": row.item_name,
+                    "material_type": row.material_type,
+                    "file_name": row.file_name,
+                    "file_path": row.file_path,
+                    "file_url": row.file_url,
+                    "payload": row.payload,
+                    "collected_by": row.collected_by,
+                    "collected_by_name": users.get(row.collected_by) or users.get(row.created_id),
+                    "created_time": row.created_time,
+                    "certification_record_id": material_out.get("certification_record_id"),
+                    "certification_record_status": material_out.get("certification_record_status"),
+                    "certification_reject_reason": material_out.get("certification_reject_reason"),
+                    "certification_reviewed_at": material_out.get("certification_reviewed_at"),
+                }
+            )
+        return items
 
     @classmethod
     async def certification_archive_items_service(cls, auth: AuthSchema, case_id: int) -> list[dict[str, Any]]:
@@ -714,8 +723,44 @@ class VipService:
         cls._stamp_create(auth, material)
         auth.db.add(material)
         await auth.db.flush()
+        ocr_result = None
+        certification_sync = None
+        if data.item_code == "id_card_photo" and data.file_url:
+            ocr_result = await CertificationService.recognize_id_card_for_url(
+                auth.db,
+                file_url=data.file_url,
+                business_type="vip_certification_material",
+                business_id=material.id,
+                operator_id=auth.user.id if auth.user else None,
+                person_id=case.person_id,
+            )
+        if data.file_url:
+            certification_sync = await CertificationService.sync_staff_material_to_record(
+                auth.db,
+                person_id=case.person_id,
+                archive_material_id=material.id,
+                archive_item_code=data.item_code,
+                archive_item_name=material.item_name,
+                material_type=material.material_type,
+                file_name=material.file_name,
+                file_path=material.file_path,
+                file_url=material.file_url,
+                operator_id=auth.user.id if auth.user else None,
+                source_business_type="vip_certification_material",
+                source_business_id=case.id,
+                ocr_result=ocr_result,
+            )
+            material.payload = {**(material.payload or {}), "ocr_result": ocr_result, "certification_sync": certification_sync}
+            await CustomerService._replace_rejected_archive_materials(auth, material, certification_sync)
+            await auth.db.flush()
         await auth.db.refresh(material)
-        return {
+        record_map = {}
+        record_id = certification_sync.get("record_id") if isinstance(certification_sync, dict) else None
+        if record_id:
+            record = await auth.db.get(CertificationRecordModel, int(record_id))
+            if record:
+                record_map[record.id] = record
+        result = {
             "id": material.id,
             "item_code": material.item_code,
             "item_name": material.item_name,
@@ -727,7 +772,17 @@ class VipService:
             "collected_by": material.collected_by,
             "collected_by_name": auth.user.name if auth.user else None,
             "created_time": material.created_time,
+            **{
+                key: value
+                for key, value in CustomerService._certification_material_out(material, record_map).items()
+                if key.startswith("certification_")
+            },
         }
+        if ocr_result:
+            result["ocr_result"] = ocr_result
+        if certification_sync:
+            result["certification_sync"] = certification_sync
+        return result
 
     @classmethod
     async def delete_certification_material_service(cls, auth: AuthSchema, case_id: int, material_id: int) -> None:
@@ -743,6 +798,7 @@ class VipService:
         material = result.scalars().first()
         if not material:
             raise CustomException(msg="认证资料不存在")
+        await CertificationService.revoke_staff_material_review(auth.db, material.id)
         material.is_deleted = True
         material.deleted_time = datetime.now()
         if auth.user and hasattr(material, "deleted_id"):

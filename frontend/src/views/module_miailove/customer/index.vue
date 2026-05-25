@@ -231,20 +231,35 @@
                   <div class="cert-material-desc">{{ item.material_desc || "资料图片存档" }}</div>
                 </div>
                 <el-upload
+                  v-if="canUploadCertificationMaterial(item.item_code)"
                   v-hasPerm="['crm:customer:update']"
                   accept="image/*"
                   :show-file-list="false"
                   :http-request="(options) => uploadCertificationMaterial(options, item)"
                 >
-                  <el-button link type="primary" icon="Upload">上传</el-button>
+                  <el-button link type="primary" icon="Upload">{{ uploadButtonText(item.item_code) }}</el-button>
                 </el-upload>
+                <el-tag v-else type="success">已通过</el-tag>
               </div>
               <div v-if="materialsByItem(item.item_code).length" class="cert-material-list">
                 <div v-for="material in materialsByItem(item.item_code)" :key="material.id" class="cert-material-item">
                   <el-image class="cert-material-image" :src="ossImage(material.file_url, { w: 160, h: 160 })" :preview-src-list="ossImageList([material.file_url], { w: 1600 })" fit="cover" preview-teleported />
                   <div class="cert-material-meta">
                     <span>{{ material.created_time || material.file_name || "已上传" }}</span>
-                    <el-button v-hasPerm="['crm:customer:update']" link type="danger" @click="deleteCertificationMaterial(material.id)">删除</el-button>
+                    <el-tag v-if="material.certification_record_status" :type="materialStatusType(material.certification_record_status)" size="small">{{ materialStatusLabel(material.certification_record_status) }}</el-tag>
+                    <el-button v-if="canDeleteCertificationMaterial(material)" v-hasPerm="['crm:customer:update']" link type="danger" @click="deleteCertificationMaterial(material)">删除</el-button>
+                  </div>
+                  <div v-if="material.certification_record_status === 'rejected'" class="cert-review-result is-rejected">
+                    <div>已驳回</div>
+                    <div v-if="material.certification_reject_reason">原因：{{ material.certification_reject_reason }}</div>
+                  </div>
+                  <div v-if="idCardOcrResult(material)" class="cert-ocr-result" :class="`is-${idCardOcrResult(material)?.status}`">
+                    <div>{{ idCardOcrResult(material)?.message }}</div>
+                    <div v-if="idCardOcrResult(material)?.card_side">类型：{{ idCardSideLabel(idCardOcrResult(material)?.card_side) }}</div>
+                    <div v-if="idCardOcrResult(material)?.id_card_no_masked">身份证号：{{ idCardOcrResult(material)?.id_card_no_masked }}</div>
+                    <div v-if="idCardOcrResult(material)?.name">姓名：{{ idCardOcrResult(material)?.name }}</div>
+                    <div v-if="idCardOcrResult(material)?.issue_authority">签发机关：{{ idCardOcrResult(material)?.issue_authority }}</div>
+                    <div v-if="idCardOcrResult(material)?.valid_period">有效期：{{ idCardOcrResult(material)?.valid_period }}</div>
                   </div>
                 </div>
               </div>
@@ -440,6 +455,7 @@ import CustomerAPI, {
   type CustomerDetail,
   type CustomerCertificationArchiveItem,
   type CustomerCertificationMaterial,
+  type IdCardOcrResult,
   type CustomerForm,
   type CustomerPageQuery,
   type CustomerPrintCard,
@@ -606,6 +622,40 @@ const certificationArchiveItems = computed(() => detail.value?.certification?.ar
 
 function materialsByItem(itemCode: string) {
   return (detail.value?.certification?.archive_materials || []).filter((item) => item.item_code === itemCode);
+}
+
+function latestMaterialByItem(itemCode: string) {
+  return materialsByItem(itemCode)[0];
+}
+
+function uploadButtonText(itemCode: string) {
+  return latestMaterialByItem(itemCode)?.certification_record_status === "rejected" ? "重新上传" : "上传";
+}
+
+function canUploadCertificationMaterial(itemCode: string) {
+  return latestMaterialByItem(itemCode)?.certification_record_status !== "approved";
+}
+
+function materialStatusLabel(value?: string) {
+  return ({ pending_review: "审核中", approved: "已通过", rejected: "已驳回", not_submitted: "未提交" } as Record<string, string>)[value || ""] || value || "-";
+}
+
+function materialStatusType(value?: string) {
+  if (value === "approved") return "success";
+  if (value === "rejected") return "danger";
+  return "warning";
+}
+
+function canDeleteCertificationMaterial(material: CustomerCertificationMaterial) {
+  return material.certification_record_status !== "approved";
+}
+
+function idCardOcrResult(material: CustomerCertificationMaterial): IdCardOcrResult | undefined {
+  return material.ocr_result || (material.payload?.ocr_result as IdCardOcrResult | undefined);
+}
+
+function idCardSideLabel(value?: string) {
+  return ({ front: "人像面", back: "国徽面", unknown: "未识别" } as Record<string, string>)[value || ""] || value || "-";
 }
 
 async function fetchList() {
@@ -843,15 +893,20 @@ async function uploadCertificationMaterial(options: UploadRequestOptions, item: 
     archive.archive_materials = [material.data.data, ...(archive.archive_materials || [])];
   }
   options.onSuccess?.(fileInfo);
-  ElMessage.success("认证资料已存档");
+  const ocr = idCardOcrResult(material.data.data);
+  ElMessage.success(ocr?.message || "认证资料已存档");
 }
 
-async function deleteCertificationMaterial(materialId?: number) {
-  if (!materialId || !detail.value?.certification) return;
-  await ElMessageBox.confirm("确认删除这张认证资料图片？该操作只删除客户资料存档，不影响认证结果。", "删除认证资料", { type: "warning" });
-  await CustomerAPI.deleteCertificationMaterial(materialId);
-  detail.value.certification.archive_materials = (detail.value.certification.archive_materials || []).filter((item: CustomerCertificationMaterial) => item.id !== materialId);
-  ElMessage.success("认证资料已删除");
+async function deleteCertificationMaterial(material?: CustomerCertificationMaterial) {
+  if (!material?.id || !detail.value?.certification) return;
+  if (material.certification_record_status === "approved") {
+    ElMessage.warning("已通过审核的认证资料不能删除");
+    return;
+  }
+  await ElMessageBox.confirm("确认删除这张认证资料图片？未通过前删除会同步撤销该认证审核。", "删除认证资料", { type: "warning" });
+  await CustomerAPI.deleteCertificationMaterial(material.id);
+  detail.value.certification.archive_materials = (detail.value.certification.archive_materials || []).filter((item: CustomerCertificationMaterial) => item.id !== material.id);
+  ElMessage.success("认证资料已删除，相关审核已撤销");
 }
 
 function removePhoto(file: UploadFile) {
@@ -1366,6 +1421,41 @@ onMounted(() => {
   margin-top: 4px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+
+.cert-ocr-result {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-regular);
+}
+
+.cert-ocr-result.is-success {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success-dark-2);
+}
+
+.cert-ocr-result.is-failed {
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning-dark-2);
+}
+
+.cert-review-result {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.cert-review-result.is-rejected {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger-dark-2);
 }
 
 .avatar-carousel,

@@ -23,6 +23,9 @@
         <el-table-column prop="person_name" label="姓名" width="110" />
         <el-table-column prop="mobile" label="手机号" width="130" />
         <el-table-column prop="item_name" label="认证项" width="140" />
+        <el-table-column label="来源" width="130"><template #default="{ row }">{{ sourceLabel(row) }}</template></el-table-column>
+        <el-table-column label="提交员工" width="130"><template #default="{ row }">{{ operatorLabel(row) }}</template></el-table-column>
+        <el-table-column label="来源业务" width="150"><template #default="{ row }">{{ sourceBusinessLabel(row) }}</template></el-table-column>
         <el-table-column prop="record_status" label="状态" width="110"><template #default="{ row }"><el-tag :type="statusType(row.record_status)">{{ statusLabel(row.record_status) }}</el-tag></template></el-table-column>
         <el-table-column label="材料" min-width="180">
           <template #default="{ row }">
@@ -55,6 +58,15 @@ const items = ref<CertificationItem[]>([]);
 const query = reactive({ page_no: 1, page_size: 20, keyword: "", status: "pending_review", item_code: "" });
 function statusLabel(value: string) { return ({ pending_review: "待审核", approved: "已通过", rejected: "已驳回", not_submitted: "未提交" } as Record<string, string>)[value] || value; }
 function statusType(value: string) { if (value === "approved") return "success"; if (value === "rejected") return "danger"; return "warning"; }
+function sourceLabel(row: CertificationRecord) { return row.source === "staff_upload" ? "工作人员上传" : "小程序提交"; }
+function operatorLabel(row: CertificationRecord) {
+  if (row.source !== "staff_upload") return "-";
+  return row.operator_name || row.operator_username || (row.operator_id ? `员工 #${row.operator_id}` : "-");
+}
+function sourceBusinessLabel(row: CertificationRecord) {
+  const typeText = ({ customer_certification_material: "客户资料", vip_certification_material: "VIP资料" } as Record<string, string>)[row.source_business_type || ""] || row.source_business_type || "-";
+  return row.source_business_id ? `${typeText} #${row.source_business_id}` : typeText;
+}
 async function load() {
   loading.value = true;
   try {
@@ -65,7 +77,7 @@ async function load() {
 }
 async function loadItems() {
   const res = await CertificationAdminAPI.listItems();
-  items.value = (res.data.data || []).filter((item) => item.verify_mode === "manual");
+  items.value = res.data.data || [];
 }
 async function review(row: CertificationRecord, action: "approve" | "reject") {
   let reason = "";

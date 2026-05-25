@@ -92,7 +92,6 @@
         <el-descriptions-item label="冲正/退款原因" :span="2">{{ detail.reverse_reason || "-" }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detail.remark || "-" }}</el-descriptions-item>
       </el-descriptions>
-      <pre v-if="detail?.payment_payload" class="payload">{{ JSON.stringify(detail.payment_payload, null, 2) }}</pre>
     </el-drawer>
 
     <el-dialog v-model="cashierVisible" title="收银" width="560px">
@@ -380,5 +379,4 @@ watch(cashierVisible, (visible) => {
 .qr-panel img { width: 220px; height: 220px; }
 .pager { display: flex; justify-content: flex-end; padding-top: 16px; }
 .drawer-title { font-size: 16px; font-weight: 600; }
-.payload { margin-top: 16px; padding: 12px; border-radius: 6px; background: var(--el-fill-color-light); white-space: pre-wrap; word-break: break-all; font-size: 12px; }
 </style>

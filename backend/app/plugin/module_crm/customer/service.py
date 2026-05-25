@@ -8,7 +8,8 @@ from app.api.v1.module_system.auth.schema import AuthSchema
 from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.user.model import UserModel
 from app.core.exceptions import CustomException
-from app.plugin.module_certification.model import CertificationItemModel
+from app.plugin.module_certification.model import CertificationItemModel, CertificationRecordModel
+from app.plugin.module_certification.service import CertificationService
 from app.plugin.module_crm.lead.model import (
     CrmLeadLifecycleModel,
     CrmLeadProcessRecordModel,
@@ -407,7 +408,87 @@ class CustomerService:
                 .order_by(CrmCustomerCertificationMaterialModel.id.desc())
             )
         ).scalars().all()
-        return [CustomerCertificationMaterialOutSchema.model_validate(row).model_dump() for row in rows]
+        record_ids = cls._certification_record_ids(rows)
+        record_map = await cls._certification_record_map(auth, record_ids)
+        return [cls._certification_material_out(row, record_map) for row in rows]
+
+    @staticmethod
+    def _certification_record_ids(rows: list[CrmCustomerCertificationMaterialModel]) -> set[int]:
+        record_ids: set[int] = set()
+        for row in rows:
+            sync = (row.payload or {}).get("certification_sync") if isinstance(row.payload, dict) else None
+            record_id = sync.get("record_id") if isinstance(sync, dict) else None
+            if record_id:
+                record_ids.add(int(record_id))
+        return record_ids
+
+    @staticmethod
+    async def _certification_record_map(auth: AuthSchema, record_ids: set[int]) -> dict[int, CertificationRecordModel]:
+        if not record_ids:
+            return {}
+        rows = (
+            await auth.db.execute(
+                select(CertificationRecordModel).where(
+                    CertificationRecordModel.id.in_(record_ids),
+                    CertificationRecordModel.is_deleted == False,
+                )
+            )
+        ).scalars().all()
+        return {row.id: row for row in rows}
+
+    @classmethod
+    def _certification_material_out(cls, row: CrmCustomerCertificationMaterialModel, record_map: dict[int, CertificationRecordModel]) -> dict[str, Any]:
+        data = CustomerCertificationMaterialOutSchema.model_validate(row).model_dump()
+        sync = (row.payload or {}).get("certification_sync") if isinstance(row.payload, dict) else None
+        record_id = sync.get("record_id") if isinstance(sync, dict) else None
+        record = record_map.get(int(record_id)) if record_id else None
+        if record:
+            data.update(
+                {
+                    "certification_record_id": record.id,
+                    "certification_record_status": record.record_status,
+                    "certification_reject_reason": record.reject_reason,
+                    "certification_reviewed_at": record.reviewed_at,
+                }
+            )
+        return data
+
+    @staticmethod
+    async def _replace_rejected_archive_materials(
+        auth: AuthSchema,
+        material: CrmCustomerCertificationMaterialModel,
+        certification_sync: dict[str, Any] | None,
+    ) -> list[int]:
+        if not isinstance(certification_sync, dict) or certification_sync.get("previous_status") != "rejected":
+            return []
+        record_id = certification_sync.get("record_id")
+        if not record_id:
+            return []
+        rows = (
+            await auth.db.execute(
+                select(CrmCustomerCertificationMaterialModel).where(
+                    CrmCustomerCertificationMaterialModel.customer_id == material.customer_id,
+                    CrmCustomerCertificationMaterialModel.person_id == material.person_id,
+                    CrmCustomerCertificationMaterialModel.item_code == material.item_code,
+                    CrmCustomerCertificationMaterialModel.id != material.id,
+                    CrmCustomerCertificationMaterialModel.is_deleted == False,
+                )
+            )
+        ).scalars().all()
+        now = datetime.now()
+        deleted_ids: list[int] = []
+        for row in rows:
+            sync = (row.payload or {}).get("certification_sync") if isinstance(row.payload, dict) else None
+            if not isinstance(sync, dict) or sync.get("record_id") != record_id:
+                continue
+            row.is_deleted = True
+            row.deleted_time = now
+            if auth.user and hasattr(row, "deleted_id"):
+                row.deleted_id = auth.user.id
+            deleted_ids.append(row.id)
+        if deleted_ids:
+            await auth.db.flush()
+        return deleted_ids
 
     @classmethod
     async def _get_customer_process(
@@ -729,8 +810,49 @@ class CustomerService:
         cls._stamp_create(auth, material)
         auth.db.add(material)
         await auth.db.flush()
+        ocr_result = None
+        certification_sync = None
+        if data.item_code == "id_card_photo" and data.file_url:
+            ocr_result = await CertificationService.recognize_id_card_for_url(
+                auth.db,
+                file_url=data.file_url,
+                business_type="customer_certification_material",
+                business_id=material.id,
+                operator_id=auth.user.id if auth.user else None,
+                person_id=customer.person_id,
+            )
+        if data.file_url:
+            certification_sync = await CertificationService.sync_staff_material_to_record(
+                auth.db,
+                person_id=customer.person_id,
+                archive_material_id=material.id,
+                archive_item_code=data.item_code,
+                archive_item_name=material.item_name,
+                material_type=material.material_type,
+                file_name=material.file_name,
+                file_path=material.file_path,
+                file_url=material.file_url,
+                operator_id=auth.user.id if auth.user else None,
+                source_business_type="customer_certification_material",
+                source_business_id=customer.id,
+                ocr_result=ocr_result,
+            )
+            material.payload = {**(material.payload or {}), "ocr_result": ocr_result, "certification_sync": certification_sync}
+            await cls._replace_rejected_archive_materials(auth, material, certification_sync)
+            await auth.db.flush()
         await auth.db.refresh(material)
-        return CustomerCertificationMaterialOutSchema.model_validate(material).model_dump()
+        record_map: dict[int, CertificationRecordModel] = {}
+        record_id = certification_sync.get("record_id") if isinstance(certification_sync, dict) else None
+        if record_id:
+            record = await auth.db.get(CertificationRecordModel, int(record_id))
+            if record:
+                record_map[record.id] = record
+        result = cls._certification_material_out(material, record_map)
+        if ocr_result:
+            result["ocr_result"] = ocr_result
+        if certification_sync:
+            result["certification_sync"] = certification_sync
+        return result
 
     @classmethod
     async def delete_certification_material_service(cls, auth: AuthSchema, material_id: int) -> None:
@@ -744,6 +866,7 @@ class CustomerService:
         if not material:
             raise CustomException(msg="认证资料不存在")
         await cls._get_customer(auth, material.customer_id, "update")
+        await CertificationService.revoke_staff_material_review(auth.db, material.id)
         material.is_deleted = True
         material.deleted_time = datetime.now()
         if auth.user and hasattr(material, "deleted_id"):

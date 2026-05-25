@@ -229,6 +229,19 @@ export interface CustomerCertificationArchiveItem {
   material_desc?: string;
 }
 
+export interface IdCardOcrResult {
+  status: "success" | "failed" | "skipped";
+  card_side?: "front" | "back" | "unknown";
+  id_card_no_masked?: string;
+  name?: string;
+  sex?: string;
+  birth_date?: string;
+  address?: string;
+  issue_authority?: string;
+  valid_period?: string;
+  message?: string;
+}
+
 export interface CustomerCertificationMaterial extends BaseType {
   customer_id: number;
   person_id: number;
@@ -239,7 +252,12 @@ export interface CustomerCertificationMaterial extends BaseType {
   file_path?: string;
   file_url: string;
   payload?: Record<string, unknown>;
+  ocr_result?: IdCardOcrResult;
   collected_by?: number;
+  certification_record_id?: number;
+  certification_record_status?: "not_submitted" | "pending_review" | "approved" | "rejected";
+  certification_reject_reason?: string;
+  certification_reviewed_at?: string;
 }
 
 export interface CustomerCertificationArchive {

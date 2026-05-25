@@ -446,16 +446,30 @@
                     <div class="cert-material-title">{{ item.item_name }}</div>
                     <div class="cert-material-desc">{{ item.material_desc || "资料图片存档" }}</div>
                   </div>
-                  <el-upload v-hasPerm="['service:vip:update']" :show-file-list="false" accept="image/*" :http-request="(options) => uploadCertificationMaterial(options, item)">
-                    <el-button link type="primary" icon="Upload" :disabled="!canEditProfile">上传</el-button>
+                  <el-upload v-if="canUploadCertificationMaterial(item.item_code)" v-hasPerm="['service:vip:update']" :show-file-list="false" accept="image/*" :http-request="(options) => uploadCertificationMaterial(options, item)">
+                    <el-button link type="primary" icon="Upload" :disabled="!canEditProfile">{{ uploadButtonText(item.item_code) }}</el-button>
                   </el-upload>
+                  <el-tag v-else type="success">已通过</el-tag>
                 </div>
                 <div v-if="certificationMaterialsByItem(item.item_code).length" class="cert-material-list">
                   <div v-for="material in certificationMaterialsByItem(item.item_code)" :key="material.id" class="cert-material-item">
                     <el-image class="cert-material-image" :src="ossImage(material.file_url, { w: 160, h: 160 })" :preview-src-list="ossImageList([material.file_url], { w: 1600 })" fit="cover" preview-teleported />
                     <div class="cert-material-meta">
                       <span>{{ material.created_time || material.file_name || "已上传" }}</span>
-                      <el-button v-hasPerm="['service:vip:update']" link type="danger" :disabled="!canEditProfile" @click="deleteCertificationMaterial(material.id)">删除</el-button>
+                      <el-tag v-if="material.certification_record_status" :type="materialStatusType(material.certification_record_status)" size="small">{{ materialStatusLabel(material.certification_record_status) }}</el-tag>
+                      <el-button v-if="canDeleteCertificationMaterial(material)" v-hasPerm="['service:vip:update']" link type="danger" :disabled="!canEditProfile" @click="deleteCertificationMaterial(material)">删除</el-button>
+                    </div>
+                    <div v-if="material.certification_record_status === 'rejected'" class="cert-review-result is-rejected">
+                      <div>已驳回</div>
+                      <div v-if="material.certification_reject_reason">原因：{{ material.certification_reject_reason }}</div>
+                    </div>
+                    <div v-if="idCardOcrResult(material)" class="cert-ocr-result" :class="`is-${idCardOcrResult(material)?.status}`">
+                      <div>{{ idCardOcrResult(material)?.message }}</div>
+                      <div v-if="idCardOcrResult(material)?.card_side">类型：{{ idCardSideLabel(idCardOcrResult(material)?.card_side) }}</div>
+                      <div v-if="idCardOcrResult(material)?.id_card_no_masked">身份证号：{{ idCardOcrResult(material)?.id_card_no_masked }}</div>
+                      <div v-if="idCardOcrResult(material)?.name">姓名：{{ idCardOcrResult(material)?.name }}</div>
+                      <div v-if="idCardOcrResult(material)?.issue_authority">签发机关：{{ idCardOcrResult(material)?.issue_authority }}</div>
+                      <div v-if="idCardOcrResult(material)?.valid_period">有效期：{{ idCardOcrResult(material)?.valid_period }}</div>
                     </div>
                   </div>
                 </div>
@@ -579,6 +593,7 @@ import PartnerPreferenceForm from "@/views/module_miailove/components/PartnerPre
 import PersonProfileFields from "@/views/module_miailove/components/PersonProfileFields.vue";
 import VipServiceAPI, {
   type InterviewForm,
+  type IdCardOcrResult,
   type MatchmakerOption,
   type ServiceCertification,
   type ServiceCertificationArchiveItem,
@@ -818,6 +833,11 @@ function flattenDept(list: DeptTable[], prefix = ""): Array<{ label: string; val
 }
 
 async function loadDeptOptions() {
+  if (!canManageService.value) {
+    const deptId = userStore.basicInfo.dept_id;
+    deptOptions.value = deptId ? [{ label: userStore.basicInfo.dept_name || "当前门店", value: deptId }] : [];
+    return;
+  }
   const res = await DeptAPI.listDept();
   deptOptions.value = flattenDept(res.data.data || []);
 }
@@ -1104,6 +1124,40 @@ function certificationMaterialsByItem(itemCode: string) {
   return certifications.value.filter((item) => item.item_code === itemCode);
 }
 
+function latestCertificationMaterial(itemCode: string) {
+  return certificationMaterialsByItem(itemCode)[0];
+}
+
+function uploadButtonText(itemCode: string) {
+  return latestCertificationMaterial(itemCode)?.certification_record_status === "rejected" ? "重新上传" : "上传";
+}
+
+function canUploadCertificationMaterial(itemCode: string) {
+  return latestCertificationMaterial(itemCode)?.certification_record_status !== "approved";
+}
+
+function materialStatusLabel(value?: string) {
+  return ({ pending_review: "审核中", approved: "已通过", rejected: "已驳回", not_submitted: "未提交" } as Record<string, string>)[value || ""] || value || "-";
+}
+
+function materialStatusType(value?: string) {
+  if (value === "approved") return "success";
+  if (value === "rejected") return "danger";
+  return "warning";
+}
+
+function canDeleteCertificationMaterial(material: ServiceCertification) {
+  return material.certification_record_status !== "approved";
+}
+
+function idCardOcrResult(material: ServiceCertification): IdCardOcrResult | undefined {
+  return material.ocr_result || (material.payload?.ocr_result as IdCardOcrResult | undefined);
+}
+
+function idCardSideLabel(value?: string) {
+  return ({ front: "人像面", back: "国徽面", unknown: "未识别" } as Record<string, string>)[value || ""] || value || "-";
+}
+
 async function uploadCertificationMaterial(options: UploadRequestOptions, item: ServiceCertificationArchiveItem) {
   if (!detail.value?.id) return;
   const fileInfo = await uploadImageDirect(options.file, "certification_material");
@@ -1116,15 +1170,20 @@ async function uploadCertificationMaterial(options: UploadRequestOptions, item: 
     file_url: fileInfo.file_url,
   });
   certifications.value = [response.data.data, ...certifications.value];
-  ElMessage.success("认证资料已存档");
+  const ocr = idCardOcrResult(response.data.data);
+  ElMessage.success(ocr?.message || "认证资料已存档");
 }
 
-async function deleteCertificationMaterial(materialId?: number) {
-  if (!detail.value?.id || !materialId) return;
-  await ElMessageBox.confirm("确认删除这张认证资料图片？该操作只删除客户资料存档，不影响认证结果。", "删除认证资料", { type: "warning" });
-  await VipServiceAPI.deleteCertificationMaterial(detail.value.id, materialId);
-  certifications.value = certifications.value.filter((item) => item.id !== materialId);
-  ElMessage.success("认证资料已删除");
+async function deleteCertificationMaterial(material?: ServiceCertification) {
+  if (!detail.value?.id || !material?.id) return;
+  if (material.certification_record_status === "approved") {
+    ElMessage.warning("已通过审核的认证资料不能删除");
+    return;
+  }
+  await ElMessageBox.confirm("确认删除这张认证资料图片？未通过前删除会同步撤销该认证审核。", "删除认证资料", { type: "warning" });
+  await VipServiceAPI.deleteCertificationMaterial(detail.value.id, material.id);
+  certifications.value = certifications.value.filter((item) => item.id !== material.id);
+  ElMessage.success("认证资料已删除，相关审核已撤销");
 }
 
 async function uploadProfilePhoto(options: UploadRequestOptions) {
@@ -1634,6 +1693,43 @@ onMounted(async () => {
 .cert-material-meta {
   width: 96px;
   line-height: 1.5;
+}
+
+.cert-ocr-result {
+  width: 96px;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-regular);
+}
+
+.cert-ocr-result.is-success {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success-dark-2);
+}
+
+.cert-ocr-result.is-failed {
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning-dark-2);
+}
+
+.cert-review-result {
+  width: 96px;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.cert-review-result.is-rejected {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger-dark-2);
 }
 
 .attachment-list {

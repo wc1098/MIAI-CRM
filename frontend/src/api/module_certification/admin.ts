@@ -122,6 +122,29 @@ export interface CertificationRecord {
   display_no?: string;
   person_name?: string;
   id_card_no_masked?: string;
+  source?: string;
+  source_business_type?: string;
+  source_business_id?: number;
+  operator_id?: number;
+  operator_name?: string;
+  operator_username?: string;
+  operator_mobile?: string;
+  archive_material_id?: number;
+  archive_item_code?: string;
+  archive_item_name?: string;
+  person?: CertificationPersonBrief;
+}
+
+export interface CertificationPersonBrief {
+  id: number;
+  display_no?: string;
+  name?: string;
+  gender?: string;
+  primary_mobile?: string;
+  birth_date?: string;
+  photo_urls?: string[];
+  certification_level?: string;
+  certification_summary?: Record<string, unknown>;
 }
 
 export interface CertificationProgress {
@@ -152,6 +175,7 @@ export interface CertificationApplication {
   person_name?: string;
   current_level?: string;
   current_level_name?: string;
+  person?: CertificationPersonBrief;
   id_card_no_masked?: string;
   order?: {
     id: number;

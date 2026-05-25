@@ -95,7 +95,22 @@
             <div v-if="materialsByItem(item.item_code).length" class="cert-material-list">
               <div v-for="material in materialsByItem(item.item_code)" :key="material.id" class="cert-material-item">
                 <el-image class="cert-material-image" :src="ossImage(material.file_url, { w: 160, h: 160 })" :preview-src-list="ossImageList([material.file_url], { w: 1600 })" fit="cover" preview-teleported />
-                <div class="cert-material-meta">{{ material.created_time || material.file_name || "已上传" }}</div>
+                <div class="cert-material-meta">
+                  <span>{{ material.created_time || material.file_name || "已上传" }}</span>
+                  <el-tag v-if="material.certification_record_status" :type="materialStatusType(material.certification_record_status)" size="small">{{ materialStatusLabel(material.certification_record_status) }}</el-tag>
+                </div>
+                <div v-if="material.certification_record_status === 'rejected'" class="cert-review-result is-rejected">
+                  <div>已驳回</div>
+                  <div v-if="material.certification_reject_reason">原因：{{ material.certification_reject_reason }}</div>
+                </div>
+                <div v-if="idCardOcrResult(material)" class="cert-ocr-result" :class="`is-${idCardOcrResult(material)?.status}`">
+                  <div>{{ idCardOcrResult(material)?.message }}</div>
+                  <div v-if="idCardOcrResult(material)?.card_side">类型：{{ idCardSideLabel(idCardOcrResult(material)?.card_side) }}</div>
+                  <div v-if="idCardOcrResult(material)?.id_card_no_masked">身份证号：{{ idCardOcrResult(material)?.id_card_no_masked }}</div>
+                  <div v-if="idCardOcrResult(material)?.name">姓名：{{ idCardOcrResult(material)?.name }}</div>
+                  <div v-if="idCardOcrResult(material)?.issue_authority">签发机关：{{ idCardOcrResult(material)?.issue_authority }}</div>
+                  <div v-if="idCardOcrResult(material)?.valid_period">有效期：{{ idCardOcrResult(material)?.valid_period }}</div>
+                </div>
               </div>
             </div>
             <el-empty v-else description="暂无资料" :image-size="48" />
@@ -131,7 +146,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import CustomerAPI, { type CustomerDetail } from "@/api/module_crm/customer";
+import CustomerAPI, { type CustomerCertificationMaterial, type CustomerDetail, type IdCardOcrResult } from "@/api/module_crm/customer";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
 import PartnerPreferenceForm from "@/views/module_miailove/components/PartnerPreferenceForm.vue";
 import { ossImage, ossImageList } from "@/utils/ossImage";
@@ -242,6 +257,25 @@ async function ensureOptionsLoaded() {
 function materialsByItem(itemCode: string) {
   return (detail.value?.certification?.archive_materials || []).filter((item) => item.item_code === itemCode);
 }
+
+function materialStatusLabel(value?: string) {
+  return ({ pending_review: "审核中", approved: "已通过", rejected: "已驳回", not_submitted: "未提交" } as Record<string, string>)[value || ""] || value || "-";
+}
+
+function materialStatusType(value?: string) {
+  if (value === "approved") return "success";
+  if (value === "rejected") return "danger";
+  return "warning";
+}
+
+function idCardOcrResult(material: CustomerCertificationMaterial): IdCardOcrResult | undefined {
+  return material.ocr_result || (material.payload?.ocr_result as IdCardOcrResult | undefined);
+}
+
+function idCardSideLabel(value?: string) {
+  return ({ front: "人像面", back: "国徽面", unknown: "未识别" } as Record<string, string>)[value || ""] || value || "-";
+}
+
 function stageLabel(value?: string) {
   return stageOptions.find((item) => item.value === value)?.label || value || "-";
 }
@@ -390,6 +424,36 @@ function jsonText(value?: Record<string, unknown>) {
   width: 100%;
   aspect-ratio: 1;
   border-radius: 6px;
+}
+.cert-ocr-result {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-regular);
+}
+.cert-ocr-result.is-success {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success-dark-2);
+}
+.cert-ocr-result.is-failed {
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning-dark-2);
+}
+.cert-review-result {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.cert-review-result.is-rejected {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger-dark-2);
 }
 .timeline-title {
   font-weight: 600;

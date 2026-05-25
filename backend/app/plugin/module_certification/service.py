@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+import json
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -11,6 +12,7 @@ from app.api.v1.module_common.upload.schema import UploadConfirmRequestSchema
 from app.api.v1.module_common.upload.service import CommonUploadService
 from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.params.model import ParamsModel
+from app.api.v1.module_system.user.model import UserModel
 from app.core.base_schema import UploadResponseSchema
 from app.core.exceptions import CustomException
 from app.core.logger import log as logger
@@ -32,6 +34,7 @@ from .model import (
     CertificationSensitiveAccessLogModel,
     CertificationVerificationLogModel,
     FaceDetectionLogModel,
+    IdCardOcrLogModel,
 )
 from .schema import (
     ID_CARD_PATTERN,
@@ -42,6 +45,10 @@ from .schema import (
 )
 
 CERTIFICATION_BIZ_TYPE = "certification_package"
+STAFF_UPLOAD_SOURCE = "staff_upload"
+STAFF_UPLOAD_LEVEL_CODE = "staff_archive"
+STAFF_UPLOAD_LEVEL_NAME = "工作人员提交认证"
+STAFF_MATERIAL_ITEM_MAP = {"id_card_photo": "real_name"}
 DEFAULT_ITEMS = [
     ("phone", "手机认证", "auto_api", "phone_bound", False, "注册绑定手机号后自动完成", None, 1),
     ("real_name", "实名认证", "auto_api", "real_name_3_meta", False, "姓名、手机号、身份证号三要素核验", None, 2),
@@ -321,11 +328,74 @@ class CertificationService:
         await db.flush()
         await db.refresh(app, ["records"])
         for record in app.records or []:
+            await cls._reuse_approved_or_pending_record(db, app, record)
             item = items.get(record.item_code)
             if item:
                 await cls._attach_archived_materials_to_record(db, app, record, item)
         await db.flush()
         await db.refresh(app, ["records"])
+
+    @classmethod
+    async def _reuse_approved_or_pending_record(
+        cls,
+        db: AsyncSession,
+        app: CertificationApplicationModel,
+        record: CertificationRecordModel,
+    ) -> None:
+        if record.record_status != "not_submitted":
+            return
+        source_record = (
+            await db.execute(
+                select(CertificationRecordModel)
+                .where(
+                    CertificationRecordModel.person_id == app.person_id,
+                    CertificationRecordModel.item_code == record.item_code,
+                    CertificationRecordModel.id != record.id,
+                    CertificationRecordModel.record_status.in_(["approved", "pending_review"]),
+                    CertificationRecordModel.is_deleted == False,
+                )
+                .order_by(CertificationRecordModel.record_status.asc(), CertificationRecordModel.id.desc())
+                .options(selectinload(CertificationRecordModel.materials))
+            )
+        ).scalars().first()
+        if not source_record:
+            return
+        record.record_status = source_record.record_status
+        record.submitted_at = record.submitted_at or source_record.submitted_at or datetime.now()
+        record.verified_at = source_record.verified_at if source_record.record_status == "approved" else None
+        record.reviewed_at = source_record.reviewed_at if source_record.record_status == "approved" else None
+        record.reviewer_id = source_record.reviewer_id if source_record.record_status == "approved" else None
+        record.reject_reason = None
+        record.payload = {
+            **(source_record.payload or {}),
+            "reused_from_record_id": source_record.id,
+            "reused_record_status": source_record.record_status,
+        }
+        existing_urls: set[str] = set()
+        for material in source_record.materials or []:
+            if material.file_url in existing_urls:
+                continue
+            db.add(
+                CertificationMaterialModel(
+                    brand_id=app.brand_id,
+                    application_id=app.id,
+                    record_id=record.id,
+                    user_id=app.user_id,
+                    person_id=app.person_id,
+                    item_code=record.item_code,
+                    material_type=material.material_type,
+                    file_name=material.file_name,
+                    file_path=material.file_path,
+                    file_url=material.file_url,
+                    payload={
+                        **(material.payload or {}),
+                        "origin": "reused_certification_record",
+                        "source_record_id": source_record.id,
+                        "source_material_id": material.id,
+                    },
+                )
+            )
+            existing_urls.add(material.file_url or "")
 
     @classmethod
     async def _attach_archived_materials_to_record(
@@ -794,6 +864,494 @@ class CertificationService:
                 raise CustomException(msg="人脸检测失败，请稍后重试") from exc
             return {"passed": False, "error": str(exc)}
 
+    @classmethod
+    async def recognize_id_card_for_url(
+        cls,
+        db: AsyncSession,
+        *,
+        file_url: str,
+        business_type: str,
+        business_id: int | None = None,
+        operator_id: int | None = None,
+        person_id: int | None = None,
+    ) -> dict[str, Any]:
+        log = IdCardOcrLogModel(
+            brand_id=1,
+            person_id=person_id,
+            operator_id=operator_id,
+            business_type=business_type,
+            business_id=business_id,
+            file_url=file_url,
+            recognized_at=datetime.now(),
+        )
+        db.add(log)
+        await db.flush()
+        try:
+            response = await AliyunCertificationClient.recognize_id_card(file_url)
+            log.response_snapshot = cls._safe_response(response)
+            data = cls._id_card_data(response)
+            id_card_no = (data.get("id_card_no") or "").strip().upper()
+            card_side = data.get("card_side") or "unknown"
+            log.id_card_side = card_side
+            log.id_card_no = id_card_no or None
+            log.name = data.get("name")
+            log.sex = data.get("sex")
+            log.ethnicity = data.get("ethnicity")
+            log.birth_date = data.get("birth_date")
+            log.address = data.get("address")
+            log.issue_authority = data.get("issue_authority")
+            log.valid_period = data.get("valid_period")
+            log.quality_info = data.get("quality_info")
+            if card_side == "back":
+                log.ocr_status = "success"
+                return cls._id_card_ocr_result(log)
+            if not id_card_no:
+                log.ocr_status = "failed"
+                log.error_message = "未识别到身份证号"
+                return cls._id_card_ocr_result(log)
+            person = await db.get(CrmPersonModel, person_id) if person_id else None
+            if person and not person.is_deleted:
+                person.id_card_no = id_card_no
+                if not person.birth_date:
+                    person.birth_date = cls._parse_id_card_birth_date(data.get("birth_date"), id_card_no)
+                if person.gender in (None, "", "2"):
+                    person.gender = cls._normalize_id_card_gender(data.get("sex")) or cls._gender_from_id_card_no(id_card_no) or person.gender
+            log.ocr_status = "success"
+            return cls._id_card_ocr_result(log)
+        except Exception as exc:
+            log.ocr_status = "failed"
+            log.error_message = str(exc)[:1000]
+            logger.error(
+                "身份证OCR识别失败: person_id={}, business_type={}, business_id={}, error={}",
+                person_id,
+                business_type,
+                business_id,
+                exc,
+            )
+            return cls._id_card_ocr_result(log)
+
+    @classmethod
+    def _id_card_data(cls, response: dict[str, Any]) -> dict[str, Any]:
+        body = response.get("body") or response.get("Body") or response
+        raw_data = body.get("Data") or body.get("data") or {}
+        if isinstance(raw_data, str):
+            raw_data = json.loads(raw_data) if raw_data else {}
+        data_root = raw_data.get("data") if isinstance(raw_data, dict) else {}
+        face = data_root.get("face") if isinstance(data_root, dict) else {}
+        back = data_root.get("back") if isinstance(data_root, dict) else {}
+        face_data = face.get("data") if isinstance(face, dict) else {}
+        back_data = back.get("data") if isinstance(back, dict) else {}
+        if not isinstance(face_data, dict):
+            face_data = {}
+        if not isinstance(back_data, dict):
+            back_data = {}
+        issue_authority = back_data.get("issue") or back_data.get("issueAuthority") or back_data.get("issue_authority")
+        valid_period = back_data.get("validPeriod") or back_data.get("valid_period")
+        id_card_no = face_data.get("idNumber") or face_data.get("id_number")
+        card_side = "front" if id_card_no else ("back" if issue_authority or valid_period else "unknown")
+        quality_info = {
+            "face": face.get("warning") if isinstance(face, dict) else None,
+            "back": back.get("warning") if isinstance(back, dict) else None,
+        }
+        return {
+            "card_side": card_side,
+            "id_card_no": id_card_no,
+            "name": face_data.get("name"),
+            "sex": face_data.get("sex"),
+            "ethnicity": face_data.get("ethnicity"),
+            "birth_date": face_data.get("birthDate") or face_data.get("birth_date"),
+            "address": face_data.get("address"),
+            "issue_authority": issue_authority,
+            "valid_period": valid_period,
+            "quality_info": quality_info,
+        }
+
+    @staticmethod
+    def _id_card_ocr_result(log: IdCardOcrLogModel) -> dict[str, Any]:
+        if log.ocr_status == "success" and log.id_card_side == "front":
+            message = "身份证人像面已识别，身份证号已写入客户资料"
+        elif log.ocr_status == "success" and log.id_card_side == "back":
+            message = "身份证国徽面已识别，已保存签发机关和有效期"
+        else:
+            message = log.error_message or "身份证识别失败"
+        return {
+            "status": log.ocr_status,
+            "card_side": log.id_card_side,
+            "id_card_no_masked": mask_id_card(log.id_card_no),
+            "name": log.name,
+            "sex": log.sex,
+            "birth_date": log.birth_date,
+            "address": log.address,
+            "issue_authority": log.issue_authority,
+            "valid_period": log.valid_period,
+            "message": message,
+        }
+
+    @staticmethod
+    def _parse_id_card_birth_date(value: Any, id_card_no: str | None = None) -> date | None:
+        raw = str(value or "").strip()
+        candidates = []
+        if raw:
+            candidates.extend([raw, raw.replace("年", "-").replace("月", "-").replace("日", "")])
+        if id_card_no and len(id_card_no) >= 14:
+            candidates.append(id_card_no[6:14])
+        for candidate in candidates:
+            text = candidate.strip()
+            for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
+                try:
+                    return datetime.strptime(text, fmt).date()
+                except ValueError:
+                    continue
+        return None
+
+    @staticmethod
+    def _normalize_id_card_gender(value: Any) -> str | None:
+        text = str(value or "").strip().lower()
+        if text in {"男", "m", "male", "0"}:
+            return "0"
+        if text in {"女", "f", "female", "1"}:
+            return "1"
+        return None
+
+    @staticmethod
+    def _gender_from_id_card_no(id_card_no: str | None) -> str | None:
+        if not id_card_no or len(id_card_no) < 17 or not id_card_no[16].isdigit():
+            return None
+        return "0" if int(id_card_no[16]) % 2 == 1 else "1"
+
+    @classmethod
+    async def sync_staff_material_to_record(
+        cls,
+        db: AsyncSession,
+        *,
+        person_id: int,
+        archive_material_id: int,
+        archive_item_code: str,
+        archive_item_name: str | None,
+        material_type: str,
+        file_name: str | None,
+        file_path: str | None,
+        file_url: str,
+        operator_id: int | None,
+        source_business_type: str,
+        source_business_id: int | None,
+        ocr_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        item_code = cls._staff_archive_item_code(archive_item_code)
+        item = await cls._certification_item(db, item_code)
+        if not item:
+            return {"status": "skipped", "message": "认证项不存在，资料仅存档"}
+        user = await cls._ensure_staff_archive_user(db, person_id)
+        if not user:
+            return {"status": "skipped", "message": "客户不存在，资料仅存档"}
+
+        record = await cls._target_staff_record(db, user, item)
+        if record.record_status == "approved":
+            raise CustomException(msg=f"{record.item_name}已通过审核，不能继续上传资料")
+        previous_status = record.record_status
+        replaced_material_ids: list[int] = []
+        if previous_status == "rejected":
+            replaced_material_ids = await cls._delete_record_materials(db, record)
+        material = await cls._append_staff_material(
+            db,
+            record=record,
+            archive_material_id=archive_material_id,
+            archive_item_code=archive_item_code,
+            archive_item_name=archive_item_name,
+            material_type=material_type,
+            file_name=file_name,
+            file_path=file_path,
+            file_url=file_url,
+            operator_id=operator_id,
+            source_business_type=source_business_type,
+            source_business_id=source_business_id,
+            ocr_result=ocr_result,
+        )
+        if record.record_status != "approved":
+            record.record_status = "pending_review"
+            record.submitted_at = record.submitted_at or datetime.now()
+            record.reject_reason = None
+        record.payload = {
+            **(record.payload or {}),
+            "source": STAFF_UPLOAD_SOURCE,
+            "archive_material_id": archive_material_id,
+            "archive_item_code": archive_item_code,
+            "archive_item_name": archive_item_name,
+            "operator_id": operator_id,
+            "source_business_type": source_business_type,
+            "source_business_id": source_business_id,
+            "ocr_result": ocr_result,
+        }
+        app = await db.get(CertificationApplicationModel, record.application_id, options=[selectinload(CertificationApplicationModel.records)])
+        if app and item_code not in (app.item_codes or []):
+            app.item_codes = [*(app.item_codes or []), item_code]
+        if app:
+            await cls._try_complete(db, app)
+        await db.flush()
+        return {
+            "status": record.record_status,
+            "message": "资料已提交认证审核" if record.record_status == "pending_review" else "该认证项已通过，资料已追加留档",
+            "record_id": record.id,
+            "application_id": record.application_id,
+            "item_code": record.item_code,
+            "item_name": record.item_name,
+            "material_id": material.id,
+            "previous_status": previous_status,
+            "replaced_material_ids": replaced_material_ids,
+        }
+
+    @staticmethod
+    def _staff_archive_item_code(archive_item_code: str) -> str:
+        return STAFF_MATERIAL_ITEM_MAP.get(archive_item_code, archive_item_code)
+
+    @classmethod
+    async def _certification_item(cls, db: AsyncSession, item_code: str) -> CertificationItemModel | None:
+        return (
+            await db.execute(
+                select(CertificationItemModel).where(
+                    CertificationItemModel.item_code == item_code,
+                    CertificationItemModel.is_deleted == False,
+                    CertificationItemModel.status == "0",
+                )
+            )
+        ).scalars().first()
+
+    @classmethod
+    async def _mini_program_user_by_person(cls, db: AsyncSession, person_id: int) -> MiniProgramUserModel | None:
+        return (
+            await db.execute(
+                select(MiniProgramUserModel)
+                .where(MiniProgramUserModel.person_id == person_id, MiniProgramUserModel.is_deleted == False)
+                .order_by(MiniProgramUserModel.id.desc())
+            )
+        ).scalars().first()
+
+    @classmethod
+    async def _ensure_staff_archive_user(cls, db: AsyncSession, person_id: int) -> MiniProgramUserModel | None:
+        user = await cls._mini_program_user_by_person(db, person_id)
+        if user:
+            return user
+        person = await db.get(CrmPersonModel, person_id)
+        if not person or person.is_deleted:
+            return None
+        user = MiniProgramUserModel(
+            brand_id=person.brand_id or 1,
+            person_id=person.id,
+            nickname=person.name,
+            avatar_url=(person.photo_urls or [None])[0],
+        )
+        db.add(user)
+        await db.flush()
+        logger.info("为工作人员认证资料创建后台占位小程序用户: person_id={}, user_id={}", person.id, user.id)
+        return user
+
+    @classmethod
+    async def _target_staff_record(
+        cls,
+        db: AsyncSession,
+        user: MiniProgramUserModel,
+        item: CertificationItemModel,
+    ) -> CertificationRecordModel:
+        approved = await cls._latest_person_record(db, user.person_id or 0, item.item_code, ["approved"])
+        if approved:
+            return approved
+        existing = await cls._latest_person_record(db, user.person_id or 0, item.item_code, ["pending_review", "not_submitted", "rejected"])
+        if existing:
+            return existing
+        app = await cls._staff_application(db, user, item.item_code)
+        record = CertificationRecordModel(
+            brand_id=1,
+            application_id=app.id,
+            user_id=user.id,
+            person_id=user.person_id or 0,
+            item_code=item.item_code,
+            item_name=item.item_name,
+            verify_mode=item.verify_mode,
+            record_status="pending_review",
+            submitted_at=datetime.now(),
+            payload={"source": STAFF_UPLOAD_SOURCE},
+        )
+        db.add(record)
+        await db.flush()
+        return record
+
+    @classmethod
+    async def _latest_person_record(
+        cls,
+        db: AsyncSession,
+        person_id: int,
+        item_code: str,
+        statuses: list[str],
+    ) -> CertificationRecordModel | None:
+        return (
+            await db.execute(
+                select(CertificationRecordModel)
+                .where(
+                    CertificationRecordModel.person_id == person_id,
+                    CertificationRecordModel.item_code == item_code,
+                    CertificationRecordModel.record_status.in_(statuses),
+                    CertificationRecordModel.is_deleted == False,
+                )
+                .order_by(CertificationRecordModel.id.desc())
+            )
+        ).scalars().first()
+
+    @classmethod
+    async def _staff_application(cls, db: AsyncSession, user: MiniProgramUserModel, item_code: str) -> CertificationApplicationModel:
+        app = (
+            await db.execute(
+                select(CertificationApplicationModel)
+                .where(
+                    CertificationApplicationModel.user_id == user.id,
+                    CertificationApplicationModel.person_id == user.person_id,
+                    CertificationApplicationModel.description == STAFF_UPLOAD_SOURCE,
+                    CertificationApplicationModel.is_deleted == False,
+                )
+                .order_by(CertificationApplicationModel.id.desc())
+            )
+        ).scalars().first()
+        if app:
+            if item_code not in (app.item_codes or []):
+                app.item_codes = [*(app.item_codes or []), item_code]
+                await db.flush()
+            return app
+        package = (
+            await db.execute(
+                select(CertificationPackageModel)
+                .where(CertificationPackageModel.is_deleted == False, CertificationPackageModel.status == "0")
+                .order_by(CertificationPackageModel.sort.asc(), CertificationPackageModel.id.asc())
+            )
+        ).scalars().first()
+        if not package:
+            raise CustomException(msg="认证套餐配置不存在，无法创建工作人员认证承载记录")
+        app = CertificationApplicationModel(
+            brand_id=1,
+            user_id=user.id,
+            person_id=user.person_id or 0,
+            package_id=package.id,
+            level_code=STAFF_UPLOAD_LEVEL_CODE,
+            level_name=STAFF_UPLOAD_LEVEL_NAME,
+            item_codes=[item_code],
+            application_status="in_progress",
+            description=STAFF_UPLOAD_SOURCE,
+            paid_at=datetime.now(),
+        )
+        db.add(app)
+        await db.flush()
+        return app
+
+    @classmethod
+    async def _append_staff_material(
+        cls,
+        db: AsyncSession,
+        *,
+        record: CertificationRecordModel,
+        archive_material_id: int,
+        archive_item_code: str,
+        archive_item_name: str | None,
+        material_type: str,
+        file_name: str | None,
+        file_path: str | None,
+        file_url: str,
+        operator_id: int | None,
+        source_business_type: str,
+        source_business_id: int | None,
+        ocr_result: dict[str, Any] | None,
+    ) -> CertificationMaterialModel:
+        existing = (
+            await db.execute(
+                select(CertificationMaterialModel).where(
+                    CertificationMaterialModel.record_id == record.id,
+                    CertificationMaterialModel.file_url == file_url,
+                    CertificationMaterialModel.is_deleted == False,
+                )
+            )
+        ).scalars().first()
+        if existing:
+            return existing
+        material = CertificationMaterialModel(
+            brand_id=record.brand_id,
+            application_id=record.application_id,
+            record_id=record.id,
+            user_id=record.user_id,
+            person_id=record.person_id,
+            item_code=record.item_code,
+            material_type=material_type,
+            file_name=file_name,
+            file_path=file_path,
+            file_url=file_url,
+            payload={
+                "origin": STAFF_UPLOAD_SOURCE,
+                "archive_material_id": archive_material_id,
+                "archive_item_code": archive_item_code,
+                "archive_item_name": archive_item_name,
+                "operator_id": operator_id,
+                "source_business_type": source_business_type,
+                "source_business_id": source_business_id,
+                "ocr_result": ocr_result,
+            },
+        )
+        db.add(material)
+        await db.flush()
+        return material
+
+    @staticmethod
+    async def _delete_record_materials(db: AsyncSession, record: CertificationRecordModel) -> list[int]:
+        rows = (
+            await db.execute(
+                select(CertificationMaterialModel).where(
+                    CertificationMaterialModel.record_id == record.id,
+                    CertificationMaterialModel.is_deleted == False,
+                )
+            )
+        ).scalars().all()
+        now = datetime.now()
+        material_ids: list[int] = []
+        for row in rows:
+            row.is_deleted = True
+            row.deleted_time = now
+            material_ids.append(row.id)
+        if material_ids:
+            await db.flush()
+        return material_ids
+
+    @classmethod
+    async def revoke_staff_material_review(cls, db: AsyncSession, archive_material_id: int) -> dict[str, Any] | None:
+        material = (
+            await db.execute(
+                select(CertificationMaterialModel).where(
+                    CertificationMaterialModel.payload["archive_material_id"].as_integer() == archive_material_id,
+                    CertificationMaterialModel.payload["origin"].as_string() == STAFF_UPLOAD_SOURCE,
+                    CertificationMaterialModel.is_deleted == False,
+                )
+            )
+        ).scalars().first()
+        if not material:
+            return None
+        record = await db.get(CertificationRecordModel, material.record_id)
+        if not record or record.is_deleted:
+            return None
+        if record.record_status == "approved":
+            raise CustomException(msg="认证项已通过，不能删除认证资料")
+
+        deleted_material_ids = await cls._delete_record_materials(db, record)
+        record.record_status = "not_submitted"
+        record.submitted_at = None
+        record.reviewed_at = None
+        record.reviewer_id = None
+        record.reject_reason = None
+        record.payload = {
+            **(record.payload or {}),
+            "source": STAFF_UPLOAD_SOURCE,
+            "withdrawn_archive_material_id": archive_material_id,
+            "withdrawn_at": datetime.now().isoformat(),
+        }
+        app = await db.get(CertificationApplicationModel, record.application_id, options=[selectinload(CertificationApplicationModel.records)])
+        if app and app.application_status in {"approved", "rejected"}:
+            app.application_status = "in_progress"
+        await db.flush()
+        return {"record_id": record.id, "record_status": record.record_status, "deleted_material_ids": deleted_material_ids}
+
     @staticmethod
     def _face_reject_message(face_count: int, quality: Any, min_quality: int) -> str:
         if face_count <= 0:
@@ -832,7 +1390,7 @@ class CertificationService:
         record = await db.get(CertificationRecordModel, record_id)
         if not record or record.is_deleted:
             raise CustomException(msg="认证记录不存在")
-        if record.item_code not in MANUAL_ITEM_CODES:
+        if record.item_code not in MANUAL_ITEM_CODES and not cls._is_staff_upload_record(record):
             raise CustomException(msg="该认证项不需要人工审核")
         if action == "reject" and not reject_reason:
             raise CustomException(msg="驳回必须填写原因")
@@ -856,30 +1414,41 @@ class CertificationService:
             if app.application_status != "approved":
                 app.application_status = "approved"
                 app.approved_at = datetime.now()
-                person = await db.get(CrmPersonModel, app.person_id)
-                if person:
-                    person.certification_level = app.level_code
-                    person.certification_summary = {
-                        "level_code": app.level_code,
-                        "level_name": app.level_name,
-                        "item_status": statuses,
-                        "approved_at": app.approved_at.isoformat(),
-                    }
-                db.add(
-                    SourceEventModel(
-                        brand_id=1,
-                        person_id=app.person_id,
-                        user_id=app.user_id,
-                        event_type="certification_approved",
-                        source_channel="MINIAPP_REGISTER",
-                        source_id=str(app.id),
-                        payload={"level_code": app.level_code, "level_name": app.level_name},
-                        occurred_at=datetime.now(),
+                if not cls._is_staff_upload_application(app):
+                    person = await db.get(CrmPersonModel, app.person_id)
+                    if person:
+                        person.certification_level = app.level_code
+                        person.certification_summary = {
+                            "level_code": app.level_code,
+                            "level_name": app.level_name,
+                            "item_status": statuses,
+                            "approved_at": app.approved_at.isoformat(),
+                        }
+                    db.add(
+                        SourceEventModel(
+                            brand_id=1,
+                            person_id=app.person_id,
+                            user_id=app.user_id,
+                            event_type="certification_approved",
+                            source_channel="MINIAPP_REGISTER",
+                            source_id=str(app.id),
+                            payload={"level_code": app.level_code, "level_name": app.level_name},
+                            occurred_at=datetime.now(),
+                        )
                     )
-                )
-            await cls._grant_reward(db, app)
+            if not cls._is_staff_upload_application(app):
+                await cls._grant_reward(db, app)
         elif any(status == "pending_review" for status in statuses.values()):
             app.application_status = "in_progress"
+
+    @staticmethod
+    def _is_staff_upload_application(app: CertificationApplicationModel | None) -> bool:
+        return bool(app and (app.description == STAFF_UPLOAD_SOURCE or app.level_code == STAFF_UPLOAD_LEVEL_CODE))
+
+    @staticmethod
+    def _is_staff_upload_record(record: CertificationRecordModel | None) -> bool:
+        payload = record.payload if record else None
+        return isinstance(payload, dict) and payload.get("source") == STAFF_UPLOAD_SOURCE
 
     @classmethod
     async def _grant_reward(cls, db: AsyncSession, app: CertificationApplicationModel) -> None:
@@ -943,7 +1512,29 @@ class CertificationService:
             conditions.append(or_(MiniProgramUserModel.nickname.like(keyword), MiniProgramUserModel.mobile.like(keyword), CrmPersonModel.name.like(keyword), CrmPersonModel.primary_mobile.like(keyword), CrmPersonModel.display_no.like(keyword)))
         total = (await db.execute(select(func.count(CertificationRecordModel.id)).join(MiniProgramUserModel, CertificationRecordModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationRecordModel.person_id == CrmPersonModel.id).where(and_(*conditions)))).scalar() or 0
         rows = (await db.execute(stmt.where(and_(*conditions)).options(selectinload(CertificationRecordModel.materials)).order_by(CertificationRecordModel.id.desc()).offset((page_no - 1) * page_size).limit(page_size))).all()
-        return {"page_no": page_no, "page_size": page_size, "total": total, "has_next": page_no * page_size < total, "items": [cls._record_admin_out(record, user, person) for record, user, person in rows]}
+        operator_ids = {
+            int((record.payload or {}).get("operator_id"))
+            for record, _, _ in rows
+            if isinstance(record.payload, dict) and (record.payload or {}).get("operator_id")
+        }
+        operator_map: dict[int, UserModel] = {}
+        if operator_ids:
+            operators = (
+                await db.execute(
+                    select(UserModel).where(
+                        UserModel.id.in_(operator_ids),
+                        UserModel.is_deleted == False,
+                    )
+                )
+            ).scalars().all()
+            operator_map = {operator.id: operator for operator in operators}
+        return {
+            "page_no": page_no,
+            "page_size": page_size,
+            "total": total,
+            "has_next": page_no * page_size < total,
+            "items": [cls._record_admin_out(record, user, person, operator_map) for record, user, person in rows],
+        }
 
     @classmethod
     async def admin_application_detail(cls, db: AsyncSession, application_id: int) -> dict[str, Any]:
@@ -1198,14 +1789,25 @@ class CertificationService:
         if not row:
             return None
         records = row.__dict__.get("records") or []
-        data = {"id": row.id, "user_id": row.user_id, "person_id": row.person_id, "package_id": row.package_id, "order_id": row.order_id, "level_code": row.level_code, "level_name": row.level_name, "item_codes": row.item_codes, "application_status": row.application_status, "paid_at": row.paid_at, "approved_at": row.approved_at, "reward_granted_at": row.reward_granted_at, "records": [cls._record_out(record) for record in records]}
+        source = STAFF_UPLOAD_SOURCE if cls._is_staff_upload_application(row) else "miniprogram"
+        data = {"id": row.id, "user_id": row.user_id, "person_id": row.person_id, "package_id": row.package_id, "order_id": row.order_id, "level_code": row.level_code, "level_name": row.level_name, "item_codes": row.item_codes, "application_status": row.application_status, "paid_at": row.paid_at, "approved_at": row.approved_at, "reward_granted_at": row.reward_granted_at, "source": source, "records": [cls._record_out(record) for record in records]}
         data["progress"] = cls._progress_out(row)
         return data
 
     @classmethod
     def _application_admin_out(cls, app: CertificationApplicationModel, user: MiniProgramUserModel, person: CrmPersonModel) -> dict[str, Any]:
         data = cls._application_out(app) or {}
-        data.update({"nickname": user.nickname, "mobile": user.mobile, "display_no": person.display_no, "person_name": person.name, "current_level": person.certification_level, "current_level_name": LEVEL_LABELS.get(person.certification_level or "none", "未认证")})
+        data.update(
+            {
+                "nickname": user.nickname or person.name,
+                "mobile": user.mobile or person.primary_mobile,
+                "display_no": person.display_no,
+                "person_name": person.name,
+                "person": cls._admin_person_brief(person),
+                "current_level": person.certification_level,
+                "current_level_name": LEVEL_LABELS.get(person.certification_level or "none", "未认证"),
+            }
+        )
         return data
 
     @classmethod
@@ -1220,10 +1822,46 @@ class CertificationService:
         return {"id": row.id, "application_id": row.application_id, "user_id": row.user_id, "person_id": row.person_id, "item_code": row.item_code, "item_name": row.item_name, "verify_mode": row.verify_mode, "record_status": row.record_status, "submitted_at": row.submitted_at, "verified_at": row.verified_at, "reviewed_at": row.reviewed_at, "reviewer_id": row.reviewer_id, "reject_reason": row.reject_reason, "expire_at": row.expire_at, "payload": row.payload, "materials": [cls._material_out(item) for item in materials]}
 
     @classmethod
-    def _record_admin_out(cls, record: CertificationRecordModel, user: MiniProgramUserModel, person: CrmPersonModel) -> dict[str, Any]:
+    def _record_admin_out(cls, record: CertificationRecordModel, user: MiniProgramUserModel, person: CrmPersonModel, operator_map: dict[int, UserModel] | None = None) -> dict[str, Any]:
         data = cls._record_out(record)
-        data.update({"nickname": user.nickname, "mobile": user.mobile, "display_no": person.display_no, "person_name": person.name, "id_card_no_masked": mask_id_card(person.id_card_no)})
+        payload = record.payload or {}
+        operator_id = payload.get("operator_id")
+        operator = operator_map.get(int(operator_id)) if operator_map and operator_id else None
+        data.update(
+            {
+                "nickname": user.nickname or person.name,
+                "mobile": user.mobile or person.primary_mobile,
+                "display_no": person.display_no,
+                "person_name": person.name,
+                "person": cls._admin_person_brief(person),
+                "id_card_no_masked": mask_id_card(person.id_card_no),
+                "source": payload.get("source") or "miniprogram",
+                "source_business_type": payload.get("source_business_type"),
+                "source_business_id": payload.get("source_business_id"),
+                "operator_id": operator_id,
+                "operator_name": operator.name if operator else None,
+                "operator_username": operator.username if operator else None,
+                "operator_mobile": operator.mobile if operator else None,
+                "archive_material_id": payload.get("archive_material_id"),
+                "archive_item_code": payload.get("archive_item_code"),
+                "archive_item_name": payload.get("archive_item_name"),
+            }
+        )
         return data
+
+    @staticmethod
+    def _admin_person_brief(person: CrmPersonModel) -> dict[str, Any]:
+        return {
+            "id": person.id,
+            "display_no": person.display_no,
+            "name": person.name,
+            "gender": person.gender,
+            "primary_mobile": person.primary_mobile,
+            "birth_date": person.birth_date,
+            "photo_urls": person.photo_urls or [],
+            "certification_level": person.certification_level,
+            "certification_summary": person.certification_summary,
+        }
 
     @staticmethod
     def _material_out(row: CertificationMaterialModel) -> dict[str, Any]:
@@ -1326,6 +1964,21 @@ class AliyunCertificationClient:
         client = Client(open_api_models.Config(access_key_id=ak, access_key_secret=sk, endpoint="facebody.cn-shanghai.aliyuncs.com"))
         request = RecognizeFaceRequest(image_url=image_url)
         response = client.recognize_face_with_options(request, RuntimeOptions())
+        return response.to_map() if hasattr(response, "to_map") else dict(response)
+
+    @classmethod
+    async def recognize_id_card(cls, image_url: str) -> dict[str, Any]:
+        try:
+            from alibabacloud_ocr_api20210707.client import Client
+            from alibabacloud_ocr_api20210707.models import RecognizeIdcardRequest
+            from alibabacloud_tea_openapi import models as open_api_models
+            from alibabacloud_tea_util.models import RuntimeOptions
+        except Exception as exc:
+            raise CustomException(msg="缺少阿里云OCR SDK，请安装 alibabacloud_ocr_api20210707") from exc
+        ak, sk = await cls._ak_config()
+        client = Client(open_api_models.Config(access_key_id=ak, access_key_secret=sk, endpoint="ocr-api.cn-hangzhou.aliyuncs.com"))
+        request = RecognizeIdcardRequest(url=image_url, output_quality_info=True)
+        response = client.recognize_idcard_with_options(request, RuntimeOptions())
         return response.to_map() if hasattr(response, "to_map") else dict(response)
 
 

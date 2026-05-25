@@ -410,20 +410,30 @@ async function searchCustomers(keyword: string) {
 }
 async function loadOptions() {
   const dictTypes = ["crm_vip_level", "crm_contract_status", "crm_contract_receipt_type", "crm_contract_pay_method", "crm_contract_receipt_status", "crm_contract_payment_scene"];
-  const [dictRows, deptRes, currentUserRes] = await Promise.all([
+  const [dictRows, currentUserRes] = await Promise.all([
     Promise.all(dictTypes.map((type) => DictAPI.getInitDict(type))),
-    DeptAPI.listDept({ status: "0" }),
     UserAPI.getCurrentUserInfo(),
   ]);
   currentUser.value = currentUserRes.data.data;
-  deptOptions.value = flattenDept(deptRes.data.data || []);
+  if (isBrandAdmin.value) {
+    const deptRes = await DeptAPI.listDept({ status: "0" });
+    deptOptions.value = flattenDept(deptRes.data.data || []);
+  } else if (currentUser.value?.dept_id) {
+    deptOptions.value = [{ label: currentUser.value.dept_name || "当前门店", value: currentUser.value.dept_id }];
+  } else {
+    deptOptions.value = [];
+  }
   dictOptions.vipLevel = toOptions(dictRows[0].data.data || []);
   dictOptions.contractStatus = toOptions(dictRows[1].data.data || []);
   dictOptions.receiptType = toOptions(dictRows[2].data.data || []);
   dictOptions.payMethod = toOptions(dictRows[3].data.data || []);
   dictOptions.receiptStatus = toOptions(dictRows[4].data.data || []);
   dictOptions.paymentScene = toOptions(dictRows[5].data.data || []);
-  productOptions.value = await fetchEnabledProducts();
+  try {
+    productOptions.value = await fetchEnabledProducts();
+  } catch {
+    productOptions.value = [];
+  }
   await searchCustomers("");
 }
 

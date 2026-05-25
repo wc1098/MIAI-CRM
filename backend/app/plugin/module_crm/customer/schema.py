@@ -369,6 +369,10 @@ class CustomerCertificationMaterialOutSchema(BaseSchema, UserBySchema):
     file_url: str
     payload: dict | None = None
     collected_by: int | None = None
+    certification_record_id: int | None = None
+    certification_record_status: str | None = None
+    certification_reject_reason: str | None = None
+    certification_reviewed_at: datetime | None = None
 
 
 class CustomerDetailOutSchema(CustomerOutSchema):

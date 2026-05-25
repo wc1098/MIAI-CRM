@@ -4609,13 +4609,13 @@
   },
   {
     "name": "用户资源中心",
-    "type": 1,
+    "type": 2,
     "icon": "user",
     "order": 12,
-    "permission": null,
+    "permission": "crm:person:query",
     "route_name": "MiailovePerson",
     "route_path": "/miailove/person",
-    "component_path": null,
+    "component_path": "module_miailove/person/index",
     "status": "0",
     "keep_alive": true,
     "hidden": false,
@@ -4624,10 +4624,10 @@
     "params": null,
     "affix": false,
     "redirect": "/miailove/person/list",
-    "description": "用户资源中心（权限占位，页面实现后开放）",
+    "description": "用户资源中心",
     "children": [
       {
-        "name": "Person 查询",
+        "name": "资源总库",
         "type": 2,
         "icon": "menu",
         "order": 1,
@@ -4639,14 +4639,14 @@
         "keep_alive": true,
         "hidden": true,
         "always_show": false,
-        "title": "Person 查询",
+        "title": "资源总库",
         "params": null,
         "affix": false,
         "redirect": null,
-        "description": "Person 查询（权限占位，页面实现后开放）",
+        "description": "资源总库",
         "children": [
           {
-            "name": "查询Person 查询",
+            "name": "查询资源总库",
             "type": 3,
             "icon": null,
             "order": 1,
@@ -4658,14 +4658,14 @@
             "keep_alive": true,
             "hidden": false,
             "always_show": false,
-            "title": "查询Person 查询",
+            "title": "查询资源总库",
             "params": null,
             "affix": false,
             "redirect": null,
-            "description": "查询Person 查询"
+            "description": "查询资源总库"
           },
           {
-            "name": "详情Person 查询",
+            "name": "详情资源总库",
             "type": 3,
             "icon": null,
             "order": 2,
@@ -4677,14 +4677,14 @@
             "keep_alive": true,
             "hidden": false,
             "always_show": false,
-            "title": "详情Person 查询",
+            "title": "详情资源总库",
             "params": null,
             "affix": false,
             "redirect": null,
-            "description": "详情Person 查询"
+            "description": "详情资源总库"
           },
           {
-            "name": "创建Person 查询",
+            "name": "创建资源总库",
             "type": 3,
             "icon": null,
             "order": 3,
@@ -4696,14 +4696,14 @@
             "keep_alive": true,
             "hidden": false,
             "always_show": false,
-            "title": "创建Person 查询",
+            "title": "创建资源总库",
             "params": null,
             "affix": false,
             "redirect": null,
-            "description": "创建Person 查询"
+            "description": "创建资源总库"
           },
           {
-            "name": "修改Person 查询",
+            "name": "修改资源总库",
             "type": 3,
             "icon": null,
             "order": 4,
@@ -4715,14 +4715,14 @@
             "keep_alive": true,
             "hidden": false,
             "always_show": false,
-            "title": "修改Person 查询",
+            "title": "修改资源总库",
             "params": null,
             "affix": false,
             "redirect": null,
-            "description": "修改Person 查询"
+            "description": "修改资源总库"
           },
           {
-            "name": "资料审核Person 查询",
+            "name": "资料治理资源总库",
             "type": 3,
             "icon": null,
             "order": 5,
@@ -4734,14 +4734,14 @@
             "keep_alive": true,
             "hidden": false,
             "always_show": false,
-            "title": "资料审核Person 查询",
+            "title": "资料治理资源总库",
             "params": null,
             "affix": false,
             "redirect": null,
-            "description": "资料审核Person 查询"
+            "description": "资料治理资源总库"
           },
           {
-            "name": "查看完整手机号Person 查询",
+            "name": "查看完整手机号资源总库",
             "type": 3,
             "icon": null,
             "order": 6,
@@ -4753,14 +4753,14 @@
             "keep_alive": true,
             "hidden": false,
             "always_show": false,
-            "title": "查看完整手机号Person 查询",
+            "title": "查看完整手机号资源总库",
             "params": null,
             "affix": false,
             "redirect": null,
-            "description": "查看完整手机号Person 查询"
+            "description": "查看完整手机号资源总库"
           },
           {
-            "name": "查看身份证Person 查询",
+            "name": "查看身份证资源总库",
             "type": 3,
             "icon": null,
             "order": 7,
@@ -4772,14 +4772,14 @@
             "keep_alive": true,
             "hidden": false,
             "always_show": false,
-            "title": "查看身份证Person 查询",
+            "title": "查看身份证资源总库",
             "params": null,
             "affix": false,
             "redirect": null,
-            "description": "查看身份证Person 查询"
+            "description": "查看身份证资源总库"
           },
           {
-            "name": "导出Person 查询",
+            "name": "导出资源总库",
             "type": 3,
             "icon": null,
             "order": 8,
@@ -4791,11 +4791,11 @@
             "keep_alive": true,
             "hidden": false,
             "always_show": false,
-            "title": "导出Person 查询",
+            "title": "导出资源总库",
             "params": null,
             "affix": false,
             "redirect": null,
-            "description": "导出Person 查询"
+            "description": "导出资源总库"
           }
         ]
       }

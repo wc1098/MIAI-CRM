@@ -173,6 +173,34 @@ class FaceDetectionLogModel(ModelMixin):
     detected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now, index=True, comment="检测时间")
 
 
+class IdCardOcrLogModel(ModelMixin):
+    """身份证OCR识别日志。"""
+
+    __tablename__ = "id_card_ocr_log"
+    __table_args__: dict[str, str] = {"comment": "身份证OCR识别日志表"}
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    person_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, comment="人员ID")
+    operator_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, comment="操作人ID")
+    business_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="业务类型")
+    business_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, comment="业务ID")
+    file_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="图片URL")
+    id_card_side: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True, comment="身份证面")
+    ocr_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True, comment="识别状态")
+    id_card_no: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="身份证号")
+    name: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="姓名")
+    sex: Mapped[str | None] = mapped_column(String(16), nullable=True, comment="性别")
+    ethnicity: Mapped[str | None] = mapped_column(String(32), nullable=True, comment="民族")
+    birth_date: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="出生日期")
+    address: Mapped[str | None] = mapped_column(Text, nullable=True, comment="住址")
+    issue_authority: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="签发机关")
+    valid_period: Mapped[str | None] = mapped_column(String(128), nullable=True, comment="有效期限")
+    quality_info: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, comment="质量检测结果")
+    response_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, comment="原始响应")
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True, comment="错误信息")
+    recognized_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now, index=True, comment="识别时间")
+
+
 class CertificationSensitiveAccessLogModel(ModelMixin):
     """认证敏感字段访问日志。"""
 
