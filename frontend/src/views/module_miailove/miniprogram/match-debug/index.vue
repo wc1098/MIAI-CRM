@@ -9,18 +9,18 @@
           </div>
         </div>
       </template>
-      <el-form :model="query" inline>
+        <el-form :model="query" inline>
         <el-form-item label="人员ID">
-          <el-input-number v-model="query.person_id" :min="1" controls-position="right" placeholder="人员ID" />
+          <el-input v-model="personIdInput" clearable placeholder="数据库ID" style="width: 140px" />
         </el-form-item>
         <el-form-item label="展示编号">
-          <el-input v-model="query.display_no" clearable maxlength="7" placeholder="7位编号" style="width: 140px" />
+          <el-input v-model="query.display_no" clearable maxlength="32" placeholder="展示编号" style="width: 140px" />
         </el-form-item>
         <el-form-item label="场景">
           <el-select v-model="query.scene" style="width: 160px">
             <el-option label="后台调试" value="debug" />
             <el-option label="订阅/C端" value="subscription" />
-            <el-option label="红娘服务预留" value="matchmaker_service" />
+            <el-option label="红娘服务" value="matchmaker_service" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -106,19 +106,33 @@ import { ElMessage } from "element-plus";
 import MpUserAPI, { type MatchCandidate, type MatchDebugQuery, type MatchDebugResult } from "@/api/module_mp/user";
 
 const query = reactive<MatchDebugQuery>({ page_no: 1, page_size: 20, scene: "debug" });
+const personIdInput = ref("");
 const loading = ref(false);
 const rows = ref<MatchCandidate[]>([]);
 const total = ref(0);
 const result = ref<MatchDebugResult>();
 
 async function fetchList() {
-  if (!query.person_id && !query.display_no) {
+  const personIdText = personIdInput.value.trim();
+  const displayNo = query.display_no?.trim();
+  if (!personIdText && !displayNo) {
     ElMessage.warning("请输入人员ID或展示编号");
+    return;
+  }
+  if (personIdText && !/^\d+$/.test(personIdText)) {
+    ElMessage.warning("人员ID必须是数字；展示编号请填写到展示编号输入框");
     return;
   }
   loading.value = true;
   try {
-    const res = await MpUserAPI.matchDebug(query);
+    const requestQuery: MatchDebugQuery = {
+      page_no: query.page_no,
+      page_size: query.page_size,
+      scene: query.scene,
+      person_id: personIdText ? Number(personIdText) : undefined,
+      display_no: displayNo || undefined,
+    };
+    const res = await MpUserAPI.matchDebug(requestQuery);
     result.value = res.data.data;
     rows.value = res.data.data.items || [];
     total.value = res.data.data.total || 0;
@@ -130,7 +144,7 @@ async function fetchList() {
 function resetQuery() {
   query.page_no = 1;
   query.page_size = 20;
-  query.person_id = undefined;
+  personIdInput.value = "";
   query.display_no = "";
   query.scene = "debug";
   rows.value = [];

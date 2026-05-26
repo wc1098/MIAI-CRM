@@ -88,7 +88,7 @@
               <el-button v-if="row.contract_status === 'pending_review'" v-hasPerm="['crm:contract:review']" link type="success" icon="Check" @click="reviewContract(row, true)">通过</el-button>
               <el-button v-if="row.contract_status === 'pending_review'" v-hasPerm="['crm:contract:review']" link type="danger" icon="Close" @click="reviewContract(row, false)">驳回</el-button>
               <el-button v-if="['pending_payment', 'effective'].includes(row.contract_status) && Number(row.pending_amount || 0) > 0" v-hasPerm="['crm:receipt:submit_offline']" link type="warning" icon="Money" @click="openReceipt(row)">收款</el-button>
-              <el-button v-if="['draft', 'signed'].includes(row.contract_status)" v-hasPerm="['crm:contract:void']" link type="danger" icon="CircleClose" @click="voidContract(row)">作废</el-button>
+              <el-button v-if="canVoidContract(row)" v-hasPerm="['crm:contract:void']" link type="danger" icon="CircleClose" @click="voidContract(row)">作废</el-button>
             </div>
           </template>
         </el-table-column>
@@ -193,15 +193,23 @@
         </el-table>
 
         <div class="section-title">合同影像</div>
-        <el-upload v-hasPerm="['crm:contract:view_file']" :show-file-list="false" :http-request="uploadAttachment" accept="image/*,.pdf">
-          <el-button v-if="detail.contract_status === 'draft'" type="primary" icon="Upload">上传影像</el-button>
+        <el-upload v-hasPerm="['crm:contract:view_file']" multiple :show-file-list="false" :http-request="uploadAttachment" accept="image/*,.pdf">
+          <el-button v-if="canUploadAttachment" type="primary" icon="Upload">上传影像</el-button>
         </el-upload>
-        <div class="attachment-list">
+        <div v-if="detail.attachments?.length" class="attachment-list">
           <div v-for="file in detail.attachments" :key="file.id" class="attachment-item">
-            <el-link :href="file.file_url" target="_blank" type="primary">{{ file.file_name || file.file_url }}</el-link>
-            <el-button v-if="detail.contract_status === 'draft'" v-hasPerm="['crm:contract:view_file']" link type="danger" icon="Delete" @click="deleteAttachment(file.id)">删除</el-button>
+            <el-image v-if="isImageAttachment(file)" class="attachment-thumb" :src="file.file_url" :preview-src-list="attachmentPreviewList" fit="cover" preview-teleported />
+            <div v-else class="attachment-file">
+              <el-icon><Document /></el-icon>
+            </div>
+            <div class="attachment-meta">
+              <el-link :href="file.file_url" target="_blank" type="primary" :underline="false">{{ file.file_name || file.file_url }}</el-link>
+              <div class="muted">{{ file.file_type || "file" }}</div>
+            </div>
+            <el-button v-if="canDeleteAttachment" v-hasPerm="['crm:contract:view_file']" link type="danger" icon="Delete" @click="deleteAttachment(file.id)">删除</el-button>
           </div>
         </div>
+        <el-empty v-else description="暂无合同影像" :image-size="64" />
 
         <div class="section-title">收款记录</div>
         <el-table :data="detail.receipts" border size="small">
@@ -237,8 +245,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
+import { Document } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadRequestOptions } from "element-plus";
-import ContractAPI, { type ContractCustomerOption, type ContractForm, type ContractPageQuery, type ContractStoreRule, type ContractTable } from "@/api/module_crm/contract";
+import ContractAPI, { type ContractAttachment, type ContractCustomerOption, type ContractForm, type ContractPageQuery, type ContractStoreRule, type ContractTable } from "@/api/module_crm/contract";
 import ProductAPI, { type ProductPackageTable } from "@/api/module_crm/product";
 import ReceiptAPI from "@/api/module_crm/receipt";
 import DeptAPI, { type DeptTable } from "@/api/module_system/dept";
@@ -315,6 +324,14 @@ const paymentStatusOptions = [
 const pendingAmount = computed(() => Number(receiptContext.value?.pending_amount ?? 0));
 const currentRoleCodes = computed(() => new Set((currentUser.value?.roles || []).map((role) => role.code)));
 const isBrandAdmin = computed(() => Boolean(currentUser.value?.is_superuser || currentRoleCodes.value.has("ADMIN") || currentRoleCodes.value.has("HQ_OPS")));
+const isStoreManager = computed(() => currentRoleCodes.value.has("STORE_MGR"));
+const canManageSubmittedAttachment = computed(() => isBrandAdmin.value || isStoreManager.value);
+const canUploadAttachment = computed(() => Boolean(detail.value && !["effective", "voided"].includes(detail.value.contract_status)));
+const canDeleteAttachment = computed(() => {
+  if (!detail.value || ["effective", "voided"].includes(detail.value.contract_status)) return false;
+  return detail.value.contract_status === "draft" || canManageSubmittedAttachment.value;
+});
+const attachmentPreviewList = computed(() => (detail.value?.attachments || []).filter((item) => isImageAttachment(item)).map((item) => item.file_url));
 const currentRuleStoreName = computed(() => deptOptions.value.find((item) => item.value === ruleStoreId.value)?.label || currentUser.value?.dept_name || "-");
 const ruleTip = computed(() =>
   ruleForm.require_contract_review
@@ -340,6 +357,17 @@ function money(value?: string | number) {
 }
 function optionLabel(options: Array<{ label: string; value: string }>, value?: string) {
   return options.find((item) => item.value === value)?.label || value || "-";
+}
+function isImageAttachment(file: ContractAttachment) {
+  const type = (file.file_type || "").toLowerCase();
+  const url = (file.file_url || "").split("?")[0].toLowerCase();
+  return type === "image" || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(url);
+}
+function canVoidContract(row: ContractTable) {
+  if (row.contract_status === "draft") {
+    return row.created_id === currentUser.value?.id || row.owner_user_id === currentUser.value?.id || canManageSubmittedAttachment.value;
+  }
+  return row.contract_status === "signed" && canManageSubmittedAttachment.value;
 }
 function contractStatusType(status?: string) {
   return status === "effective" ? "success" : status === "expired" || status === "voided" ? "danger" : ["signed", "pending_review"].includes(status || "") ? "warning" : status === "pending_payment" ? "primary" : "info";
@@ -597,21 +625,21 @@ async function submitRule() {
 async function uploadAttachment(options: UploadRequestOptions) {
   if (!detail.value?.id) return;
   const fileInfo = await uploadImageDirect(options.file, "crm_contract_attachment");
-  await ContractAPI.saveAttachment(detail.value.id, {
+  const res = await ContractAPI.saveAttachment(detail.value.id, {
     file_name: fileInfo.origin_name || fileInfo.file_name,
     file_path: fileInfo.object_key || fileInfo.file_path,
     file_url: fileInfo.file_url,
     file_type: options.file.type === "application/pdf" ? "pdf" : "image",
   });
+  detail.value.attachments = [...(detail.value.attachments || []), res.data.data];
   ElMessage.success("合同影像已上传");
-  await openDetail(detail.value.id);
 }
 async function deleteAttachment(attachmentId?: number) {
   if (!attachmentId || !detail.value?.id) return;
-  await ElMessageBox.confirm("确认删除这份合同影像？删除后不会作为有效合同影像参与签署。", "删除合同影像", { type: "warning" });
+  await ElMessageBox.confirm("确认删除这份合同影像？提交后的合同只有店长可以删除影像，删除后不会作为有效合同影像参与签署。", "删除合同影像", { type: "warning" });
   await ContractAPI.deleteAttachment(attachmentId);
+  detail.value.attachments = (detail.value.attachments || []).filter((item) => item.id !== attachmentId);
   ElMessage.success("合同影像已删除");
-  await openDetail(detail.value.id);
 }
 
 defineExpose({ openCreate, fetchList });
@@ -640,6 +668,10 @@ onMounted(async () => {
 .pager { display: flex; justify-content: flex-end; padding-top: 16px; }
 .drawer-title { font-size: 16px; font-weight: 600; }
 .section-title { margin: 18px 0 10px; font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); }
-.attachment-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.attachment-item { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--el-border-color-light); border-radius: 4px; }
+.attachment-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 10px; }
+.attachment-item { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--el-border-color-light); border-radius: 6px; }
+.attachment-thumb, .attachment-file { width: 72px; height: 72px; border-radius: 4px; background: var(--el-fill-color-light); }
+.attachment-file { display: flex; align-items: center; justify-content: center; color: var(--el-text-color-secondary); font-size: 28px; }
+.attachment-meta { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.attachment-meta .el-link { justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

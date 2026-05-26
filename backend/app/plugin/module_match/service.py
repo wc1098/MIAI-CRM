@@ -577,6 +577,17 @@ class MatchProfileService:
         return False
 
     @classmethod
+    def _dedupe_texts(cls, items: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for item in items:
+            if item in seen:
+                continue
+            seen.add(item)
+            result.append(item)
+        return result
+
+    @classmethod
     def _hard_filter(cls, source: CrmPersonModel, target: CrmPersonModel, preference: PersonPartnerPreferenceModel | None) -> list[str]:
         reasons: list[str] = []
         if source.id == target.id:
@@ -635,19 +646,22 @@ class MatchProfileService:
         if source.residence and target.residence and cls._region_match(target.residence, [source.residence.split("/")[0].strip()]):
             score += 5
             matched.append("生活城市或区域接近")
+        if not matched and not risks:
+            matched.append("结构化择偶条件较少，按基础资料试算")
+            risks.append("择偶条件不完整，建议补充后再精细匹配")
         return max(0, min(score, 100)), matched, risks
 
     @classmethod
     async def candidate_debug(cls, db: AsyncSession, person_id: int | None, display_no: str | None, scene: str, page_no: int, page_size: int) -> dict[str, Any]:
         source = None
+        display_no = display_no.strip() if display_no else None
+        conditions = [CrmPersonModel.is_deleted == False]
         if person_id:
-            source = (
-                await db.execute(select(CrmPersonModel).where(CrmPersonModel.id == person_id, CrmPersonModel.is_deleted == False))
-            ).scalars().first()
-        elif display_no:
-            source = (
-                await db.execute(select(CrmPersonModel).where(CrmPersonModel.display_no == display_no, CrmPersonModel.is_deleted == False))
-            ).scalars().first()
+            conditions.append(CrmPersonModel.id == person_id)
+        if display_no:
+            conditions.append(CrmPersonModel.display_no == display_no)
+        if person_id or display_no:
+            source = (await db.execute(select(CrmPersonModel).where(*conditions))).scalars().first()
         if not source:
             raise CustomException(msg="未找到匹配发起用户")
         return await cls.match_candidates(db, source.id, scene, page_no, page_size)
@@ -677,16 +691,89 @@ class MatchProfileService:
             CrmPersonModel.is_deleted == False,
             CrmPersonModel.id != source.id,
         ]
-        if scene != "subscription" or not await cls._subscription_include_pending_users(db):
+        if not await cls._subscription_include_pending_users(db):
             candidate_conditions.append(MiniProgramUserModel.registered_at.is_not(None))
 
-        candidates_stmt = (
-            select(MiniProgramUserModel, CrmPersonModel)
-            .join(CrmPersonModel, MiniProgramUserModel.person_id == CrmPersonModel.id)
-            .where(*candidate_conditions)
+        rows = (
+            await db.execute(
+                select(MiniProgramUserModel, CrmPersonModel)
+                .join(CrmPersonModel, MiniProgramUserModel.person_id == CrmPersonModel.id)
+                .where(*candidate_conditions)
+            )
+        ).all()
+        scored_items = await cls.score_people(
+            db=db,
+            source=source,
+            target_rows=[person for _user, person in rows],
+            scene=scene,
+            user_map={person.id: user for user, person in rows},
+            source_pref=source_pref,
         )
-        rows = (await db.execute(candidates_stmt)).all()
-        candidate_person_ids = {person.id for _user, person in rows}
+        total = len(scored_items)
+        offset = (page_no - 1) * page_size
+        page_items = scored_items[offset : offset + page_size]
+        source_vectors = await cls._person_vector_status_map(db, {source.id})
+        settings = await cls.embedding_settings(db)
+        return {
+            "query_person_id": source.id,
+            "query_display_no": source.display_no,
+            "scene": scene,
+            "page_no": page_no,
+            "page_size": page_size,
+            "total": total,
+            "has_next": offset + page_size < total,
+            "model_info": {
+                "provider": settings["provider"],
+                "model_name": settings["model_name"],
+                "dimension": settings["dimension"],
+                "enabled": settings["enabled"],
+            },
+            "vector_status": source_vectors,
+            "items": page_items,
+        }
+
+    @classmethod
+    async def _person_vector_status_map(cls, db: AsyncSession, person_ids: set[int]) -> dict[str, Any]:
+        vector_rows = (
+            await db.execute(
+                select(PersonMatchVectorModel).where(
+                    PersonMatchVectorModel.person_id.in_(person_ids or {-1}),
+                    PersonMatchVectorModel.is_deleted == False,
+                )
+            )
+        ).scalars().all()
+        vector_map = {(row.person_id, row.vector_type): row for row in vector_rows}
+        person_id = next(iter(person_ids), None)
+        if not person_id:
+            return {}
+        return {
+            vector_type: cls._vector_status_out(vector_map.get((person_id, vector_type)))
+            for vector_type in (SELF_PROFILE, PREFERENCE)
+        }
+
+    @classmethod
+    async def score_people(
+        cls,
+        db: AsyncSession,
+        source: CrmPersonModel,
+        target_rows: list[CrmPersonModel],
+        scene: str = "matchmaker_service",
+        user_map: dict[int, MiniProgramUserModel] | None = None,
+        source_pref: PersonPartnerPreferenceModel | None = None,
+    ) -> list[dict[str, Any]]:
+        if source_pref is None:
+            source_pref = (
+                await db.execute(
+                    select(PersonPartnerPreferenceModel).where(
+                        PersonPartnerPreferenceModel.person_id == source.id,
+                        PersonPartnerPreferenceModel.is_deleted == False,
+                    )
+                )
+            ).scalars().first()
+        await cls.mark_dirty(db, source.id, [SELF_PROFILE, PREFERENCE], "match_debug" if scene == "debug" else scene, None)
+        await db.flush()
+
+        candidate_person_ids = {person.id for person in target_rows}
         candidate_person_ids.add(source.id)
         pref_rows = (
             await db.execute(
@@ -717,7 +804,8 @@ class MatchProfileService:
         vector_map = {(row.person_id, row.vector_type): row for row in vector_rows}
 
         items: list[dict[str, Any]] = []
-        for user, target in rows:
+        user_map = user_map or {}
+        for target in target_rows:
             blocked = cls._hard_filter(source, target, source_pref)
             target_pref = pref_map.get(target.id)
             reverse_blocked = cls._hard_filter(target, source, target_pref)
@@ -744,20 +832,29 @@ class MatchProfileService:
             else:
                 vector_score = int(round((forward_score or 0) * 0.65 + (reverse_score or 0) * 0.35))
                 effective_vector_score = vector_score
+                if vector_score >= 80:
+                    matched_points.append("画像语义相似度较高")
+                elif vector_score >= 65:
+                    matched_points.append("画像语义有一定相似度")
+                elif vector_score < 45:
+                    risk_points.append("画像语义相似度偏低")
             match_score = int(round(structured_score * 0.55 + effective_vector_score * 0.45))
             target_profile = profile_map.get(target.id)
             completeness_score = target_profile.completeness_score if target_profile else 50
             confidence_score = min(100, int(round((completeness_score * 0.75) + (100 if vector_status == "success" else 45) * 0.25)))
-            activity_score = 80 if user.last_login_at and user.last_login_at > datetime.now() - timedelta(days=30) else 50
-            freshness_score = 80 if user.registered_at and user.registered_at > datetime.now() - timedelta(days=30) else 50
+            user = user_map.get(target.id)
+            activity_score = 80 if user and user.last_login_at and user.last_login_at > datetime.now() - timedelta(days=30) else 50
+            freshness_score = 80 if user and user.registered_at and user.registered_at > datetime.now() - timedelta(days=30) else 50
             rank_score = int(round(match_score * 0.85 + completeness_score * 0.07 + activity_score * 0.05 + freshness_score * 0.03))
+            matched_points = cls._dedupe_texts(matched_points)
+            risk_points = cls._dedupe_texts(risk_points)
             user_reason = cls._user_reason(target, matched_points, risk_points)
             admin_reason = cls._admin_reason(structured_score, vector_score, matched_points, risk_points)
             items.append(
                 {
                     "person_id": target.id,
                     "display_no": target.display_no,
-                    "nickname": user.nickname,
+                    "nickname": user.nickname if user else target.name,
                     "gender": cls._label(GENDER_LABELS, target.gender),
                     "age": cls._age(target.birth_date),
                     "height_cm": target.height_cm,
@@ -779,31 +876,7 @@ class MatchProfileService:
                 }
             )
         items.sort(key=lambda item: (item["rank_score"], item["match_score"]), reverse=True)
-        total = len(items)
-        offset = (page_no - 1) * page_size
-        page_items = items[offset : offset + page_size]
-        source_vectors = {
-            vector_type: cls._vector_status_out(vector_map.get((source.id, vector_type)))
-            for vector_type in (SELF_PROFILE, PREFERENCE)
-        }
-        settings = await cls.embedding_settings(db)
-        return {
-            "query_person_id": source.id,
-            "query_display_no": source.display_no,
-            "scene": scene,
-            "page_no": page_no,
-            "page_size": page_size,
-            "total": total,
-            "has_next": offset + page_size < total,
-            "model_info": {
-                "provider": settings["provider"],
-                "model_name": settings["model_name"],
-                "dimension": settings["dimension"],
-                "enabled": settings["enabled"],
-            },
-            "vector_status": source_vectors,
-            "items": page_items,
-        }
+        return items
 
     @classmethod
     async def _subscription_include_pending_users(cls, db: AsyncSession) -> bool:

@@ -1,5 +1,6 @@
 import request from "@/utils/request";
 import type { PartnerPreference } from "@/api/module_crm/lead";
+import type { PersonDetail, PersonTimelineItem } from "@/api/module_crm/person";
 
 const API_PATH = "/service/vip";
 
@@ -98,6 +99,192 @@ const VipServiceAPI = {
     return request<ApiResponse<ServiceWorkSummary>>({
       url: `${API_PATH}/${id}/work-summary`,
       method: "get",
+    });
+  },
+  getPlan(id: number) {
+    return request<ApiResponse<ServicePlan>>({
+      url: `${API_PATH}/${id}/plan`,
+      method: "get",
+    });
+  },
+  updatePlan(id: number, body: ServicePlanForm) {
+    return request<ApiResponse<ServicePlan>>({
+      url: `${API_PATH}/${id}/plan`,
+      method: "put",
+      data: body,
+    });
+  },
+  publishPlan(id: number) {
+    return request<ApiResponse<ServicePlan>>({
+      url: `${API_PATH}/${id}/plan/publish`,
+      method: "post",
+    });
+  },
+  rebuildPlan(id: number) {
+    return request<ApiResponse<ServicePlan>>({
+      url: `${API_PATH}/${id}/plan/rebuild-from-entitlements`,
+      method: "post",
+    });
+  },
+  autoSchedulePlan(id: number) {
+    return request<ApiResponse<ServicePlan>>({
+      url: `${API_PATH}/${id}/plan/auto-schedule`,
+      method: "post",
+    });
+  },
+  updatePlanItem(id: number, itemId: number, body: ServicePlanItemForm) {
+    return request<ApiResponse<ServicePlanItem>>({
+      url: `${API_PATH}/${id}/plan/items/${itemId}`,
+      method: "put",
+      data: body,
+    });
+  },
+  cancelPlanItem(id: number, itemId: number, body: { reason?: string }) {
+    return request<ApiResponse<ServicePlanItem>>({
+      url: `${API_PATH}/${id}/plan/items/${itemId}/cancel`,
+      method: "post",
+      data: body,
+    });
+  },
+  skipPlanItem(id: number, itemId: number, body: { reason?: string }) {
+    return request<ApiResponse<ServicePlanItem>>({
+      url: `${API_PATH}/${id}/plan/items/${itemId}/skip`,
+      method: "post",
+      data: body,
+    });
+  },
+  restorePlanItem(id: number, itemId: number, body: { reason?: string }) {
+    return request<ApiResponse<ServicePlanItem>>({
+      url: `${API_PATH}/${id}/plan/items/${itemId}/restore`,
+      method: "post",
+      data: body,
+    });
+  },
+  matchCandidates(id: number, itemId: number, body: MatchCandidateQuery) {
+    return request<ApiResponse<PageResult<MatchCandidate[]>>>({
+      url: `${API_PATH}/${id}/plan/items/${itemId}/match-candidates`,
+      method: "post",
+      data: body,
+    });
+  },
+  getServiceCandidateDetail(id: number, personId: number) {
+    return request<ApiResponse<ServiceCandidateDetail>>({
+      url: `${API_PATH}/${id}/candidates/${personId}`,
+      method: "get",
+    });
+  },
+  createRecommendation(id: number, body: RecommendationForm) {
+    return request<ApiResponse<ServiceRecommendation>>({
+      url: `${API_PATH}/${id}/recommendations`,
+      method: "post",
+      data: body,
+    });
+  },
+  listRecommendations(id: number) {
+    return request<ApiResponse<ServiceRecommendation[]>>({
+      url: `${API_PATH}/${id}/recommendations`,
+      method: "get",
+    });
+  },
+  updateRecommendation(id: number, recommendationId: number, body: RecommendationUpdateForm) {
+    return request<ApiResponse<ServiceRecommendation>>({
+      url: `${API_PATH}/${id}/recommendations/${recommendationId}`,
+      method: "put",
+      data: body,
+    });
+  },
+  revokeRecommendation(id: number, recommendationId: number, body: { reason?: string }) {
+    return request<ApiResponse<ServiceRecommendation>>({
+      url: `${API_PATH}/${id}/recommendations/${recommendationId}/revoke`,
+      method: "post",
+      data: body,
+    });
+  },
+  consumeRecommendation(id: number, recommendationId: number, body: { reason?: string }) {
+    return request<ApiResponse<ServiceRecommendation>>({
+      url: `${API_PATH}/${id}/recommendations/${recommendationId}/consume`,
+      method: "post",
+      data: body,
+    });
+  },
+  createMeeting(id: number, body: MeetingForm) {
+    return request<ApiResponse<ServiceMeeting>>({
+      url: `${API_PATH}/${id}/meetings`,
+      method: "post",
+      data: body,
+    });
+  },
+  listMeetings(id: number) {
+    return request<ApiResponse<ServiceMeeting[]>>({
+      url: `${API_PATH}/${id}/meetings`,
+      method: "get",
+    });
+  },
+  confirmMeeting(id: number, meetingId: number) {
+    return request<ApiResponse<ServiceMeeting>>({
+      url: `${API_PATH}/${id}/meetings/${meetingId}/confirm`,
+      method: "post",
+    });
+  },
+  completeMeeting(id: number, meetingId: number, body: MeetingActionForm) {
+    return request<ApiResponse<ServiceMeeting>>({
+      url: `${API_PATH}/${id}/meetings/${meetingId}/complete`,
+      method: "post",
+      data: body,
+    });
+  },
+  cancelMeeting(id: number, meetingId: number, body: MeetingActionForm) {
+    return request<ApiResponse<ServiceMeeting>>({
+      url: `${API_PATH}/${id}/meetings/${meetingId}/cancel`,
+      method: "post",
+      data: body,
+    });
+  },
+  noShowMeeting(id: number, meetingId: number, body: MeetingActionForm) {
+    return request<ApiResponse<ServiceMeeting>>({
+      url: `${API_PATH}/${id}/meetings/${meetingId}/no-show`,
+      method: "post",
+      data: body,
+    });
+  },
+  listMeetingFeedback(id: number, meetingId: number) {
+    return request<ApiResponse<ServiceMeetingFeedback[]>>({
+      url: `${API_PATH}/${id}/meetings/${meetingId}/feedback`,
+      method: "get",
+    });
+  },
+  createMeetingFeedback(id: number, meetingId: number, body: MeetingFeedbackForm) {
+    return request<ApiResponse<ServiceMeetingFeedback>>({
+      url: `${API_PATH}/${id}/meetings/${meetingId}/feedback`,
+      method: "post",
+      data: body,
+    });
+  },
+  updateMeetingFeedback(id: number, meetingId: number, feedbackId: number, body: MeetingFeedbackForm) {
+    return request<ApiResponse<ServiceMeetingFeedback>>({
+      url: `${API_PATH}/${id}/meetings/${meetingId}/feedback/${feedbackId}`,
+      method: "put",
+      data: body,
+    });
+  },
+  createCourseRecord(id: number, itemId: number, body: CourseRecordForm) {
+    return request<ApiResponse<ServiceCourseRecord>>({
+      url: `${API_PATH}/${id}/plan/items/${itemId}/course-record`,
+      method: "post",
+      data: body,
+    });
+  },
+  listCourseRecords(id: number) {
+    return request<ApiResponse<ServiceCourseRecord[]>>({
+      url: `${API_PATH}/${id}/course-records`,
+      method: "get",
+    });
+  },
+  revokeCourseRecord(id: number, recordId: number, body: { reason: string }) {
+    return request<ApiResponse<ServiceCourseRecord>>({
+      url: `${API_PATH}/${id}/course-records/${recordId}/revoke`,
+      method: "post",
+      data: body,
     });
   },
   listMatchmakers(storeId?: number) {
@@ -530,6 +717,349 @@ export interface UsageRecord {
   customer_signature_url?: string;
   customer_signed_at?: string;
   created_by_name?: string;
+  service_plan_item_id?: number;
+  source_type?: string;
+  source_id?: number;
+  recommendation_id?: number;
+  meeting_id?: number;
+}
+
+export interface ServicePlan {
+  id: number;
+  brand_id: number;
+  service_case_id: number;
+  vip_id: number;
+  contract_id: number;
+  person_id: number;
+  matchmaker_id?: number;
+  matchmaker_name?: string;
+  plan_status: string;
+  service_start_at?: string;
+  service_end_at?: string;
+  plan_summary?: string;
+  remark?: string;
+  items: ServicePlanItem[];
+}
+
+export interface ServicePlanItem {
+  id: number;
+  plan_id: number;
+  service_case_id: number;
+  entitlement_id?: number;
+  entitlement_type?: string;
+  item_type: string;
+  item_status: string;
+  sequence_no: number;
+  title: string;
+  planned_at?: string;
+  due_at?: string;
+  planned_start_at?: string;
+  planned_end_at?: string;
+  source_contract_id?: number;
+  source_contract_no?: string;
+  source_contract_item_id?: number;
+  candidate_person_id?: number;
+  candidate_name?: string;
+  recommendation_count?: number;
+  related_recommendation_id?: number;
+  related_meeting_id?: number;
+  related_usage_id?: number;
+  remark?: string;
+}
+
+export interface ServicePlanForm {
+  service_start_at?: string;
+  service_end_at?: string;
+  plan_summary?: string;
+  remark?: string;
+}
+
+export interface ServicePlanItemForm {
+  planned_at?: string;
+  due_at?: string;
+  planned_start_at?: string;
+  planned_end_at?: string;
+  title?: string;
+  remark?: string;
+  sequence_no?: number;
+}
+
+export interface MatchCandidateQuery extends PageQuery {
+  search_mode: "score" | "filter";
+  scope: "backup" | "store" | "brand";
+  keyword?: string;
+  person_id?: number;
+  display_no?: string;
+  mobile?: string;
+  name?: string;
+  gender?: string;
+  age_min?: number;
+  age_max?: number;
+  height_min?: number;
+  height_max?: number;
+  weight_min?: number;
+  weight_max?: number;
+  education?: string;
+  annual_income?: string;
+  marital_status?: string;
+  ethnicity?: string;
+  occupation_code?: string;
+  unit_type?: string;
+  residence?: string;
+  hometown?: string;
+  house_status?: string;
+  car_status?: string;
+  accept_long_distance_self?: boolean;
+  accept_flash_marriage?: boolean;
+  willing_relocate?: boolean;
+  marriage_plan?: string;
+  has_photo?: boolean;
+  certification_level?: string;
+  pref_age_min?: number;
+  pref_age_max?: number;
+  pref_height_min?: number;
+  pref_height_max?: number;
+  pref_weight_min?: number;
+  pref_weight_max?: number;
+  preferred_education_codes?: string[];
+  preferred_marital_status_codes?: string[];
+  preferred_annual_income_codes?: string[];
+  preferred_house_status_codes?: string[];
+  preferred_car_status_codes?: string[];
+  pref_accept_long_distance?: boolean;
+  pref_accept_divorced?: boolean;
+  pref_accept_children?: boolean;
+  children_requirement?: string;
+  preferred_occupation_text?: string;
+  preference_text?: string;
+  hard_reject_items?: string[];
+  soft_preference_items?: string[];
+  strictness_level?: string;
+}
+
+export interface MatchCandidate {
+  id: number;
+  display_no?: string;
+  name: string;
+  gender: string;
+  mobile?: string;
+  wechat?: string;
+  age?: number;
+  height_cm?: number;
+  weight_kg?: number;
+  residence?: string;
+  hometown?: string;
+  education?: string;
+  annual_income?: string;
+  marital_status?: string;
+  store_id?: number;
+  store_name?: string;
+  in_backup: boolean;
+  contact_unmasked: boolean;
+  is_vip: boolean;
+  match_score?: number;
+  matched_points?: string[];
+  unmatched_points?: string[];
+}
+
+export interface ServiceCandidateDetail {
+  person: {
+    id: number;
+    display_no?: string;
+    name: string;
+    gender: string;
+    mobile?: string;
+    wechat?: string;
+    birth_date?: string;
+    age?: number;
+    height_cm?: number;
+    weight_kg?: number;
+    ethnicity?: string;
+    occupation?: string;
+    occupation_code?: string;
+    annual_income?: string;
+    marital_status?: string;
+    education?: string;
+    graduated_school?: string;
+    major?: string;
+    unit_type?: string;
+    job_title?: string;
+    work_company?: string;
+    hometown?: string;
+    residence?: string;
+    house_status?: string;
+    car_status?: string;
+    accept_long_distance_self?: boolean;
+    accept_flash_marriage?: boolean;
+    willing_relocate?: boolean;
+    marriage_plan?: string;
+    profile_intro?: string;
+    profile_remark?: string;
+    photo_urls?: string[];
+    certification_level?: string;
+    store_id?: number;
+    store_name?: string;
+  };
+  partner_preference?: PartnerPreference;
+  person_center?: PersonDetail;
+  timeline?: PersonTimelineItem[];
+  backup: {
+    in_backup: boolean;
+    backup_item_id?: number;
+    contact_unmasked: boolean;
+    pending_request: boolean;
+    pending_request_id?: number;
+    request_scope: "store" | "brand";
+    unlock_method: "backup_approved" | "pending_review" | "join_request";
+  };
+}
+
+export interface RecommendationForm {
+  plan_item_id: number;
+  candidate_person_id: number;
+  recommend_reason?: string;
+  match_score?: number;
+  matched_points?: string[];
+  unmatched_points?: string[];
+  risk_notes?: string;
+  matchmaker_remark?: string;
+}
+
+export interface RecommendationUpdateForm {
+  recommendation_status?: string;
+  recommend_reason?: string;
+  match_score?: number;
+  matched_points?: string[];
+  unmatched_points?: string[];
+  risk_notes?: string;
+  matchmaker_remark?: string;
+}
+
+export interface ServiceRecommendation {
+  id: number;
+  service_case_id: number;
+  plan_item_id: number;
+  vip_person_id: number;
+  vip_name?: string;
+  candidate_person_id: number;
+  candidate_name?: string;
+  candidate_mobile?: string;
+  recommendation_status: string;
+  recommend_reason?: string;
+  match_score?: number;
+  matched_points?: string[];
+  unmatched_points?: string[];
+  risk_notes?: string;
+  matchmaker_remark?: string;
+  related_usage_id?: number;
+  created_time?: string;
+}
+
+export interface MeetingForm {
+  recommendation_id?: number;
+  plan_item_id?: number;
+  meeting_type: string;
+  scheduled_at?: string;
+  appointment_slot?: string;
+  location?: string;
+}
+
+export interface MeetingActionForm {
+  reason?: string;
+  meeting_result?: string;
+  next_action?: string;
+}
+
+export interface ServiceMeeting {
+  id: number;
+  recommendation_id: number;
+  initiator_service_case_id: number;
+  initiator_plan_item_id?: number;
+  initiator_person_id: number;
+  initiator_name?: string;
+  initiator_gender?: string;
+  initiator_matchmaker_id?: number;
+  initiator_matchmaker_name?: string;
+  target_service_case_id?: number;
+  target_plan_item_id?: number;
+  target_person_id: number;
+  target_name?: string;
+  target_gender?: string;
+  target_matchmaker_id?: number;
+  target_matchmaker_name?: string;
+  target_is_vip: boolean;
+  meeting_type: string;
+  meeting_status: string;
+  scheduled_at?: string;
+  appointment_slot?: string;
+  location?: string;
+  meeting_result?: string;
+  next_action?: string;
+  completed_at?: string;
+  cancelled_at?: string;
+  cancel_reason?: string;
+  matchmaker_opinion?: string;
+}
+
+export interface MeetingFeedbackForm {
+  feedback_person_id: number;
+  feedback_service_case_id?: number;
+  feedback_content: string;
+  interest_level?: string;
+  meeting_result?: string;
+  next_action?: string;
+  matchmaker_opinion?: string;
+}
+
+export interface ServiceMeetingFeedback {
+  id: number;
+  meeting_id: number;
+  feedback_person_id: number;
+  feedback_person_name?: string;
+  feedback_service_case_id?: number;
+  feedback_matchmaker_id?: number;
+  feedback_matchmaker_name?: string;
+  feedback_content: string;
+  interest_level?: string;
+  meeting_result?: string;
+  next_action?: string;
+  created_time?: string;
+}
+
+export interface CourseRecordForm {
+  course_at?: string;
+  course_title: string;
+  course_mode: string;
+  content?: string;
+  customer_feedback?: string;
+  matchmaker_remark?: string;
+  customer_confirm_status?: string;
+  customer_signature_url?: string;
+  customer_signed_at?: string;
+}
+
+export interface ServiceCourseRecord {
+  id: number;
+  service_case_id: number;
+  service_plan_item_id: number;
+  entitlement_id: number;
+  usage_id?: number;
+  course_at: string;
+  course_title: string;
+  course_mode: string;
+  content?: string;
+  customer_feedback?: string;
+  matchmaker_remark?: string;
+  quantity: number;
+  customer_confirm_status: string;
+  customer_signature_url?: string;
+  customer_signed_at?: string;
+  record_status: string;
+  revoke_reason?: string;
+  revoked_at?: string;
+  matchmaker_id?: number;
+  matchmaker_name?: string;
+  created_time?: string;
 }
 
 export interface DeepInterview {

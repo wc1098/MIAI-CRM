@@ -270,6 +270,54 @@ LEAD_DICTS = [
         [("有效", "active", 1, "success"), ("已作废", "void", 2, "danger"), ("已回滚", "rolled_back", 3, "warning")],
     ),
     (
+        {"dict_name": "服务计划状态", "dict_type": "service_plan_status", "status": "0", "description": "服务计划状态列表"},
+        [("草稿", "draft", 1, "info"), ("已发布", "published", 2, "primary"), ("执行中", "in_progress", 3, "warning"), ("已完成", "completed", 4, "success"), ("已关闭", "closed", 5, "info")],
+    ),
+    (
+        {"dict_name": "服务计划节点类型", "dict_type": "service_plan_item_type", "status": "0", "description": "服务计划节点类型列表"},
+        [("推荐服务项", "recommendation", 1, "primary"), ("相亲约见项", "meeting", 2, "success"), ("课程服务项", "course", 3, "warning")],
+    ),
+    (
+        {"dict_name": "服务计划节点状态", "dict_type": "service_plan_item_status", "status": "0", "description": "服务计划节点状态列表"},
+        [("待处理", "pending", 1, "info"), ("进行中", "in_progress", 2, "primary"), ("已推荐", "recommended", 3, "success"), ("待约见", "pending_meeting", 4, "warning"), ("待反馈", "pending_feedback", 5, "warning"), ("已完成", "completed", 6, "success"), ("已取消", "cancelled", 7, "danger"), ("已放弃", "skipped", 8, "info")],
+    ),
+    (
+        {"dict_name": "服务推荐状态", "dict_type": "service_recommend_status", "status": "0", "description": "服务推荐状态列表"},
+        [("已推荐", "recommended", 1, "primary"), ("已转约见", "meeting_created", 2, "warning"), ("已完成", "completed", 3, "success"), ("已放弃", "abandoned", 4, "info")],
+    ),
+    (
+        {"dict_name": "相亲约见类型", "dict_type": "service_meeting_type", "status": "0", "description": "相亲约见类型列表"},
+        [("门店见面", "store", 1, "primary"), ("外部见面", "outside", 2, "warning"), ("线上约见", "online", 3, "success")],
+    ),
+    (
+        {"dict_name": "相亲约见状态", "dict_type": "service_meeting_status", "status": "0", "description": "相亲约见状态列表"},
+        [("待确认", "pending_confirm", 1, "warning"), ("已确认", "confirmed", 2, "primary"), ("待反馈", "pending_feedback", 3, "warning"), ("已完成", "completed", 4, "success"), ("已取消", "cancelled", 5, "info"), ("已爽约", "no_show", 6, "danger")],
+    ),
+    (
+        {"dict_name": "相亲约见结果", "dict_type": "service_meeting_result", "status": "0", "description": "相亲约见结果列表"},
+        [("有意向", "interested", 1, "success"), ("继续了解", "continue", 2, "primary"), ("无意向", "not_interested", 3, "danger"), ("待定", "pending", 4, "warning")],
+    ),
+    (
+        {"dict_name": "相亲反馈意向等级", "dict_type": "service_feedback_interest_level", "status": "0", "description": "相亲反馈意向等级列表"},
+        [("高", "high", 1, "success"), ("中", "medium", 2, "primary"), ("低", "low", 3, "warning"), ("无", "none", 4, "info")],
+    ),
+    (
+        {"dict_name": "服务核销来源类型", "dict_type": "service_usage_source_type", "status": "0", "description": "服务核销来源类型列表"},
+        [("手动", "manual", 1, "info"), ("推荐", "recommendation", 2, "primary"), ("约见", "meeting", 3, "success"), ("课程", "course", 4, "warning")],
+    ),
+    (
+        {"dict_name": "服务课程形式", "dict_type": "service_course_mode", "status": "0", "description": "服务课程形式列表"},
+        [("线下课程", "offline", 1, "primary"), ("线上课程", "online", 2, "success"), ("电话指导", "phone", 3, "warning"), ("资料指导", "material", 4, "info"), ("其他", "other", 99, "info")],
+    ),
+    (
+        {"dict_name": "课程客户确认状态", "dict_type": "service_course_confirm_status", "status": "0", "description": "课程客户确认状态列表"},
+        [("红娘确认", "matchmaker_confirmed", 1, "success"), ("待客户确认", "pending_customer", 2, "warning"), ("客户已确认", "customer_confirmed", 3, "primary"), ("免签确认", "waived", 4, "info")],
+    ),
+    (
+        {"dict_name": "课程记录状态", "dict_type": "service_course_record_status", "status": "0", "description": "课程记录状态列表"},
+        [("有效", "active", 1, "success"), ("已撤销", "revoked", 2, "danger")],
+    ),
+    (
         {"dict_name": "服务深访类型", "dict_type": "deep_interview_type", "status": "0", "description": "服务深访类型列表"},
         [("首次深访", "first", 1, "primary"), ("阶段深访", "stage", 2, "success"), ("结案深访", "closing", 3, "warning")],
     ),

@@ -7,7 +7,7 @@ MatchScene = Literal["subscription", "debug", "matchmaker_service"]
 
 class MatchDebugQuery(BaseModel):
     person_id: int | None = Field(default=None, description="人员ID")
-    display_no: str | None = Field(default=None, min_length=7, max_length=7, description="展示编号")
+    display_no: str | None = Field(default=None, max_length=32, description="展示编号")
     scene: MatchScene = Field(default="debug", description="匹配场景")
     page_no: int = Field(default=1, ge=1, description="页码")
     page_size: int = Field(default=20, ge=1, le=100, description="每页数量")

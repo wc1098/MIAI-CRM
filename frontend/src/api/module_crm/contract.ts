@@ -120,6 +120,7 @@ export interface ContractForm {
 }
 
 export interface ContractTable extends BaseType {
+  created_id?: number;
   brand_id: number;
   contract_no: string;
   contract_name: string;

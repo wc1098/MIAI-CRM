@@ -104,6 +104,172 @@ class EntitlementUsageLogModel(ModelMixin, UserMixin):
     customer_confirm_status: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="客户确认状态")
     customer_signature_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="客户签字图片")
     customer_signed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="客户签字时间")
+    service_plan_item_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_plan_item.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="服务计划节点ID")
+    source_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="核销来源类型")
+    source_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, comment="核销来源记录ID")
+    recommendation_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_recommendation.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="推荐记录ID")
+    meeting_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_meeting.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="相亲约见ID")
+
+
+class ServicePlanModel(ModelMixin, UserMixin):
+    """服务计划"""
+
+    __tablename__: str = "service_plan"
+    __table_args__ = (
+        UniqueConstraint("service_case_id", name="uq_service_plan_case"),
+        {"comment": "VIP服务计划表"},
+    )
+    __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by"]
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    service_case_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="服务工单ID")
+    vip_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_vip_profile.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="VIP服务ID")
+    contract_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_contract.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="合同ID")
+    person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="VIP Person ID")
+    matchmaker_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="服务红娘ID")
+    plan_status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft", index=True, comment="计划状态")
+    service_start_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="计划开始时间")
+    service_end_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="计划结束时间")
+    plan_summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="计划说明")
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True, comment="备注")
+
+
+class ServicePlanItemModel(ModelMixin, UserMixin):
+    """服务计划节点"""
+
+    __tablename__: str = "service_plan_item"
+    __table_args__: dict[str, str] = {"comment": "VIP服务计划节点表"}
+    __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by"]
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    plan_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_plan.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="服务计划ID")
+    service_case_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="服务工单ID")
+    entitlement_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_entitlement.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="权益ID")
+    entitlement_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="权益类型")
+    item_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True, comment="节点类型")
+    item_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True, comment="节点状态")
+    sequence_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="序号")
+    title: Mapped[str] = mapped_column(String(128), nullable=False, comment="节点标题")
+    planned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="计划时间")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="截止时间")
+    planned_start_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="计划区间开始")
+    planned_end_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="计划区间结束")
+    candidate_person_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="候选Person ID")
+    related_recommendation_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_recommendation.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="推荐记录ID")
+    related_meeting_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_meeting.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="相亲约见ID")
+    related_usage_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("entitlement_usage_log.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="核销记录ID")
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True, comment="备注")
+
+
+class ServiceRecommendationModel(ModelMixin, UserMixin):
+    """服务推荐记录"""
+
+    __tablename__: str = "service_recommendation"
+    __table_args__: dict[str, str] = {"comment": "VIP服务推荐记录表"}
+    __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by"]
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    service_case_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="服务工单ID")
+    plan_item_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_plan_item.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="推荐服务项ID")
+    vip_person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="VIP Person ID")
+    candidate_person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="候选Person ID")
+    recommendation_status: Mapped[str] = mapped_column(String(32), nullable=False, default="recommended", index=True, comment="推荐状态")
+    recommend_reason: Mapped[str | None] = mapped_column(Text, nullable=True, comment="推荐理由")
+    match_score: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="匹配分")
+    matched_points: Mapped[list[str] | None] = mapped_column(JSON, nullable=True, comment="匹配点")
+    unmatched_points: Mapped[list[str] | None] = mapped_column(JSON, nullable=True, comment="未匹配点")
+    risk_notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="风险提示")
+    matchmaker_remark: Mapped[str | None] = mapped_column(Text, nullable=True, comment="红娘备注")
+
+
+class ServiceMeetingModel(ModelMixin, UserMixin):
+    """服务相亲约见"""
+
+    __tablename__: str = "service_meeting"
+    __table_args__: dict[str, str] = {"comment": "VIP相亲约见记录表"}
+    __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by"]
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    recommendation_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_recommendation.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="推荐记录ID")
+    initiator_service_case_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="发起方服务工单ID")
+    initiator_plan_item_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_plan_item.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="发起方约见节点ID")
+    initiator_person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="发起方Person ID")
+    initiator_matchmaker_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="发起方红娘ID")
+    target_service_case_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="对方服务工单ID")
+    target_plan_item_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_plan_item.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="对方约见节点ID")
+    target_person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="对方Person ID")
+    target_matchmaker_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="对方红娘ID")
+    target_is_vip: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True, comment="对方是否VIP")
+    meeting_type: Mapped[str] = mapped_column(String(32), nullable=False, default="store", index=True, comment="约见类型")
+    meeting_status: Mapped[str] = mapped_column(String(32), nullable=False, default="confirmed", index=True, comment="约见状态")
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="约见时间")
+    appointment_slot: Mapped[str | None] = mapped_column(String(32), nullable=True, comment="约见时段")
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="约见地点")
+    meeting_result: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="约见结果")
+    next_action: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="下一步动作")
+    matchmaker_opinion: Mapped[str | None] = mapped_column(Text, nullable=True, comment="红娘意见")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="完成时间")
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="取消时间")
+    cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True, comment="取消/爽约原因")
+
+
+class ServiceMeetingFeedbackModel(ModelMixin, UserMixin):
+    """相亲约见反馈"""
+
+    __tablename__: str = "service_meeting_feedback"
+    __table_args__ = (
+        UniqueConstraint("meeting_id", "feedback_person_id", name="uq_service_meeting_feedback_person"),
+        {"comment": "VIP相亲约见反馈表"},
+    )
+    __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by"]
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    meeting_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_meeting.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="约见ID")
+    feedback_person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="反馈归属Person ID")
+    feedback_service_case_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="反馈归属服务工单ID")
+    feedback_matchmaker_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="填写红娘ID")
+    feedback_content: Mapped[str] = mapped_column(Text, nullable=False, comment="反馈内容")
+    interest_level: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="意向等级")
+    meeting_result: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="约见结果")
+    next_action: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="下一步动作")
+
+
+class ServiceCourseRecordModel(ModelMixin, UserMixin):
+    """课程服务记录"""
+
+    __tablename__: str = "service_course_record"
+    __table_args__: dict[str, str] = {"comment": "VIP课程服务记录表"}
+    __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by"]
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    service_case_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="服务工单ID")
+    service_plan_item_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_plan_item.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="课程计划节点ID")
+    entitlement_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_entitlement.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="课程权益ID")
+    usage_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("entitlement_usage_log.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="核销记录ID")
+    vip_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_vip_profile.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="VIP服务ID")
+    contract_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_contract.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="合同ID")
+    person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="客户Person ID")
+    matchmaker_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="服务红娘ID")
+    course_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now, index=True, comment="课程时间")
+    course_title: Mapped[str] = mapped_column(String(128), nullable=False, comment="课程主题")
+    course_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="offline", index=True, comment="课程形式")
+    content: Mapped[str | None] = mapped_column(Text, nullable=True, comment="课程内容")
+    customer_feedback: Mapped[str | None] = mapped_column(Text, nullable=True, comment="客户反馈/学习情况")
+    matchmaker_remark: Mapped[str | None] = mapped_column(Text, nullable=True, comment="红娘备注")
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="课时数")
+    customer_confirm_status: Mapped[str] = mapped_column(String(32), nullable=False, default="matchmaker_confirmed", index=True, comment="客户确认状态")
+    customer_signature_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="客户签字图片")
+    customer_signed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="客户签字时间")
+    record_status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", index=True, comment="课程记录状态")
+    revoke_reason: Mapped[str | None] = mapped_column(Text, nullable=True, comment="撤销原因")
+    revoked_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="撤销人ID")
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="撤销时间")
 
 
 class DeepInterviewModel(ModelMixin, UserMixin):

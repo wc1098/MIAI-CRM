@@ -12,6 +12,8 @@ from app.plugin.module_crm.preference.schema import PartnerPreferencePayload
 VIP_STATUSES = {"pending_assign", "serving", "paused", "closed", "expired"}
 SERVICE_CASE_STATUSES = {"pending_assign", "serving", "pending_close_review", "closed", "expired", "reopened"}
 ENTITLEMENT_TYPES = {"recommendation", "meeting", "course"}
+SERVICE_PLAN_ITEM_TYPES = {"recommendation", "meeting", "course"}
+SERVICE_PLAN_ITEM_STATUSES = {"pending", "in_progress", "recommended", "pending_meeting", "pending_feedback", "completed", "cancelled", "skipped"}
 
 
 class VipAssignSchema(BaseModel):
@@ -50,6 +52,174 @@ class UsageVoidSchema(BaseModel):
     """权益核销作废模型"""
 
     reason: str = Field(..., min_length=1, max_length=1000, description="作废/回滚原因")
+
+
+class CourseRecordCreateSchema(BaseModel):
+    """课程服务登记模型"""
+
+    course_at: datetime | None = Field(default=None, description="课程时间")
+    course_title: str = Field(..., min_length=1, max_length=128, description="课程主题")
+    course_mode: str = Field(default="offline", max_length=32, description="课程形式")
+    content: str | None = Field(default=None, max_length=5000, description="课程内容")
+    customer_feedback: str | None = Field(default=None, max_length=5000, description="客户反馈/学习情况")
+    matchmaker_remark: str | None = Field(default=None, max_length=2000, description="红娘备注")
+    customer_confirm_status: str = Field(default="matchmaker_confirmed", max_length=32, description="客户确认状态")
+    customer_signature_url: str | None = Field(default=None, max_length=1000, description="客户签字图片")
+    customer_signed_at: datetime | None = Field(default=None, description="客户签字时间")
+
+
+class CourseRecordRevokeSchema(BaseModel):
+    """课程服务撤销模型"""
+
+    reason: str = Field(..., min_length=1, max_length=1000, description="撤销原因")
+
+
+class ServicePlanUpdateSchema(BaseModel):
+    """服务计划更新模型"""
+
+    service_start_at: datetime | None = Field(default=None, description="计划开始时间")
+    service_end_at: datetime | None = Field(default=None, description="计划结束时间")
+    plan_summary: str | None = Field(default=None, max_length=5000, description="计划说明")
+    remark: str | None = Field(default=None, max_length=2000, description="备注")
+
+
+class ServicePlanItemUpdateSchema(BaseModel):
+    """服务计划节点更新模型"""
+
+    planned_at: datetime | None = Field(default=None, description="计划时间")
+    due_at: datetime | None = Field(default=None, description="截止时间")
+    planned_start_at: datetime | None = Field(default=None, description="计划区间开始")
+    planned_end_at: datetime | None = Field(default=None, description="计划区间结束")
+    title: str | None = Field(default=None, min_length=1, max_length=128, description="节点标题")
+    remark: str | None = Field(default=None, max_length=2000, description="备注")
+    sequence_no: int | None = Field(default=None, ge=1, le=9999, description="排序")
+
+
+class ServicePlanItemActionSchema(BaseModel):
+    """服务计划节点操作模型"""
+
+    reason: str | None = Field(default=None, max_length=1000, description="原因")
+
+
+class MatchCandidateSchema(BaseModel):
+    """计划节点候选匹配模型"""
+
+    search_mode: str = Field(default="score", description="搜索模式: score/filter")
+    scope: str = Field(default="backup", description="候选范围: backup/store/brand")
+    page_no: int = Field(default=1, ge=1, description="页码")
+    page_size: int = Field(default=10, ge=1, le=100, description="每页条数")
+    keyword: str | None = Field(default=None, max_length=64, description="关键词")
+    person_id: int | None = Field(default=None, description="Person ID")
+    display_no: str | None = Field(default=None, max_length=32, description="展示编号")
+    mobile: str | None = Field(default=None, max_length=20, description="手机号")
+    name: str | None = Field(default=None, max_length=64, description="姓名")
+    gender: str | None = Field(default=None, max_length=8, description="性别")
+    age_min: int | None = Field(default=None, ge=18, le=120, description="最小年龄")
+    age_max: int | None = Field(default=None, ge=18, le=120, description="最大年龄")
+    height_min: int | None = Field(default=None, ge=80, le=260, description="最小身高")
+    height_max: int | None = Field(default=None, ge=80, le=260, description="最大身高")
+    weight_min: int | None = Field(default=None, ge=20, le=300, description="最小体重")
+    weight_max: int | None = Field(default=None, ge=20, le=300, description="最大体重")
+    education: str | None = Field(default=None, max_length=32, description="学历")
+    annual_income: str | None = Field(default=None, max_length=32, description="年收入")
+    marital_status: str | None = Field(default=None, max_length=32, description="婚况")
+    ethnicity: str | None = Field(default=None, max_length=32, description="民族")
+    occupation_code: str | None = Field(default=None, max_length=32, description="职业")
+    unit_type: str | None = Field(default=None, max_length=32, description="单位类型")
+    residence: str | None = Field(default=None, max_length=128, description="常驻地")
+    hometown: str | None = Field(default=None, max_length=128, description="籍贯")
+    house_status: str | None = Field(default=None, max_length=32, description="房产")
+    car_status: str | None = Field(default=None, max_length=32, description="车辆")
+    accept_long_distance_self: bool | None = Field(default=None, description="接受异地")
+    accept_flash_marriage: bool | None = Field(default=None, description="接受闪婚")
+    willing_relocate: bool | None = Field(default=None, description="愿意搬家")
+    marriage_plan: str | None = Field(default=None, max_length=32, description="结婚计划")
+    has_photo: bool | None = Field(default=None, description="是否有照片")
+    certification_level: str | None = Field(default=None, max_length=32, description="认证等级")
+    pref_age_min: int | None = Field(default=None, ge=18, le=120)
+    pref_age_max: int | None = Field(default=None, ge=18, le=120)
+    pref_height_min: int | None = Field(default=None, ge=80, le=260)
+    pref_height_max: int | None = Field(default=None, ge=80, le=260)
+    pref_weight_min: int | None = Field(default=None, ge=20, le=300)
+    pref_weight_max: int | None = Field(default=None, ge=20, le=300)
+    preferred_residence_region_codes: list[str] = Field(default_factory=list)
+    preferred_hometown_region_codes: list[str] = Field(default_factory=list)
+    preferred_education_codes: list[str] = Field(default_factory=list)
+    preferred_marital_status_codes: list[str] = Field(default_factory=list)
+    preferred_annual_income_codes: list[str] = Field(default_factory=list)
+    preferred_house_status_codes: list[str] = Field(default_factory=list)
+    preferred_car_status_codes: list[str] = Field(default_factory=list)
+    pref_accept_long_distance: bool | None = None
+    pref_accept_divorced: bool | None = None
+    pref_accept_children: bool | None = None
+    children_requirement: str | None = None
+    preferred_occupation_text: str | None = None
+    preference_text: str | None = None
+    hard_reject_items: list[str] = Field(default_factory=list)
+    soft_preference_items: list[str] = Field(default_factory=list)
+    preferred_personality_tags: list[str] = Field(default_factory=list)
+    preferred_lifestyle_tags: list[str] = Field(default_factory=list)
+    preferred_relationship_tags: list[str] = Field(default_factory=list)
+    strictness_level: str | None = None
+    must_match_fields: list[str] = Field(default_factory=list)
+    preferred_match_fields: list[str] = Field(default_factory=list)
+    only_backup_unmasked: bool = Field(default=False, description="仅显示已授权备选库联系人")
+
+
+class RecommendationCreateSchema(BaseModel):
+    """服务推荐创建模型"""
+
+    plan_item_id: int = Field(..., description="推荐服务项ID")
+    candidate_person_id: int = Field(..., description="候选Person ID")
+    recommend_reason: str | None = Field(default=None, max_length=5000, description="推荐理由")
+    match_score: int | None = Field(default=None, ge=0, le=100, description="匹配分")
+    matched_points: list[str] = Field(default_factory=list, description="匹配点")
+    unmatched_points: list[str] = Field(default_factory=list, description="不匹配点")
+    risk_notes: str | None = Field(default=None, max_length=2000, description="风险提示")
+    matchmaker_remark: str | None = Field(default=None, max_length=2000, description="红娘备注")
+
+
+class RecommendationUpdateSchema(BaseModel):
+    """服务推荐更新模型"""
+
+    recommendation_status: str | None = Field(default=None, max_length=32, description="推荐状态")
+    recommend_reason: str | None = Field(default=None, max_length=5000, description="推荐理由")
+    match_score: int | None = Field(default=None, ge=0, le=100, description="匹配分")
+    matched_points: list[str] | None = Field(default=None, description="匹配点")
+    unmatched_points: list[str] | None = Field(default=None, description="不匹配点")
+    risk_notes: str | None = Field(default=None, max_length=2000, description="风险提示")
+    matchmaker_remark: str | None = Field(default=None, max_length=2000, description="红娘备注")
+
+
+class MeetingCreateSchema(BaseModel):
+    """相亲约见创建模型"""
+
+    recommendation_id: int = Field(..., description="推荐记录ID")
+    plan_item_id: int | None = Field(default=None, description="发起方约见计划节点ID")
+    meeting_type: str = Field(default="store", max_length=32, description="约见类型")
+    scheduled_at: datetime | None = Field(default=None, description="约见日期")
+    appointment_slot: str | None = Field(default=None, max_length=32, description="约见时段")
+    location: str | None = Field(default=None, max_length=255, description="约见地点")
+
+
+class MeetingActionSchema(BaseModel):
+    """相亲约见操作模型"""
+
+    reason: str | None = Field(default=None, max_length=1000, description="原因")
+    meeting_result: str | None = Field(default=None, max_length=32, description="约见结果")
+    next_action: str | None = Field(default=None, max_length=255, description="下一步动作")
+
+
+class MeetingFeedbackSaveSchema(BaseModel):
+    """相亲约见反馈保存模型"""
+
+    feedback_person_id: int = Field(..., description="反馈归属Person ID")
+    feedback_service_case_id: int | None = Field(default=None, description="反馈归属服务工单ID")
+    feedback_content: str = Field(..., min_length=1, max_length=10000, description="反馈内容")
+    interest_level: str | None = Field(default=None, max_length=32, description="意向等级")
+    meeting_result: str | None = Field(default=None, max_length=32, description="约见结果")
+    next_action: str | None = Field(default=None, max_length=255, description="下一步动作")
+    matchmaker_opinion: str | None = Field(default=None, max_length=10000, description="红娘意见")
 
 
 class CloseApplySchema(BaseModel):
@@ -191,6 +361,183 @@ class UsageOutSchema(BaseModel):
     customer_signature_url: str | None = None
     customer_signed_at: DateTimeStr | None = None
     created_by_name: str | None = None
+    service_plan_item_id: int | None = None
+    source_type: str | None = None
+    source_id: int | None = None
+    recommendation_id: int | None = None
+    meeting_id: int | None = None
+
+
+class ServicePlanItemOutSchema(BaseModel):
+    """服务计划节点响应"""
+
+    id: int
+    plan_id: int
+    service_case_id: int
+    entitlement_id: int | None = None
+    entitlement_type: str | None = None
+    item_type: str
+    item_status: str
+    sequence_no: int
+    title: str
+    planned_at: DateTimeStr | None = None
+    due_at: DateTimeStr | None = None
+    planned_start_at: DateTimeStr | None = None
+    planned_end_at: DateTimeStr | None = None
+    source_contract_id: int | None = None
+    source_contract_no: str | None = None
+    source_contract_item_id: int | None = None
+    candidate_person_id: int | None = None
+    candidate_name: str | None = None
+    recommendation_count: int = 0
+    related_recommendation_id: int | None = None
+    related_meeting_id: int | None = None
+    related_usage_id: int | None = None
+    remark: str | None = None
+
+
+class ServicePlanOutSchema(BaseModel):
+    """服务计划响应"""
+
+    id: int
+    brand_id: int
+    service_case_id: int
+    vip_id: int
+    contract_id: int
+    person_id: int
+    matchmaker_id: int | None = None
+    matchmaker_name: str | None = None
+    plan_status: str
+    service_start_at: DateTimeStr | None = None
+    service_end_at: DateTimeStr | None = None
+    plan_summary: str | None = None
+    remark: str | None = None
+    items: list[ServicePlanItemOutSchema] = Field(default_factory=list)
+
+
+class MatchCandidateOutSchema(BaseModel):
+    """匹配候选响应"""
+
+    id: int
+    display_no: str | None = None
+    name: str
+    gender: str
+    mobile: str | None = None
+    wechat: str | None = None
+    age: int | None = None
+    height_cm: int | None = None
+    weight_kg: int | None = None
+    residence: str | None = None
+    hometown: str | None = None
+    education: str | None = None
+    annual_income: str | None = None
+    marital_status: str | None = None
+    store_id: int | None = None
+    store_name: str | None = None
+    in_backup: bool = False
+    contact_unmasked: bool = False
+    is_vip: bool = False
+    match_score: int | None = None
+    matched_points: list[str] = Field(default_factory=list)
+    unmatched_points: list[str] = Field(default_factory=list)
+
+
+class RecommendationOutSchema(BaseModel):
+    """服务推荐响应"""
+
+    id: int
+    service_case_id: int
+    plan_item_id: int
+    vip_person_id: int
+    vip_name: str | None = None
+    candidate_person_id: int
+    candidate_name: str | None = None
+    candidate_mobile: str | None = None
+    recommendation_status: str
+    recommend_reason: str | None = None
+    match_score: int | None = None
+    matched_points: list[str] = Field(default_factory=list)
+    unmatched_points: list[str] = Field(default_factory=list)
+    risk_notes: str | None = None
+    matchmaker_remark: str | None = None
+    related_usage_id: int | None = None
+    created_time: DateTimeStr | None = None
+
+
+class MeetingOutSchema(BaseModel):
+    """相亲约见响应"""
+
+    id: int
+    recommendation_id: int
+    initiator_service_case_id: int
+    initiator_plan_item_id: int | None = None
+    initiator_person_id: int
+    initiator_name: str | None = None
+    initiator_gender: str | None = None
+    initiator_matchmaker_id: int | None = None
+    initiator_matchmaker_name: str | None = None
+    target_service_case_id: int | None = None
+    target_plan_item_id: int | None = None
+    target_person_id: int
+    target_name: str | None = None
+    target_gender: str | None = None
+    target_matchmaker_id: int | None = None
+    target_matchmaker_name: str | None = None
+    target_is_vip: bool = False
+    meeting_type: str
+    meeting_status: str
+    scheduled_at: DateTimeStr | None = None
+    appointment_slot: str | None = None
+    location: str | None = None
+    meeting_result: str | None = None
+    next_action: str | None = None
+    completed_at: DateTimeStr | None = None
+    cancelled_at: DateTimeStr | None = None
+    cancel_reason: str | None = None
+    matchmaker_opinion: str | None = None
+
+
+class MeetingFeedbackOutSchema(BaseModel):
+    """相亲约见反馈响应"""
+
+    id: int
+    meeting_id: int
+    feedback_person_id: int
+    feedback_person_name: str | None = None
+    feedback_service_case_id: int | None = None
+    feedback_matchmaker_id: int | None = None
+    feedback_matchmaker_name: str | None = None
+    feedback_content: str
+    interest_level: str | None = None
+    meeting_result: str | None = None
+    next_action: str | None = None
+    created_time: DateTimeStr | None = None
+
+
+class CourseRecordOutSchema(BaseModel):
+    """课程服务记录响应"""
+
+    id: int
+    service_case_id: int
+    service_plan_item_id: int
+    entitlement_id: int
+    usage_id: int | None = None
+    course_at: DateTimeStr
+    course_title: str
+    course_mode: str
+    content: str | None = None
+    customer_feedback: str | None = None
+    matchmaker_remark: str | None = None
+    quantity: int = 1
+    customer_confirm_status: str
+    customer_signature_url: str | None = None
+    customer_signed_at: DateTimeStr | None = None
+    record_status: str
+    revoke_reason: str | None = None
+    revoked_at: DateTimeStr | None = None
+    matchmaker_id: int | None = None
+    matchmaker_name: str | None = None
+    created_time: DateTimeStr | None = None
 
 
 class DeepInterviewOutSchema(BaseModel):

@@ -626,8 +626,11 @@ class ContractService:
             raise CustomException(msg="合同影像不存在")
         attachment, contract = row
         await cls._ensure_contract_access(auth, contract)
-        if contract.contract_status != "draft":
-            raise CustomException(msg="只有草稿合同可以删除影像")
+        can_delete_submitted = cls._is_brand_admin(auth) or (cls._is_store_mgr(auth) and auth.user and auth.user.dept_id == contract.store_id)
+        if contract.contract_status in {"effective", "voided"}:
+            raise CustomException(msg="已生效或已作废合同不能删除影像")
+        if contract.contract_status != "draft" and not can_delete_submitted:
+            raise CustomException(msg="合同提交后只有店长可以删除影像")
         attachment.is_deleted = True
         attachment.deleted_time = datetime.now()
         attachment.attachment_status = "deleted"
@@ -738,6 +741,11 @@ class ContractService:
         contract = await cls._get_contract(auth, id)
         if contract.contract_status not in {"draft", "signed"}:
             raise CustomException(msg="只有草稿或已签合同可以作废")
+        if contract.contract_status == "draft":
+            if not auth.user or (contract.created_id != auth.user.id and contract.owner_user_id != auth.user.id and not cls._is_brand_admin(auth) and not (cls._is_store_mgr(auth) and auth.user.dept_id == contract.store_id)):
+                raise CustomException(msg="只有合同创建人可以作废草稿合同")
+        elif not (cls._is_brand_admin(auth) or cls._can_review_contract(auth)):
+            raise CustomException(msg="只有店长或审核人员可以作废已签合同")
         contract.contract_status = "voided"
         contract.voided_at = datetime.now()
         contract.void_reason = data.reason

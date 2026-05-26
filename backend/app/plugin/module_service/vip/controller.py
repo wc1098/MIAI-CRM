@@ -29,17 +29,34 @@ from .schema import (
     CandidateRuleUpdateSchema,
     CloseApplySchema,
     CloseReviewSchema,
+    CourseRecordCreateSchema,
+    CourseRecordOutSchema,
+    CourseRecordRevokeSchema,
     DeepInterviewCreateSchema,
     DeepInterviewOutSchema,
     EntitlementOutSchema,
+    MatchCandidateSchema,
     MatchmakerOptionSchema,
+    MeetingActionSchema,
+    MeetingCreateSchema,
+    MeetingFeedbackOutSchema,
+    MeetingFeedbackSaveSchema,
+    MeetingOutSchema,
     PersonSearchOutSchema,
+    RecommendationCreateSchema,
+    RecommendationOutSchema,
+    RecommendationUpdateSchema,
     ReopenSchema,
     ServiceCertificationOutSchema,
     ServiceContractOutSchema,
     ServiceCustomerProcessCreateSchema,
     ServiceCustomerProfileOutSchema,
     ServiceLifecycleOutSchema,
+    ServicePlanItemActionSchema,
+    ServicePlanItemOutSchema,
+    ServicePlanItemUpdateSchema,
+    ServicePlanOutSchema,
+    ServicePlanUpdateSchema,
     ServiceTimelineOutSchema,
     ServiceWorkSummaryOutSchema,
     UsageCreateSchema,
@@ -370,6 +387,392 @@ async def get_service_work_summary_controller(
 ) -> JSONResponse:
     result_dict = await VipService.work_summary_service(auth=auth, case_id=id)
     return SuccessResponse(data=result_dict, msg="查询服务工作小计成功")
+
+
+@VipRouter.get(
+    "/{id}/plan",
+    summary="查询服务计划",
+    response_model=ResponseSchema[ServicePlanOutSchema],
+)
+async def get_service_plan_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:view"]))],
+) -> JSONResponse:
+    result_dict = await VipService.plan_service(auth=auth, case_id=id)
+    return SuccessResponse(data=result_dict, msg="查询服务计划成功")
+
+
+@VipRouter.put(
+    "/{id}/plan",
+    summary="更新服务计划",
+    response_model=ResponseSchema[ServicePlanOutSchema],
+)
+async def update_service_plan_controller(
+    data: ServicePlanUpdateSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.update_plan_service(auth=auth, case_id=id, data=data)
+    return SuccessResponse(data=result_dict, msg="更新服务计划成功")
+
+
+@VipRouter.post(
+    "/{id}/plan/publish",
+    summary="发布服务计划",
+    response_model=ResponseSchema[ServicePlanOutSchema],
+)
+async def publish_service_plan_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:publish"]))],
+) -> JSONResponse:
+    result_dict = await VipService.publish_plan_service(auth=auth, case_id=id)
+    return SuccessResponse(data=result_dict, msg="发布服务计划成功")
+
+
+@VipRouter.post(
+    "/{id}/plan/rebuild-from-entitlements",
+    summary="按权益重建服务计划",
+    response_model=ResponseSchema[ServicePlanOutSchema],
+)
+async def rebuild_service_plan_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.rebuild_plan_service(auth=auth, case_id=id)
+    return SuccessResponse(data=result_dict, msg="服务计划已重建")
+
+
+@VipRouter.post(
+    "/{id}/plan/auto-schedule",
+    summary="自动排期未排节点",
+    response_model=ResponseSchema[ServicePlanOutSchema],
+)
+async def auto_schedule_service_plan_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.auto_schedule_plan_items_service(auth=auth, case_id=id)
+    return SuccessResponse(data=result_dict, msg="服务计划已自动排期")
+
+
+@VipRouter.get(
+    "/{id}/plan/items",
+    summary="查询服务计划节点",
+    response_model=ResponseSchema[list[ServicePlanItemOutSchema]],
+)
+async def get_service_plan_items_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:view"]))],
+) -> JSONResponse:
+    result_dict = await VipService.plan_items_service(auth=auth, case_id=id)
+    return SuccessResponse(data=result_dict, msg="查询服务计划节点成功")
+
+
+@VipRouter.put(
+    "/{id}/plan/items/{item_id}",
+    summary="更新服务计划节点",
+    response_model=ResponseSchema[ServicePlanItemOutSchema],
+)
+async def update_service_plan_item_controller(
+    data: ServicePlanItemUpdateSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    item_id: Annotated[int, Path(description="计划节点ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:item:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.update_plan_item_service(auth=auth, case_id=id, item_id=item_id, data=data)
+    return SuccessResponse(data=result_dict, msg="更新服务计划节点成功")
+
+
+@VipRouter.post(
+    "/{id}/plan/items/{item_id}/cancel",
+    summary="取消服务计划节点",
+    response_model=ResponseSchema[ServicePlanItemOutSchema],
+)
+async def cancel_service_plan_item_controller(
+    data: ServicePlanItemActionSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    item_id: Annotated[int, Path(description="计划节点ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:item:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.cancel_plan_item_service(auth=auth, case_id=id, item_id=item_id, data=data)
+    return SuccessResponse(data=result_dict, msg="服务计划节点已取消")
+
+
+@VipRouter.post(
+    "/{id}/plan/items/{item_id}/skip",
+    summary="跳过服务计划节点",
+    response_model=ResponseSchema[ServicePlanItemOutSchema],
+)
+async def skip_service_plan_item_controller(
+    data: ServicePlanItemActionSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    item_id: Annotated[int, Path(description="计划节点ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:item:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.skip_plan_item_service(auth=auth, case_id=id, item_id=item_id, data=data)
+    return SuccessResponse(data=result_dict, msg="服务计划节点已跳过")
+
+
+@VipRouter.post(
+    "/{id}/plan/items/{item_id}/restore",
+    summary="撤销服务计划节点放弃",
+    response_model=ResponseSchema[ServicePlanItemOutSchema],
+)
+async def restore_service_plan_item_controller(
+    data: ServicePlanItemActionSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    item_id: Annotated[int, Path(description="计划节点ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:item:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.restore_plan_item_service(auth=auth, case_id=id, item_id=item_id, data=data)
+    return SuccessResponse(data=result_dict, msg="服务计划节点已恢复")
+
+
+@VipRouter.post(
+    "/{id}/plan/items/{item_id}/match-candidates",
+    summary="匹配候选人",
+    response_model=ResponseSchema[dict],
+)
+async def match_candidates_controller(
+    data: MatchCandidateSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    item_id: Annotated[int, Path(description="计划节点ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:match:candidate"]))],
+) -> JSONResponse:
+    result_dict = await VipService.match_candidates_service(auth=auth, case_id=id, item_id=item_id, data=data)
+    return SuccessResponse(data=result_dict, msg="匹配候选人成功")
+
+
+@VipRouter.get(
+    "/{id}/candidates/{person_id}",
+    summary="查询服务计划候选详情",
+    response_model=ResponseSchema[dict],
+)
+async def get_service_candidate_detail_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    person_id: Annotated[int, Path(description="候选Person ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:match:candidate"]))],
+) -> JSONResponse:
+    result_dict = await VipService.service_candidate_detail_service(auth=auth, case_id=id, person_id=person_id)
+    return SuccessResponse(data=result_dict, msg="查询候选详情成功")
+
+
+@VipRouter.post(
+    "/{id}/recommendations",
+    summary="创建服务推荐记录",
+    response_model=ResponseSchema[RecommendationOutSchema],
+)
+async def create_recommendation_controller(
+    data: RecommendationCreateSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:recommendation:create"]))],
+) -> JSONResponse:
+    result_dict = await VipService.create_recommendation_service(auth=auth, case_id=id, data=data)
+    return SuccessResponse(data=result_dict, msg="创建服务推荐记录成功")
+
+
+@VipRouter.get(
+    "/{id}/recommendations",
+    summary="查询服务推荐记录",
+    response_model=ResponseSchema[list[RecommendationOutSchema]],
+)
+async def get_recommendations_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:view"]))],
+) -> JSONResponse:
+    result_dict = await VipService.recommendations_service(auth=auth, case_id=id)
+    return SuccessResponse(data=result_dict, msg="查询服务推荐记录成功")
+
+
+@VipRouter.put(
+    "/{id}/recommendations/{recommendation_id}",
+    summary="更新服务推荐记录",
+    response_model=ResponseSchema[RecommendationOutSchema],
+)
+async def update_recommendation_controller(
+    data: RecommendationUpdateSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    recommendation_id: Annotated[int, Path(description="推荐记录ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:recommendation:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.update_recommendation_service(auth=auth, case_id=id, recommendation_id=recommendation_id, data=data)
+    return SuccessResponse(data=result_dict, msg="更新服务推荐记录成功")
+
+
+@VipRouter.post(
+    "/{id}/recommendations/{recommendation_id}/revoke",
+    summary="撤销服务推荐记录",
+    response_model=ResponseSchema[RecommendationOutSchema],
+)
+async def revoke_recommendation_controller(
+    data: ServicePlanItemActionSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    recommendation_id: Annotated[int, Path(description="推荐记录ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:recommendation:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.revoke_recommendation_service(auth=auth, case_id=id, recommendation_id=recommendation_id, data=data)
+    return SuccessResponse(data=result_dict, msg="推荐记录已撤销")
+
+
+@VipRouter.post(
+    "/{id}/recommendations/{recommendation_id}/consume",
+    summary="核销服务推荐权益",
+    response_model=ResponseSchema[RecommendationOutSchema],
+)
+async def consume_recommendation_controller(
+    data: ServicePlanItemActionSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    recommendation_id: Annotated[int, Path(description="推荐记录ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:recommendation:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.consume_recommendation_service(auth=auth, case_id=id, recommendation_id=recommendation_id, data=data)
+    return SuccessResponse(data=result_dict, msg="推荐权益已核销")
+
+
+@VipRouter.post(
+    "/{id}/meetings",
+    summary="创建相亲约见",
+    response_model=ResponseSchema[MeetingOutSchema],
+)
+async def create_meeting_controller(
+    data: MeetingCreateSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:meeting:create"]))],
+) -> JSONResponse:
+    result_dict = await VipService.create_meeting_service(auth=auth, case_id=id, data=data)
+    return SuccessResponse(data=result_dict, msg="创建相亲约见成功")
+
+
+@VipRouter.get(
+    "/{id}/meetings",
+    summary="查询相亲约见",
+    response_model=ResponseSchema[list[MeetingOutSchema]],
+)
+async def get_meetings_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:view"]))],
+) -> JSONResponse:
+    result_dict = await VipService.meetings_service(auth=auth, case_id=id)
+    return SuccessResponse(data=result_dict, msg="查询相亲约见成功")
+
+
+@VipRouter.post("/{id}/meetings/{meeting_id}/confirm", summary="确认相亲约见", response_model=ResponseSchema[MeetingOutSchema])
+async def confirm_meeting_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    meeting_id: Annotated[int, Path(description="约见ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:meeting:confirm"]))],
+) -> JSONResponse:
+    result_dict = await VipService.confirm_meeting_service(auth=auth, case_id=id, meeting_id=meeting_id)
+    return SuccessResponse(data=result_dict, msg="相亲约见已确认")
+
+
+@VipRouter.post("/{id}/meetings/{meeting_id}/complete", summary="登记相亲约见完成", response_model=ResponseSchema[MeetingOutSchema])
+async def complete_meeting_controller(
+    data: MeetingActionSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    meeting_id: Annotated[int, Path(description="约见ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:meeting:complete"]))],
+) -> JSONResponse:
+    result_dict = await VipService.complete_meeting_service(auth=auth, case_id=id, meeting_id=meeting_id, data=data)
+    return SuccessResponse(data=result_dict, msg="相亲约见已登记")
+
+
+@VipRouter.post("/{id}/meetings/{meeting_id}/cancel", summary="取消相亲约见", response_model=ResponseSchema[MeetingOutSchema])
+async def cancel_meeting_controller(
+    data: MeetingActionSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    meeting_id: Annotated[int, Path(description="约见ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:meeting:cancel"]))],
+) -> JSONResponse:
+    result_dict = await VipService.cancel_meeting_service(auth=auth, case_id=id, meeting_id=meeting_id, data=data)
+    return SuccessResponse(data=result_dict, msg="相亲约见已取消")
+
+
+@VipRouter.post("/{id}/meetings/{meeting_id}/no-show", summary="标记相亲约见爽约", response_model=ResponseSchema[MeetingOutSchema])
+async def no_show_meeting_controller(
+    data: MeetingActionSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    meeting_id: Annotated[int, Path(description="约见ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:meeting:no_show"]))],
+) -> JSONResponse:
+    result_dict = await VipService.no_show_meeting_service(auth=auth, case_id=id, meeting_id=meeting_id, data=data)
+    return SuccessResponse(data=result_dict, msg="相亲约见已标记爽约")
+
+
+@VipRouter.get("/{id}/meetings/{meeting_id}/feedback", summary="查询相亲约见反馈", response_model=ResponseSchema[list[MeetingFeedbackOutSchema]])
+async def get_meeting_feedback_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    meeting_id: Annotated[int, Path(description="约见ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:view"]))],
+) -> JSONResponse:
+    result_dict = await VipService.feedback_list_service(auth=auth, case_id=id, meeting_id=meeting_id)
+    return SuccessResponse(data=result_dict, msg="查询相亲约见反馈成功")
+
+
+@VipRouter.post("/{id}/meetings/{meeting_id}/feedback", summary="新增相亲约见反馈", response_model=ResponseSchema[MeetingFeedbackOutSchema])
+async def create_meeting_feedback_controller(
+    data: MeetingFeedbackSaveSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    meeting_id: Annotated[int, Path(description="约见ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:meeting:feedback"]))],
+) -> JSONResponse:
+    result_dict = await VipService.save_feedback_service(auth=auth, case_id=id, meeting_id=meeting_id, data=data)
+    return SuccessResponse(data=result_dict, msg="相亲约见反馈已保存")
+
+
+@VipRouter.put("/{id}/meetings/{meeting_id}/feedback/{feedback_id}", summary="更新相亲约见反馈", response_model=ResponseSchema[MeetingFeedbackOutSchema])
+async def update_meeting_feedback_controller(
+    data: MeetingFeedbackSaveSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    meeting_id: Annotated[int, Path(description="约见ID")],
+    feedback_id: Annotated[int, Path(description="反馈ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:meeting:feedback"]))],
+) -> JSONResponse:
+    result_dict = await VipService.save_feedback_service(auth=auth, case_id=id, meeting_id=meeting_id, data=data, feedback_id=feedback_id)
+    return SuccessResponse(data=result_dict, msg="相亲约见反馈已更新")
+
+
+@VipRouter.post(
+    "/{id}/plan/items/{item_id}/course-record",
+    summary="登记课程服务并核销",
+    response_model=ResponseSchema[CourseRecordOutSchema],
+)
+async def create_course_record_controller(
+    data: CourseRecordCreateSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    item_id: Annotated[int, Path(description="课程计划节点ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:item:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.create_course_record_service(auth=auth, case_id=id, item_id=item_id, data=data)
+    return SuccessResponse(data=result_dict, msg="课程服务已登记并核销")
+
+
+@VipRouter.get(
+    "/{id}/course-records",
+    summary="查询课程服务记录",
+    response_model=ResponseSchema[list[CourseRecordOutSchema]],
+)
+async def get_course_records_controller(
+    id: Annotated[int, Path(description="服务工单ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:view"]))],
+) -> JSONResponse:
+    result_dict = await VipService.course_records_service(auth=auth, case_id=id)
+    return SuccessResponse(data=result_dict, msg="查询课程服务记录成功")
+
+
+@VipRouter.post(
+    "/{id}/course-records/{record_id}/revoke",
+    summary="撤销课程服务记录",
+    response_model=ResponseSchema[CourseRecordOutSchema],
+)
+async def revoke_course_record_controller(
+    data: CourseRecordRevokeSchema,
+    id: Annotated[int, Path(description="服务工单ID")],
+    record_id: Annotated[int, Path(description="课程记录ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:plan:item:update"]))],
+) -> JSONResponse:
+    result_dict = await VipService.revoke_course_record_service(auth=auth, case_id=id, record_id=record_id, data=data)
+    return SuccessResponse(data=result_dict, msg="课程服务记录已撤销")
 
 
 @VipRouter.get(
