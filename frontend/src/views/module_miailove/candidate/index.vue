@@ -45,6 +45,11 @@
               <template #default="{ row }"><el-tag v-for="tag in row.private_tags || []" :key="tag" size="small" class="tag">{{ dictText(tagOptions, tag) }}</el-tag></template>
             </el-table-column>
             <el-table-column prop="private_remark" label="私有备注" min-width="180" show-overflow-tooltip />
+            <el-table-column label="操作" fixed="right" width="90">
+              <template #default="{ row }">
+                <el-button v-hasPerm="['service:candidate:detail']" link type="primary" @click="openCandidateDetail(row)">详情</el-button>
+              </template>
+            </el-table-column>
           </el-table>
           <div class="pager"><el-pagination v-model:current-page="query.page_no" v-model:page-size="query.page_size" :total="total" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" @size-change="loadMine" @current-change="loadMine" /></div>
         </el-tab-pane>
@@ -216,6 +221,93 @@
       </el-form>
       <template #footer><el-button @click="manualVisible = false">取消</el-button><el-button type="primary" :loading="submitLoading" @click="submitManualCreate">保存</el-button></template>
     </el-dialog>
+    <el-drawer v-model="detailVisible" size="82%" destroy-on-close>
+      <template #header>
+        <div class="drawer-head">
+          <div class="toolbar-title">{{ candidateDetail?.person.name || "备选人详情" }}</div>
+          <div class="toolbar-note">
+            编号：{{ candidateDetail?.person.display_no || "-" }} ·
+            {{ genderText(candidateDetail?.person.gender) }} ·
+            {{ candidateDetail?.person.age ?? "-" }}岁 ·
+            {{ candidateDetail?.person.store_name || "未归属门店" }}
+          </div>
+        </div>
+      </template>
+      <el-skeleton v-if="detailLoading" :rows="8" animated />
+      <el-tabs v-else-if="candidateDetail" v-model="detailActiveTab">
+        <el-tab-pane label="基础资料" name="profile">
+          <div class="photo-list">
+            <el-image v-for="url in candidateDetail.person.photo_urls || []" :key="url" class="photo-item" :src="ossImage(url, { w: 160, h: 160 })" :preview-src-list="ossImageList(candidateDetail.person.photo_urls || [], { w: 1600 })" fit="cover" preview-teleported />
+            <el-empty v-if="!candidateDetail.person.photo_urls?.length" description="暂无照片" :image-size="64" />
+          </div>
+          <el-descriptions :column="3" border>
+            <el-descriptions-item label="编号">{{ candidateDetail.person.display_no || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="姓名">{{ candidateDetail.person.name || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="性别">{{ genderText(candidateDetail.person.gender) }}</el-descriptions-item>
+            <el-descriptions-item label="手机号">{{ candidateDetail.person.mobile || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="微信">{{ candidateDetail.person.wechat || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="门店">{{ candidateDetail.person.store_name || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="年龄">{{ candidateDetail.person.age ?? "-" }}</el-descriptions-item>
+            <el-descriptions-item label="出生日期">{{ candidateDetail.person.birth_date || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="身高">{{ candidateDetail.person.height_cm ? `${candidateDetail.person.height_cm}cm` : "-" }}</el-descriptions-item>
+            <el-descriptions-item label="体重">{{ candidateDetail.person.weight_kg ? `${candidateDetail.person.weight_kg}kg` : "-" }}</el-descriptions-item>
+            <el-descriptions-item label="民族">{{ dictText(ethnicityOptions, candidateDetail.person.ethnicity) }}</el-descriptions-item>
+            <el-descriptions-item label="学历">{{ dictText(educationOptions, candidateDetail.person.education) }}</el-descriptions-item>
+            <el-descriptions-item label="年收入">{{ dictText(incomeOptions, candidateDetail.person.annual_income) }}</el-descriptions-item>
+            <el-descriptions-item label="婚况">{{ dictText(maritalOptions, candidateDetail.person.marital_status) }}</el-descriptions-item>
+            <el-descriptions-item label="职业">{{ dictText(occupationOptions, candidateDetail.person.occupation_code) || candidateDetail.person.occupation || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="单位类型">{{ dictText(unitTypeOptions, candidateDetail.person.unit_type) }}</el-descriptions-item>
+            <el-descriptions-item label="工作单位">{{ candidateDetail.person.work_company || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="常驻地">{{ candidateDetail.person.residence || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="籍贯">{{ candidateDetail.person.hometown || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="房产">{{ dictText(houseOptions, candidateDetail.person.house_status) }}</el-descriptions-item>
+            <el-descriptions-item label="车辆">{{ dictText(carOptions, candidateDetail.person.car_status) }}</el-descriptions-item>
+            <el-descriptions-item label="接受异地">{{ boolText(candidateDetail.person.accept_long_distance_self) }}</el-descriptions-item>
+            <el-descriptions-item label="接受闪婚">{{ boolText(candidateDetail.person.accept_flash_marriage) }}</el-descriptions-item>
+            <el-descriptions-item label="愿意搬家">{{ boolText(candidateDetail.person.willing_relocate) }}</el-descriptions-item>
+            <el-descriptions-item label="结婚计划">{{ dictText(marriagePlanOptions, candidateDetail.person.marriage_plan) }}</el-descriptions-item>
+            <el-descriptions-item label="个人介绍" :span="3">{{ candidateDetail.person.profile_intro || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="备注" :span="3">{{ candidateDetail.person.profile_remark || "-" }}</el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
+        <el-tab-pane label="择偶要求" name="preference">
+          <partner-preference-form :model-value="candidateDetail.partner_preference || undefined" :dict-options="manualPreferenceDictOptions" :region-options="[]" read-only :show-actions="false" />
+        </el-tab-pane>
+        <el-tab-pane label="认证资料" name="certification">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="认证等级">{{ candidateDetail.person.certification_level || "none" }}</el-descriptions-item>
+            <el-descriptions-item label="资料质量">{{ candidateDetail.person_center?.quality?.quality_level || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="缺失项" :span="2">{{ missingQualityText }}</el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
+        <el-tab-pane label="过程记录" name="timeline">
+          <el-timeline>
+            <el-timeline-item v-for="item in candidateDetail.timeline || []" :key="item.id" :timestamp="item.occurred_at">
+              <div class="timeline-title">{{ timelineSourceText(item.source_type) }} · {{ item.title || "-" }}</div>
+              <div class="timeline-content">{{ item.content || "-" }}</div>
+              <div class="toolbar-note">操作人：{{ item.operator_user_name || item.operator_user_id || "-" }}</div>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-if="!candidateDetail.timeline?.length" description="暂无过程记录" :image-size="64" />
+        </el-tab-pane>
+        <el-tab-pane label="备选信息" name="backup">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="服务红娘">{{ candidateDetail.candidate?.matchmaker_name || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="来源">{{ dictText(sourceOptions, candidateDetail.candidate?.source_type) }}</el-descriptions-item>
+            <el-descriptions-item label="私有标签" :span="2">
+              <el-tag v-for="tag in candidateDetail.candidate?.private_tags || []" :key="tag" size="small" class="tag">{{ dictText(tagOptions, tag) }}</el-tag>
+              <span v-if="!candidateDetail.candidate?.private_tags?.length">-</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="私有备注" :span="2">{{ candidateDetail.candidate?.private_remark || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="审批时间">{{ candidateDetail.candidate?.approved_at || "-" }}</el-descriptions-item>
+            <el-descriptions-item label="联系方式状态">{{ candidateDetail.backup.contact_unmasked ? "已授权" : "未授权" }}</el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </template>
+    </el-drawer>
     <el-image-viewer v-if="manualPhotoPreviewVisible" :url-list="manualPhotoPreviewUrls" :initial-index="manualPhotoPreviewIndex" :z-index="4000" @close="manualPhotoPreviewVisible = false" />
   </div>
 </template>
@@ -225,7 +317,7 @@ import { computed, defineComponent, h, onMounted, reactive, ref } from "vue";
 import { Plus } from "@element-plus/icons-vue";
 import { ElButton, ElImageViewer, ElMessage, ElMessageBox, ElOption, ElSelect, ElTable, ElTableColumn, ElTag, type FormInstance, type FormRules, type UploadFile, type UploadRequestOptions, type UploadUserFile } from "element-plus";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
-import CandidateAPI, { type CandidateCreateForm, type CandidateDiscoverQuery, type CandidateDiscoverRecord, type CandidateJoinRequestForm, type CandidateJoinRequestRecord, type CandidateRecord } from "@/api/module_service/candidate";
+import CandidateAPI, { type CandidateCreateForm, type CandidateDetail, type CandidateDiscoverQuery, type CandidateDiscoverRecord, type CandidateJoinRequestForm, type CandidateJoinRequestRecord, type CandidateRecord } from "@/api/module_service/candidate";
 import type { CustomerCertificationArchiveItem, CustomerCertificationMaterialForm } from "@/api/module_crm/customer";
 import VipServiceAPI, { type MatchmakerOption } from "@/api/module_service/vip";
 import { ROLE_ROOT } from "@/constants";
@@ -297,10 +389,12 @@ const discoverLoading = ref(false);
 const requestLoading = ref(false);
 const reviewLoading = ref(false);
 const submitLoading = ref(false);
+const detailLoading = ref(false);
 const rows = ref<CandidateRecord[]>([]);
 const discoverRows = ref<CandidateDiscoverRecord[]>([]);
 const requestRows = ref<CandidateJoinRequestRecord[]>([]);
 const reviewRows = ref<CandidateJoinRequestRecord[]>([]);
+const candidateDetail = ref<CandidateDetail>();
 const total = ref(0);
 const discoverTotal = ref(0);
 const requestTotal = ref(0);
@@ -322,6 +416,8 @@ const matchmakerOptions = ref<MatchmakerOption[]>([]);
 const joinVisible = ref(false);
 const manualVisible = ref(false);
 const ruleVisible = ref(false);
+const detailVisible = ref(false);
+const detailActiveTab = ref("profile");
 const joinTarget = ref<CandidateDiscoverRecord>();
 const joinFormRef = ref<FormInstance>();
 const manualFormRef = ref<FormInstance>();
@@ -371,6 +467,12 @@ const manualPreferenceDictOptions = computed(() => ({
   carStatus: toPreferenceOptions(carOptions.value),
   occupation: toPreferenceOptions(occupationOptions.value),
 }));
+const missingQualityText = computed(() => {
+  const quality = candidateDetail.value?.person_center?.quality;
+  if (!quality) return "-";
+  const missing = [...(quality.missing_basic || []), ...(quality.missing_display || []), ...(quality.missing_service || [])];
+  return missing.length ? missing.join("、") : "-";
+});
 
 const joinRules = reactive<FormRules<CandidateJoinRequestForm>>({ request_reason: [{ required: true, message: "请填写申请理由", trigger: "blur" }] });
 const manualRules = reactive<FormRules<CandidateCreateForm>>({ name: [{ required: true, message: "请填写姓名", trigger: "blur" }], primary_mobile: [{ required: true, message: "请填写手机号", trigger: "blur" }], gender: [{ required: true, message: "请选择性别", trigger: "change" }] });
@@ -484,6 +586,24 @@ function genderText(value?: string) {
   return value ? map[value] || value : "-";
 }
 
+function boolText(value?: boolean) {
+  if (value === true) return "是";
+  if (value === false) return "否";
+  return "-";
+}
+
+function timelineSourceText(value?: string) {
+  const map: Record<string, string> = {
+    source_event: "来源事件",
+    lead_lifecycle: "线索",
+    customer_lifecycle: "客户",
+    service_log: "服务",
+    candidate_join_request: "备选申请",
+    certification: "认证",
+  };
+  return value ? map[value] || value : "-";
+}
+
 async function loadMatchmakers() {
   if (!canAssignService.value) {
     matchmakerOptions.value = [];
@@ -506,6 +626,20 @@ async function openJoinRequest(row: CandidateDiscoverRecord) {
   Object.assign(joinForm, { person_id: row.id, scope: discoverQuery.scope, matchmaker_id: discoverQuery.matchmaker_id, private_tags: [], private_remark: undefined, request_reason: undefined });
   await loadMatchmakers();
   joinVisible.value = true;
+}
+
+async function openCandidateDetail(row: CandidateRecord) {
+  if (!row.id) return;
+  detailVisible.value = true;
+  detailActiveTab.value = "profile";
+  detailLoading.value = true;
+  candidateDetail.value = undefined;
+  try {
+    const res = await CandidateAPI.detailCandidate(row.id);
+    candidateDetail.value = res.data.data;
+  } finally {
+    detailLoading.value = false;
+  }
 }
 
 async function openRuleDialog() {
@@ -753,6 +887,35 @@ onMounted(async () => {
 
 .tag {
   margin-right: 4px;
+}
+
+.drawer-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.photo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.photo-item {
+  width: 120px;
+  height: 120px;
+  border-radius: 6px;
+}
+
+.timeline-title {
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+}
+
+.timeline-content {
+  margin-top: 4px;
+  color: var(--el-text-color-regular);
 }
 
 .cert-material-grid {

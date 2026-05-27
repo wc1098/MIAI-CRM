@@ -837,6 +837,19 @@ async def candidate_list_controller(
 
 
 @CandidateRouter.get(
+    "/detail/{id}",
+    summary="查询备选人详情",
+    response_model=ResponseSchema[dict],
+)
+async def candidate_detail_controller(
+    id: Annotated[int, Path(description="备选库条目ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:candidate:detail"]))],
+) -> JSONResponse:
+    result_dict = await CandidateService.detail_service(auth=auth, item_id=id)
+    return SuccessResponse(data=result_dict, msg="查询备选人详情成功")
+
+
+@CandidateRouter.get(
     "/person/search",
     summary="搜索本门店备选Person",
     response_model=ResponseSchema[list[PersonSearchOutSchema]],

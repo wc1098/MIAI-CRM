@@ -364,7 +364,7 @@ class VipService:
             remaining_days = (vip.ended_at.date() - date.today()).days
         elif contract and contract.end_date:
             remaining_days = (contract.end_date - date.today()).days
-        deep_count = (await auth.db.execute(select(func.count(DeepInterviewModel.id)).where(DeepInterviewModel.service_case_id == case.id, DeepInterviewModel.is_deleted == False))).scalar() or 0
+        deep_count = (await auth.db.execute(select(func.count(DeepInterviewModel.id)).where(DeepInterviewModel.service_case_id == case.id, DeepInterviewModel.is_deleted == False, DeepInterviewModel.interview_status == "active"))).scalar() or 0
         usage_count = (await auth.db.execute(select(func.count(EntitlementUsageLogModel.id)).where(EntitlementUsageLogModel.service_case_id == case.id, EntitlementUsageLogModel.is_deleted == False))).scalar() or 0
         vip_status = vip.vip_status if vip else case.case_status
         return {
@@ -459,6 +459,29 @@ class VipService:
                 conditions.append(ServiceCaseModel.case_status == search.vip_status)
             if search.close_review_status:
                 conditions.append(ServiceCaseModel.close_review_status == search.close_review_status)
+            if search.pending_interview is True:
+                conditions.append(ServiceCaseModel.owner_matchmaker_id.is_not(None))
+                conditions.append(
+                    ~ServiceCaseModel.id.in_(
+                        select(DeepInterviewModel.service_case_id).where(
+                            DeepInterviewModel.service_case_id.is_not(None),
+                            DeepInterviewModel.interview_type == "first",
+                            DeepInterviewModel.interview_status == "active",
+                            DeepInterviewModel.is_deleted == False,
+                        )
+                    )
+                )
+            elif search.pending_interview is False:
+                conditions.append(
+                    ServiceCaseModel.id.in_(
+                        select(DeepInterviewModel.service_case_id).where(
+                            DeepInterviewModel.service_case_id.is_not(None),
+                            DeepInterviewModel.interview_type == "first",
+                            DeepInterviewModel.interview_status == "active",
+                            DeepInterviewModel.is_deleted == False,
+                        )
+                    )
+                )
             if search.vip_level:
                 conditions.append(CrmVipProfileModel.vip_level == search.vip_level)
             if search.store_id:
@@ -537,6 +560,9 @@ class VipService:
         data["entitlements"] = await cls.entitlements_service(auth, case.id)
         data["usages"] = await cls.usage_list_service(auth, case.id)
         data["deep_interviews"] = await cls.interview_list_service(auth, case.id)
+        from app.plugin.module_crm.person.insight_service import PersonInsightService
+
+        data["profile_insight"] = await PersonInsightService.profile_insight_service(auth, case.person_id)
         return data
 
     @classmethod
@@ -965,7 +991,7 @@ class VipService:
         interviews = (
             await auth.db.execute(
                 select(DeepInterviewModel)
-                .where(DeepInterviewModel.service_case_id == case.id, DeepInterviewModel.is_deleted == False)
+                .where(DeepInterviewModel.service_case_id == case.id, DeepInterviewModel.is_deleted == False, DeepInterviewModel.interview_status == "active")
                 .order_by(DeepInterviewModel.interviewed_at.desc(), DeepInterviewModel.id.desc())
             )
         ).scalars().all()
@@ -1409,6 +1435,7 @@ class VipService:
                 select(func.count(DeepInterviewModel.id)).where(
                     DeepInterviewModel.service_case_id == case.id,
                     DeepInterviewModel.is_deleted == False,
+                    DeepInterviewModel.interview_status == "active",
                 )
             )
         ).scalar() or 0
@@ -3602,24 +3629,27 @@ class VipService:
             raise CustomException(msg="只有当前服务红娘可以新增深访")
         if case.case_status not in {"serving", "reopened"}:
             raise CustomException(msg="当前服务工单不可新增深访")
-        interview = DeepInterviewModel(
-            brand_id=case.brand_id,
-            service_case_id=case.id,
-            vip_id=case.vip_id,
+        from app.plugin.module_crm.person.insight_service import PersonInsightService
+        from app.plugin.module_crm.person.schema import PersonInterviewSaveSchema
+
+        return await PersonInsightService.create_interview_service(
+            auth=auth,
             person_id=case.person_id,
-            contract_id=case.contract_id,
-            matchmaker_id=case.owner_matchmaker_id,
-            interview_type=data.interview_type,
-            interviewed_at=data.interviewed_at or datetime.now(),
-            content=data.content,
-            keywords=data.keywords,
-            summary=data.summary,
-            interview_status="active",
+            data=PersonInterviewSaveSchema(
+                interview_scope="vip_service",
+                interview_type=data.interview_type,
+                interview_method=data.interview_method,
+                interviewed_at=data.interviewed_at,
+                content=data.content,
+                structured_payload=data.structured_payload,
+                keywords=data.keywords,
+                summary=data.summary,
+                manual_notes=data.manual_notes,
+                customer_id=case.customer_id,
+            ),
+            service_case=case,
+            force_matchmaker_id=case.owner_matchmaker_id,
         )
-        cls._stamp_create(auth, interview)
-        auth.db.add(interview)
-        await auth.db.flush()
-        return (await cls.interview_list_service(auth, case.id, interview_id=interview.id))[0]
 
     @classmethod
     async def interview_list_service(cls, auth: AuthSchema, case_id: int, interview_id: int | None = None) -> list[dict]:
@@ -3633,15 +3663,23 @@ class VipService:
         return [
             {
                 "id": row.id,
+                "person_id": row.person_id,
+                "interview_scope": row.interview_scope,
                 "interview_type": row.interview_type,
+                "interview_method": row.interview_method,
                 "interviewed_at": row.interviewed_at,
                 "content": row.content,
+                "structured_payload": row.structured_payload or {},
                 "keywords": row.keywords or [],
                 "summary": row.summary,
+                "manual_notes": row.manual_notes,
                 "interview_status": row.interview_status,
+                "is_current_source": row.is_current_source,
                 "matchmaker_id": row.matchmaker_id,
                 "matchmaker_name": user_names.get(row.matchmaker_id),
                 "created_by_name": user_names.get(row.created_id),
+                "void_reason": row.void_reason,
+                "voided_at": row.voided_at,
             }
             for row in rows
         ]
@@ -4501,6 +4539,125 @@ class CandidateService:
         result = await auth.db.execute(base.order_by(BackupPoolItemModel.created_time.desc(), BackupPoolItemModel.id.desc()).offset(offset).limit(page_size))
         items = [await cls._candidate_out(auth, item) for item in result.scalars().all()]
         return {"page_no": page_no, "page_size": page_size, "total": total, "has_next": offset + page_size < total, "items": items}
+
+    @classmethod
+    async def detail_service(cls, auth: AuthSchema, item_id: int) -> dict:
+        item = await auth.db.get(BackupPoolItemModel, item_id)
+        if not item or item.is_deleted:
+            raise CustomException(msg="备选人不存在")
+        if not auth.user:
+            raise CustomException(msg="未登录", code=10403, status_code=403)
+        matchmaker = await auth.db.get(UserModel, item.matchmaker_id)
+        has_access = (
+            VipService._is_brand_admin(auth)
+            or auth.user.id == item.matchmaker_id
+            or (VipService._is_store_mgr(auth) and matchmaker and matchmaker.dept_id == auth.user.dept_id)
+        )
+        if not has_access:
+            raise CustomException(msg="无权查看该备选人", code=10403, status_code=403)
+        person = await auth.db.get(CrmPersonModel, item.person_id)
+        if not person or person.is_deleted:
+            raise CustomException(msg="备选人员不存在")
+        store_id = item.store_id
+        if not store_id:
+            store_id = (await cls._person_store_map(auth, [person.id])).get(person.id)
+        dept_names = await cls._dept_names(auth, {store_id} if store_id else set())
+        preference = await auth.db.scalar(
+            select(PersonPartnerPreferenceModel).where(
+                PersonPartnerPreferenceModel.person_id == person.id,
+                PersonPartnerPreferenceModel.is_deleted == False,
+            )
+        )
+        can_view_phone = bool(
+            (auth.user.id == item.matchmaker_id and item.contact_unmasked_after_approval)
+            or VipService._has_permission(auth, "service:candidate:view_phone")
+            or VipService._is_brand_admin(auth)
+        )
+        preference_payload = None
+        if preference:
+            preference_payload = {
+                "age_min": preference.age_min,
+                "age_max": preference.age_max,
+                "height_min_cm": preference.height_min_cm,
+                "height_max_cm": preference.height_max_cm,
+                "weight_min_kg": preference.weight_min_kg,
+                "weight_max_kg": preference.weight_max_kg,
+                "preferred_residence_region_codes": preference.preferred_residence_region_codes or [],
+                "preferred_hometown_region_codes": preference.preferred_hometown_region_codes or [],
+                "preferred_education_codes": preference.preferred_education_codes or [],
+                "preferred_marital_status_codes": preference.preferred_marital_status_codes or [],
+                "preferred_annual_income_codes": preference.preferred_annual_income_codes or [],
+                "preferred_house_status_codes": preference.preferred_house_status_codes or [],
+                "preferred_car_status_codes": preference.preferred_car_status_codes or [],
+                "accept_long_distance": preference.accept_long_distance,
+                "accept_divorced": preference.accept_divorced,
+                "accept_children": preference.accept_children,
+                "children_requirement": preference.children_requirement,
+                "preferred_occupation_text": preference.preferred_occupation_text,
+                "preference_text": preference.preference_text,
+                "preferred_personality_tags": preference.preferred_personality_tags or [],
+                "preferred_lifestyle_tags": preference.preferred_lifestyle_tags or [],
+                "preferred_relationship_tags": preference.preferred_relationship_tags or [],
+                "hard_reject_items": preference.hard_reject_items or [],
+                "soft_preference_items": preference.soft_preference_items or [],
+                "strictness_level": preference.strictness_level,
+                "must_match_fields": preference.must_match_fields or [],
+                "preferred_match_fields": preference.preferred_match_fields or [],
+            }
+        person_center = await VipService._service_candidate_person_center(auth, person, can_view_phone)
+        timeline = await VipService._service_candidate_timeline(auth, person.id)
+        return {
+            "person": {
+                "id": person.id,
+                "display_no": person.display_no,
+                "name": person.name,
+                "gender": person.gender,
+                "mobile": person.primary_mobile if can_view_phone else VipService._mask_mobile(person.primary_mobile),
+                "wechat": person.wechat if can_view_phone else cls._mask_wechat(person.wechat),
+                "birth_date": person.birth_date,
+                "age": VipService._age(person.birth_date),
+                "height_cm": person.height_cm,
+                "weight_kg": person.weight_kg,
+                "ethnicity": person.ethnicity,
+                "occupation": person.occupation,
+                "occupation_code": person.occupation_code,
+                "annual_income": person.annual_income,
+                "marital_status": person.marital_status,
+                "education": person.education,
+                "graduated_school": person.graduated_school,
+                "major": person.major,
+                "unit_type": person.unit_type,
+                "job_title": person.job_title,
+                "work_company": person.work_company,
+                "hometown": person.hometown,
+                "residence": person.residence,
+                "house_status": person.house_status,
+                "car_status": person.car_status,
+                "accept_long_distance_self": person.accept_long_distance_self,
+                "accept_flash_marriage": person.accept_flash_marriage,
+                "willing_relocate": person.willing_relocate,
+                "marriage_plan": person.marriage_plan,
+                "profile_intro": person.profile_intro,
+                "profile_remark": person.profile_remark,
+                "photo_urls": person.photo_urls or [],
+                "certification_level": person.certification_level,
+                "store_id": store_id,
+                "store_name": dept_names.get(store_id or 0),
+            },
+            "partner_preference": preference_payload,
+            "person_center": person_center,
+            "timeline": timeline,
+            "candidate": await cls._candidate_out(auth, item),
+            "backup": {
+                "in_backup": True,
+                "backup_item_id": item.id,
+                "contact_unmasked": can_view_phone,
+                "pending_request": False,
+                "pending_request_id": None,
+                "request_scope": "store",
+                "unlock_method": "backup_approved" if can_view_phone else "join_request",
+            },
+        }
 
     @classmethod
     async def search_person_service(cls, auth: AuthSchema, keyword: str | None = None, limit: int = 20) -> list[dict]:

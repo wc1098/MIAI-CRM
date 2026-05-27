@@ -52,6 +52,46 @@ const PersonAPI = {
       method: "get",
     });
   },
+  listInterviews(personId: number) {
+    return request<ApiResponse<PersonInterview[]>>({
+      url: `${API_PATH}/${personId}/interviews`,
+      method: "get",
+    });
+  },
+  createInterview(personId: number, body: PersonInterviewForm) {
+    return request<ApiResponse<PersonInterview>>({
+      url: `${API_PATH}/${personId}/interviews`,
+      method: "post",
+      data: body,
+    });
+  },
+  updateInterview(personId: number, interviewId: number, body: PersonInterviewForm) {
+    return request<ApiResponse<PersonInterview>>({
+      url: `${API_PATH}/${personId}/interviews/${interviewId}`,
+      method: "put",
+      data: body,
+    });
+  },
+  voidInterview(personId: number, interviewId: number, reason: string) {
+    return request<ApiResponse<PersonInterview>>({
+      url: `${API_PATH}/${personId}/interviews/${interviewId}/void`,
+      method: "post",
+      data: { reason },
+    });
+  },
+  profileInsight(personId: number) {
+    return request<ApiResponse<PersonProfileInsight | null>>({
+      url: `${API_PATH}/${personId}/profile-insight`,
+      method: "get",
+    });
+  },
+  updateProfileInsight(personId: number, body: PersonProfileInsightForm) {
+    return request<ApiResponse<PersonProfileInsight>>({
+      url: `${API_PATH}/${personId}/profile-insight`,
+      method: "put",
+      data: body,
+    });
+  },
   userOptions() {
     return request<ApiResponse<PersonUserOption[]>>({
       url: `${API_PATH}/user-options`,
@@ -146,7 +186,69 @@ export interface PersonDetail {
   person: PersonBrief;
   relations: PersonRelations;
   quality: PersonQuality;
+  profile_insight?: PersonProfileInsight;
   sensitive_log_count: number;
+}
+
+export interface PersonInterviewForm {
+  interview_scope?: string;
+  interview_type: string;
+  interview_method?: string;
+  interviewed_at?: string;
+  content: string;
+  structured_payload?: Record<string, any>;
+  keywords?: string[];
+  summary?: string;
+  manual_notes?: string;
+  customer_id?: number;
+  backup_item_id?: number;
+}
+
+export interface PersonInterview extends PersonInterviewForm {
+  id: number;
+  person_id: number;
+  interview_status: string;
+  is_current_source: boolean;
+  matchmaker_id?: number;
+  matchmaker_name?: string;
+  service_case_id?: number;
+  vip_id?: number;
+  contract_id?: number;
+  void_reason?: string;
+  voided_at?: string;
+  created_by_name?: string;
+  created_time?: string;
+}
+
+export interface PersonProfileInsightForm {
+  personality_tags?: string[];
+  family_background?: string;
+  relationship_history?: string;
+  marriage_view?: string;
+  communication_style?: string;
+  emotional_needs?: string;
+  hard_reject_items?: string[];
+  soft_preference_items?: string[];
+  compromise_items?: string[];
+  risk_level?: string;
+  risk_notes?: string;
+  communication_taboo?: string;
+  recommendation_strategy?: string;
+  matchmaker_comment?: string;
+  public_matchmaker_impression?: string;
+  keywords?: string[];
+}
+
+export interface PersonProfileInsight extends PersonProfileInsightForm {
+  id?: number;
+  person_id: number;
+  source_interview_id?: number;
+  source_scope?: string;
+  profile_status: string;
+  updated_by_user_id?: number;
+  updated_by_user_name?: string;
+  insight_updated_at?: string;
+  source_interview_voided?: boolean;
 }
 
 export interface PersonTimelineItem {

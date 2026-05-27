@@ -32,6 +32,12 @@
             <el-option v-for="item in filterMatchmakers" :key="item.id" :label="`${item.name}${item.mobile ? `（${item.mobile}）` : ''}`" :value="item.id" />
           </el-select>
         </el-form-item>
+        <el-form-item v-if="activeTab !== 'pending'" label="深访状态">
+          <el-select v-model="query.pending_interview" clearable placeholder="全部" style="width: 130px">
+            <el-option label="待深访" :value="true" />
+            <el-option label="已深访" :value="false" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" icon="Search" @click="fetchList">查询</el-button>
           <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -123,21 +129,11 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="interviewVisible" title="新增深访" width="720px" destroy-on-close>
-      <el-form ref="interviewFormRef" :model="interviewForm" :rules="interviewRules" label-width="100px">
-        <el-form-item label="深访类型" prop="interview_type">
-          <el-select v-model="interviewForm.interview_type" style="width: 100%">
-            <el-option v-for="item in interviewTypeOptions" :key="item.dict_value" :label="item.dict_label" :value="item.dict_value || ''" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="深访时间"><el-date-picker v-model="interviewForm.interviewed_at" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%" /></el-form-item>
-        <el-form-item label="关键词"><el-select v-model="interviewForm.keywords" multiple filterable allow-create default-first-option style="width: 100%" /></el-form-item>
-        <el-form-item label="深访内容" prop="content"><el-input v-model="interviewForm.content" type="textarea" :rows="6" maxlength="20000" show-word-limit /></el-form-item>
-        <el-form-item label="摘要"><el-input v-model="interviewForm.summary" type="textarea" :rows="3" maxlength="5000" show-word-limit /></el-form-item>
-      </el-form>
+    <el-dialog v-model="interviewVisible" title="新增深访" width="980px" destroy-on-close>
+      <person-insight-interview-form ref="interviewFormRef" v-model="interviewForm" />
       <template #footer>
         <el-button @click="interviewVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="submitInterview">保存</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="submitInterview">保存深访</el-button>
       </template>
     </el-dialog>
 
@@ -315,6 +311,9 @@
               <el-descriptions-item label="服务期限">{{ dateOnly(detail.start_date) }} 至 {{ dateOnly(detail.end_date) }}</el-descriptions-item>
             </el-descriptions>
 
+            <div class="section-title">当前画像</div>
+            <person-profile-insight-panel :insight="detail.profile_insight" />
+
             <div class="section-title">服务权益</div>
             <el-table :data="entitlementSummaryRows" border stripe>
               <el-table-column label="类型" width="100"><template #default="{ row }">{{ dictText(entitlementTypeOptions, row.entitlement_type) }}</template></el-table-column>
@@ -343,6 +342,7 @@
             <el-table :data="detail.deep_interviews || []" border stripe>
               <el-table-column prop="interviewed_at" label="时间" min-width="160" show-overflow-tooltip />
               <el-table-column label="类型" width="100"><template #default="{ row }">{{ dictText(interviewTypeOptions, row.interview_type) }}</template></el-table-column>
+              <el-table-column label="当前来源" width="90"><template #default="{ row }"><el-tag v-if="row.is_current_source" type="success">是</el-tag><span v-else>-</span></template></el-table-column>
               <el-table-column prop="summary" label="摘要" min-width="180" show-overflow-tooltip />
               <el-table-column prop="content" label="内容" min-width="260" show-overflow-tooltip />
               <el-table-column prop="matchmaker_name" label="红娘" width="110" show-overflow-tooltip />
@@ -823,6 +823,8 @@
                 <el-descriptions-item label="个人介绍" :span="3">{{ serviceCandidateDetail.person.profile_intro || "-" }}</el-descriptions-item>
                 <el-descriptions-item label="备注" :span="3">{{ serviceCandidateDetail.person.profile_remark || "-" }}</el-descriptions-item>
               </el-descriptions>
+              <div class="section-subtitle">当前画像</div>
+              <person-profile-insight-panel :insight="serviceCandidateDetail.person_center?.profile_insight" />
             </div>
           </el-tab-pane>
 
@@ -1130,6 +1132,8 @@ import { ossImage, ossImageList } from "@/utils/ossImage";
 import { uploadImageDirect } from "@/utils/upload";
 import { addressOptions } from "@/views/module_miailove/components/addressOptions";
 import PartnerPreferenceForm from "@/views/module_miailove/components/PartnerPreferenceForm.vue";
+import PersonInsightInterviewForm from "@/views/module_miailove/components/PersonInsightInterviewForm.vue";
+import PersonProfileInsightPanel from "@/views/module_miailove/components/PersonProfileInsightPanel.vue";
 import PersonProfileFields from "@/views/module_miailove/components/PersonProfileFields.vue";
 import VipServiceAPI, {
   type InterviewForm,
@@ -1252,7 +1256,7 @@ const assignVisible = ref(false);
 const assignMode = ref<"assign" | "transfer">("assign");
 const currentRow = ref<ServiceCaseTable>();
 const assignFormRef = ref<FormInstance>();
-const interviewFormRef = ref<FormInstance>();
+const interviewFormRef = ref<InstanceType<typeof PersonInsightInterviewForm>>();
 const usageFormRef = ref<FormInstance>();
 const closeFormRef = ref<FormInstance>();
 const processFormRef = ref<FormInstance>();
@@ -1293,10 +1297,21 @@ const query = reactive({
   vip_status: undefined as string | undefined,
   store_id: undefined as number | undefined,
   service_owner_user_id: undefined as number | undefined,
+  pending_interview: undefined as boolean | undefined,
 });
 
 const assignForm = reactive<VipAssignForm>({ service_owner_user_id: undefined, remark: undefined });
-const interviewForm = reactive<InterviewForm>({ interview_type: undefined, interviewed_at: undefined, content: "", keywords: [], summary: undefined });
+const interviewForm = ref<InterviewForm>({
+  interview_scope: "vip_service",
+  interview_type: "first",
+  interview_method: "offline",
+  interviewed_at: undefined,
+  content: "",
+  structured_payload: {},
+  keywords: [],
+  summary: undefined,
+  manual_notes: undefined,
+});
 const usageForm = reactive<UsageForm>({ entitlement_id: undefined, quantity: 1, occurred_at: undefined, title: undefined, content: undefined, candidate_person_id: undefined, overuse_reason: undefined });
 const closeForm = reactive({ reason: "" });
 const reviewForm = reactive({ review_remark: "" });
@@ -1332,10 +1347,6 @@ const profileForm = reactive<ServiceCustomerProfileForm>({
 });
 
 const assignRules = reactive<FormRules<VipAssignForm>>({ service_owner_user_id: [{ required: true, message: "请选择服务红娘", trigger: "change" }] });
-const interviewRules = reactive<FormRules<InterviewForm>>({
-  interview_type: [{ required: true, message: "请选择深访类型", trigger: "change" }],
-  content: [{ required: true, message: "请填写深访内容", trigger: "blur" }],
-});
 const usageRules = reactive<FormRules<UsageForm>>({
   entitlement_id: [{ required: true, message: "请选择核销权益", trigger: "change" }],
   quantity: [{ required: true, message: "请输入核销数量", trigger: "blur" }],
@@ -1522,6 +1533,9 @@ function syncTabByRoute() {
 
 function handleTabChange() {
   query.page_no = 1;
+  if (activeTab.value === "pending") {
+    query.pending_interview = undefined;
+  }
   fetchList();
 }
 
@@ -1656,7 +1670,7 @@ async function fetchList() {
 }
 
 function resetQuery() {
-  Object.assign(query, { page_no: 1, keyword: undefined, vip_level: undefined, vip_status: undefined, store_id: undefined, service_owner_user_id: undefined });
+  Object.assign(query, { page_no: 1, keyword: undefined, vip_level: undefined, vip_status: undefined, store_id: undefined, service_owner_user_id: undefined, pending_interview: undefined });
   filterMatchmakers.value = [];
   fetchList();
 }
@@ -2703,7 +2717,17 @@ function openInterview() {
     ElMessage.warning("服务工单分配后才可以新增深访");
     return;
   }
-  Object.assign(interviewForm, { interview_type: "first", interviewed_at: undefined, content: "", keywords: [], summary: undefined });
+  interviewForm.value = {
+    interview_scope: "vip_service",
+    interview_type: "first",
+    interview_method: "offline",
+    interviewed_at: undefined,
+    content: "",
+    structured_payload: {},
+    keywords: [],
+    summary: undefined,
+    manual_notes: undefined,
+  };
   interviewVisible.value = true;
 }
 
@@ -2712,7 +2736,7 @@ async function submitInterview() {
   if (!valid || !detail.value?.id) return;
   submitLoading.value = true;
   try {
-    await VipServiceAPI.createInterview(detail.value.id, interviewForm);
+    await VipServiceAPI.createInterview(detail.value.id, interviewForm.value);
     ElMessage.success("深访记录已保存");
     interviewVisible.value = false;
     await openDetail(detail.value.id);

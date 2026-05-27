@@ -273,29 +273,38 @@ class ServiceCourseRecordModel(ModelMixin, UserMixin):
 
 
 class DeepInterviewModel(ModelMixin, UserMixin):
-    """VIP服务深访记录"""
+    """人员深访记录"""
 
     __tablename__: str = "deep_interview"
-    __table_args__: dict[str, str] = {"comment": "VIP服务深访记录表"}
+    __table_args__: dict[str, str] = {"comment": "人员深访记录表"}
     __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by"]
     __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
 
     brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
-    service_case_id: Mapped[int] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="服务工单ID")
-    vip_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_vip_profile.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="VIP服务ID")
+    service_case_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("service_case.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=True, index=True, comment="服务工单ID")
+    vip_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("crm_vip_profile.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=True, index=True, comment="VIP服务ID")
     person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="人员ID")
-    contract_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_contract.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="合同ID")
+    contract_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("crm_contract.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=True, index=True, comment="合同ID")
+    customer_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("crm_customer_profile.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="客户ID")
+    backup_item_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("backup_pool_item.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="备选库记录ID")
     matchmaker_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="服务红娘ID")
+    interview_scope: Mapped[str] = mapped_column(String(32), nullable=False, default="vip_service", index=True, comment="深访场景")
     interview_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True, comment="深访类型")
+    interview_method: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, comment="深访方式")
     interviewed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now, index=True, comment="深访时间")
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="深访内容")
+    structured_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, comment="结构化深访内容")
     keywords: Mapped[list[str] | None] = mapped_column(JSON, nullable=True, comment="关键词")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="人工摘要")
+    manual_notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="红娘备注")
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI摘要预留")
     ai_dimension_scores: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, comment="AI量表预留")
     audio_file_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="录音文件预留")
     interview_status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", index=True, comment="深访状态")
+    is_current_source: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True, comment="是否当前画像来源")
     void_reason: Mapped[str | None] = mapped_column(Text, nullable=True, comment="作废原因")
+    voided_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="作废人ID")
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="作废时间")
 
 
 class CandidateProfileModel(ModelMixin, UserMixin):

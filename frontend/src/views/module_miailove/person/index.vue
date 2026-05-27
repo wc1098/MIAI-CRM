@@ -218,6 +218,9 @@
             <ElButton v-hasPerm="['crm:person:view_id_card']" icon="Postcard" @click="viewIdCard">
               查看身份证
             </ElButton>
+            <ElButton v-hasPerm="['crm:person:interview:create']" type="primary" icon="ChatLineSquare" @click="openInterview">
+              新增深访
+            </ElButton>
           </div>
         </div>
       </template>
@@ -367,6 +370,8 @@
         </el-tab-pane>
 
         <el-tab-pane label="认证/画像" name="profile">
+          <h3>当前画像</h3>
+          <person-profile-insight-panel :insight="detail?.profile_insight" />
           <RelationBlock
             title="认证摘要"
             kind="certification"
@@ -380,6 +385,24 @@
           <RelationBlock title="AI画像" kind="aiProfile" :data="detail?.relations.ai_profile" />
           <h3>缺失项</h3>
           <el-alert :title="missingText" type="info" show-icon :closable="false" />
+        </el-tab-pane>
+
+        <el-tab-pane label="深访记录" name="interviews">
+          <el-table :data="interviewRows" border stripe>
+            <el-table-column prop="interviewed_at" label="时间" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="interview_type" label="类型" width="110" />
+            <el-table-column prop="interview_method" label="方式" width="110" />
+            <el-table-column label="当前来源" width="90">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_current_source" type="success">是</el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="summary" label="摘要" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="content" label="内容" min-width="260" show-overflow-tooltip />
+            <el-table-column prop="matchmaker_name" label="红娘" width="120" show-overflow-tooltip />
+            <el-table-column prop="interview_status" label="状态" width="100" />
+          </el-table>
         </el-tab-pane>
 
         <el-tab-pane label="生命周期" name="timeline">
@@ -408,6 +431,14 @@
         </el-tab-pane>
       </el-tabs>
     </el-drawer>
+
+    <el-dialog v-model="interviewVisible" title="新增深访" width="980px" destroy-on-close>
+      <person-insight-interview-form ref="interviewFormRef" v-model="interviewForm" />
+      <template #footer>
+        <ElButton @click="interviewVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="submitLoading" @click="submitInterview">保存深访</ElButton>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -423,6 +454,8 @@ import {
 } from "element-plus";
 import PersonAPI, {
   type PersonDetail,
+  type PersonInterview,
+  type PersonInterviewForm,
   type PersonPageQuery,
   type PersonRecord,
   type PersonTimelineItem,
@@ -432,20 +465,34 @@ import PersonAPI, {
 import DeptAPI, { type DeptTable } from "@/api/module_system/dept";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
 import LeadAPI from "@/api/module_crm/lead";
+import PersonInsightInterviewForm from "@/views/module_miailove/components/PersonInsightInterviewForm.vue";
+import PersonProfileInsightPanel from "@/views/module_miailove/components/PersonProfileInsightPanel.vue";
 
 const loading = ref(false);
+const submitLoading = ref(false);
 const detailVisible = ref(false);
 const activeTab = ref("overview");
 const rows = ref<PersonRecord[]>([]);
 const total = ref(0);
 const detail = ref<PersonDetail>();
 const timeline = ref<PersonTimelineItem[]>([]);
+const interviewRows = ref<PersonInterview[]>([]);
 const sensitiveLogs = ref<SensitiveLogRecord[]>([]);
 const fullPhone = ref("");
 const fullIdCard = ref("");
 const deptOptions = ref<Array<{ id: number; name?: string }>>([]);
 const userOptions = ref<PersonUserOption[]>([]);
 const channelOptions = ref<Array<{ label: string; value: string }>>([]);
+const interviewVisible = ref(false);
+const interviewFormRef = ref<InstanceType<typeof PersonInsightInterviewForm>>();
+const interviewForm = ref<PersonInterviewForm>({
+  interview_scope: "general",
+  interview_type: "first",
+  interview_method: "offline",
+  content: "",
+  structured_payload: {},
+  keywords: [],
+});
 
 const query = reactive<PersonPageQuery>({
   page_no: 1,
@@ -684,7 +731,50 @@ async function openDetail(personId: number) {
   detail.value = detailRes.data.data;
   timeline.value = timelineRes.data.data || [];
   sensitiveLogs.value = logRes.data.data || [];
+  await loadInterviews(personId);
   detailVisible.value = true;
+}
+
+async function loadInterviews(personId: number) {
+  try {
+    const res = await PersonAPI.listInterviews(personId);
+    interviewRows.value = res.data.data || [];
+  } catch {
+    interviewRows.value = [];
+  }
+}
+
+function openInterview() {
+  if (!detail.value) return;
+  interviewForm.value = {
+    interview_scope: "general",
+    interview_type: "first",
+    interview_method: "offline",
+    interviewed_at: undefined,
+    content: "",
+    structured_payload: {},
+    keywords: [],
+    summary: undefined,
+    manual_notes: undefined,
+  };
+  interviewVisible.value = true;
+}
+
+async function submitInterview() {
+  if (!detail.value) return;
+  const valid = await interviewFormRef.value?.validate();
+  if (!valid) return;
+  submitLoading.value = true;
+  try {
+    await PersonAPI.createInterview(detail.value.person.id, interviewForm.value);
+    ElMessage.success("深访记录已保存");
+    interviewVisible.value = false;
+    const detailRes = await PersonAPI.detailPerson(detail.value.person.id);
+    detail.value = detailRes.data.data;
+    await loadInterviews(detail.value.person.id);
+  } finally {
+    submitLoading.value = false;
+  }
 }
 
 async function viewPhone() {

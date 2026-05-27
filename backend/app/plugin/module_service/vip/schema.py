@@ -27,10 +27,13 @@ class DeepInterviewCreateSchema(BaseModel):
     """服务深访创建模型"""
 
     interview_type: str = Field(..., min_length=1, max_length=32, description="深访类型")
+    interview_method: str | None = Field(default=None, max_length=32, description="深访方式")
     interviewed_at: datetime | None = Field(default=None, description="深访时间")
     content: str = Field(..., min_length=1, max_length=20000, description="深访内容")
+    structured_payload: dict[str, Any] = Field(default_factory=dict, description="结构化深访内容")
     keywords: list[str] = Field(default_factory=list, description="关键词")
     summary: str | None = Field(default=None, max_length=5000, description="人工摘要")
+    manual_notes: str | None = Field(default=None, max_length=5000, description="红娘备注")
 
 
 class UsageCreateSchema(BaseModel):
@@ -544,15 +547,23 @@ class DeepInterviewOutSchema(BaseModel):
     """服务深访响应"""
 
     id: int
+    person_id: int | None = None
+    interview_scope: str = "vip_service"
     interview_type: str
+    interview_method: str | None = None
     interviewed_at: DateTimeStr
     content: str
+    structured_payload: dict[str, Any] = Field(default_factory=dict)
     keywords: list[str] = Field(default_factory=list)
     summary: str | None = None
+    manual_notes: str | None = None
     interview_status: str
+    is_current_source: bool = False
     matchmaker_id: int | None = None
     matchmaker_name: str | None = None
     created_by_name: str | None = None
+    void_reason: str | None = None
+    voided_at: DateTimeStr | None = None
 
 
 class VipDetailOutSchema(VipOutSchema):
@@ -573,6 +584,7 @@ class VipDetailOutSchema(VipOutSchema):
     entitlements: list[EntitlementOutSchema] = Field(default_factory=list)
     usages: list[UsageOutSchema] = Field(default_factory=list)
     deep_interviews: list[DeepInterviewOutSchema] = Field(default_factory=list)
+    profile_insight: dict[str, Any] | None = None
 
 
 class ServiceCustomerProfileOutSchema(BaseModel):
@@ -779,6 +791,7 @@ class VipQueryParam:
         ended_end: date | None = Query(None, description="服务结束结束日期"),
         mine: bool | None = Query(None, description="是否我的VIP"),
         close_review_status: str | None = Query(None, description="关单审核状态"),
+        pending_interview: bool | None = Query(None, description="是否待首次深访"),
     ) -> None:
         self.keyword = keyword.strip() if keyword else None
         self.vip_status = vip_status
@@ -792,6 +805,7 @@ class VipQueryParam:
         self.ended_end = ended_end
         self.mine = mine
         self.close_review_status = close_review_status
+        self.pending_interview = pending_interview
 
 
 class CandidateAddExistingSchema(BaseModel):

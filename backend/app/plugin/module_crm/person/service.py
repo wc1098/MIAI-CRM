@@ -25,6 +25,7 @@ from app.plugin.module_crm.lead.model import (
 from app.plugin.module_crm.preference.model import PersonPartnerPreferenceModel
 from app.plugin.module_mp.auth.model import MiniProgramUserModel, SourceEventModel
 from app.plugin.module_profile_ai.model import PersonAiProfileModel
+from app.plugin.module_crm.person.model import PersonProfileInsightModel
 from app.plugin.module_service.vip.model import (
     BackupPoolItemModel,
     CandidateJoinRequestModel,
@@ -117,6 +118,51 @@ class PersonCenterService:
             return {}
         result = await auth.db.execute(select(UserModel.id, UserModel.name).where(UserModel.id.in_(user_ids)))
         return {row[0]: row[1] for row in result.all()}
+
+    @classmethod
+    async def _profile_insight_out(cls, auth: AuthSchema, person_id: int) -> dict[str, Any] | None:
+        insight = (
+            await auth.db.execute(
+                select(PersonProfileInsightModel).where(
+                    PersonProfileInsightModel.person_id == person_id,
+                    PersonProfileInsightModel.is_deleted == False,
+                )
+            )
+        ).scalars().first()
+        if not insight:
+            return None
+        users = await cls._user_names(auth, {insight.updated_by_user_id})
+        source_voided = False
+        if insight.source_interview_id:
+            source = await auth.db.get(DeepInterviewModel, insight.source_interview_id)
+            source_voided = bool(source and source.interview_status == "voided")
+        return {
+            "id": insight.id,
+            "person_id": insight.person_id,
+            "source_interview_id": insight.source_interview_id,
+            "source_scope": insight.source_scope,
+            "personality_tags": insight.personality_tags or [],
+            "family_background": insight.family_background,
+            "relationship_history": insight.relationship_history,
+            "marriage_view": insight.marriage_view,
+            "communication_style": insight.communication_style,
+            "emotional_needs": insight.emotional_needs,
+            "hard_reject_items": insight.hard_reject_items or [],
+            "soft_preference_items": insight.soft_preference_items or [],
+            "compromise_items": insight.compromise_items or [],
+            "risk_level": insight.risk_level,
+            "risk_notes": insight.risk_notes,
+            "communication_taboo": insight.communication_taboo,
+            "recommendation_strategy": insight.recommendation_strategy,
+            "matchmaker_comment": insight.matchmaker_comment,
+            "public_matchmaker_impression": insight.public_matchmaker_impression,
+            "keywords": insight.keywords or [],
+            "profile_status": insight.profile_status,
+            "updated_by_user_id": insight.updated_by_user_id,
+            "updated_by_user_name": users.get(insight.updated_by_user_id),
+            "insight_updated_at": insight.insight_updated_at,
+            "source_interview_voided": source_voided,
+        }
 
     @classmethod
     async def _dept_names(cls, auth: AuthSchema, ids: set[int | None]) -> dict[int, str]:
@@ -290,6 +336,7 @@ class PersonCenterService:
                     select(DeepInterviewModel.person_id, func.count(DeepInterviewModel.id)).where(
                         DeepInterviewModel.person_id.in_(person_ids),
                         DeepInterviewModel.is_deleted == False,
+                        DeepInterviewModel.interview_status == "active",
                     ).group_by(DeepInterviewModel.person_id)
                 )
             ).all()
@@ -633,6 +680,7 @@ class PersonCenterService:
                 "ai_profile": cls._model_out(ai_profile, ["profile_type", "source_type", "content", "generation_status", "model_name", "generated_at"]) if ai_profile else None,
             },
             "quality": cls._quality(person, person_id, maps),
+            "profile_insight": await cls._profile_insight_out(auth, person_id),
             "sensitive_log_count": sensitive_count,
         }
 

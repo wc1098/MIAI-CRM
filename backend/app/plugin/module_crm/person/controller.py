@@ -10,8 +10,13 @@ from app.core.dependencies import AuthPermission
 from app.core.router_class import OperationLogRoute
 
 from .schema import (
+    PersonInterviewOutSchema,
+    PersonInterviewSaveSchema,
+    PersonInterviewVoidSchema,
     PersonDetailOutSchema,
     PersonListOutSchema,
+    PersonProfileInsightOutSchema,
+    PersonProfileInsightSaveSchema,
     PersonQualitySchema,
     PersonQueryParam,
     PersonTimelineOutSchema,
@@ -19,6 +24,7 @@ from .schema import (
     SensitiveLogOutSchema,
     SensitiveViewSchema,
 )
+from .insight_service import PersonInsightService
 from .service import PersonCenterService
 
 PersonRouter = APIRouter(route_class=OperationLogRoute, prefix="/person", tags=["用户资源中心"])
@@ -96,3 +102,73 @@ async def sensitive_log_controller(
 ) -> JSONResponse:
     result = await PersonCenterService.sensitive_log_service(auth=auth, person_id=person_id)
     return SuccessResponse(data=result, msg="查询敏感访问记录成功")
+
+
+@PersonRouter.get("/{person_id}/interviews", summary="查询人员深访记录", response_model=ResponseSchema[list[PersonInterviewOutSchema]])
+async def list_person_interviews_controller(
+    person_id: Annotated[int, Path(description="Person ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:person:interview:query"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await PersonInsightService.list_interviews_service(auth=auth, person_id=person_id)
+    return SuccessResponse(data=result, msg="查询人员深访记录成功")
+
+
+@PersonRouter.post("/{person_id}/interviews", summary="新增人员深访", response_model=ResponseSchema[PersonInterviewOutSchema])
+async def create_person_interview_controller(
+    data: PersonInterviewSaveSchema,
+    person_id: Annotated[int, Path(description="Person ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:person:interview:create"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await PersonInsightService.create_interview_service(auth=auth, person_id=person_id, data=data)
+    return SuccessResponse(data=result, msg="人员深访已保存")
+
+
+@PersonRouter.get("/{person_id}/interviews/{interview_id}", summary="查询人员深访详情", response_model=ResponseSchema[PersonInterviewOutSchema])
+async def get_person_interview_controller(
+    person_id: Annotated[int, Path(description="Person ID")],
+    interview_id: Annotated[int, Path(description="深访ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:person:interview:query"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await PersonInsightService.get_interview_service(auth=auth, person_id=person_id, interview_id=interview_id)
+    return SuccessResponse(data=result, msg="查询人员深访详情成功")
+
+
+@PersonRouter.put("/{person_id}/interviews/{interview_id}", summary="编辑人员深访", response_model=ResponseSchema[PersonInterviewOutSchema])
+async def update_person_interview_controller(
+    data: PersonInterviewSaveSchema,
+    person_id: Annotated[int, Path(description="Person ID")],
+    interview_id: Annotated[int, Path(description="深访ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:person:interview:update"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await PersonInsightService.update_interview_service(auth=auth, person_id=person_id, interview_id=interview_id, data=data)
+    return SuccessResponse(data=result, msg="人员深访已更新")
+
+
+@PersonRouter.post("/{person_id}/interviews/{interview_id}/void", summary="作废人员深访", response_model=ResponseSchema[PersonInterviewOutSchema])
+async def void_person_interview_controller(
+    data: PersonInterviewVoidSchema,
+    person_id: Annotated[int, Path(description="Person ID")],
+    interview_id: Annotated[int, Path(description="深访ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:person:interview:void"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await PersonInsightService.void_interview_service(auth=auth, person_id=person_id, interview_id=interview_id, data=data)
+    return SuccessResponse(data=result, msg="人员深访已作废")
+
+
+@PersonRouter.get("/{person_id}/profile-insight", summary="查询人员当前深访画像", response_model=ResponseSchema[PersonProfileInsightOutSchema | None])
+async def get_person_profile_insight_controller(
+    person_id: Annotated[int, Path(description="Person ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:person:profile_insight:query"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await PersonInsightService.profile_insight_service(auth=auth, person_id=person_id)
+    return SuccessResponse(data=result, msg="查询人员当前深访画像成功")
+
+
+@PersonRouter.put("/{person_id}/profile-insight", summary="编辑人员当前深访画像", response_model=ResponseSchema[PersonProfileInsightOutSchema])
+async def update_person_profile_insight_controller(
+    data: PersonProfileInsightSaveSchema,
+    person_id: Annotated[int, Path(description="Person ID")],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:person:profile_insight:update"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await PersonInsightService.update_profile_insight_service(auth=auth, person_id=person_id, data=data)
+    return SuccessResponse(data=result, msg="人员当前深访画像已更新")

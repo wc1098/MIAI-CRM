@@ -13,6 +13,7 @@ from app.config.path_conf import BASE_DIR
 from app.core.database import async_db_session
 from app.core.exceptions import CustomException
 from app.plugin.module_crm.lead.model import CrmPersonModel
+from app.plugin.module_crm.person.model import PersonProfileInsightModel
 from app.plugin.module_crm.preference.model import PersonPartnerPreferenceModel
 from app.plugin.module_mp.auth.model import MiniProgramUserModel
 from app.plugin.module_profile_ai.model import PersonAiProfileModel
@@ -243,7 +244,40 @@ class MatchProfileService:
             score += 10
         if ai_content:
             score += 10
+        if person_snapshot.get("profile_insight"):
+            score += 10
         return min(score, 100)
+
+    @classmethod
+    def _insight_snapshot(cls, insight: PersonProfileInsightModel | None) -> dict[str, Any]:
+        if not insight or insight.profile_status != "active":
+            return {}
+        return {
+            "性格标签": insight.personality_tags or [],
+            "家庭背景": cls._safe_text(insight.family_background, 300),
+            "情感经历": cls._safe_text(insight.relationship_history, 300),
+            "婚恋观": cls._safe_text(insight.marriage_view, 300),
+            "沟通方式": cls._safe_text(insight.communication_style, 200),
+            "情感需求": cls._safe_text(insight.emotional_needs, 200),
+            "风险等级": insight.risk_level,
+            "风险提示": cls._safe_text(insight.risk_notes, 240),
+            "沟通禁忌": cls._safe_text(insight.communication_taboo, 240),
+            "推荐策略": cls._safe_text(insight.recommendation_strategy, 300),
+            "红娘评价": cls._safe_text(insight.matchmaker_comment, 240),
+            "红娘印象": cls._safe_text(insight.public_matchmaker_impression, 240),
+            "关键词": insight.keywords or [],
+        }
+
+    @classmethod
+    def _insight_preference_snapshot(cls, insight: PersonProfileInsightModel | None) -> dict[str, Any]:
+        if not insight or insight.profile_status != "active":
+            return {}
+        return {
+            "建议新增一票否决项": insight.hard_reject_items or [],
+            "建议重点偏好": insight.soft_preference_items or [],
+            "建议放宽条件": insight.compromise_items or [],
+            "深访推荐策略": cls._safe_text(insight.recommendation_strategy, 300),
+        }
 
     @classmethod
     def _text_from_snapshot(cls, title: str, snapshot: dict[str, Any]) -> str:
@@ -283,17 +317,39 @@ class MatchProfileService:
                 .order_by(PersonAiProfileModel.generated_at.desc(), PersonAiProfileModel.id.desc())
             )
         ).scalars().first()
+        insight = (
+            await db.execute(
+                select(PersonProfileInsightModel)
+                .where(
+                    PersonProfileInsightModel.person_id == person_id,
+                    PersonProfileInsightModel.is_deleted == False,
+                )
+                .order_by(PersonProfileInsightModel.insight_updated_at.desc(), PersonProfileInsightModel.id.desc())
+            )
+        ).scalars().first()
         self_snapshot = cls._person_snapshot(person)
         preference_snapshot = cls._preference_snapshot(preference)
+        insight_snapshot = cls._insight_snapshot(insight)
+        insight_preference_snapshot = cls._insight_preference_snapshot(insight)
+        if insight_snapshot:
+            self_snapshot["profile_insight"] = insight_snapshot
+        if insight_preference_snapshot:
+            preference_snapshot["profile_insight"] = insight_preference_snapshot
         ai_content = cls._safe_text(ai_profile.content if ai_profile else None, 600)
         ai_snapshot = {"miai_impression": ai_content} if ai_content else {}
         self_text = "\n".join(
             [
                 cls._text_from_snapshot("基础资料", self_snapshot),
+                cls._text_from_snapshot("红娘深访画像", insight_snapshot),
                 cls._text_from_snapshot("觅AI印象", ai_snapshot),
             ]
         )
-        preference_text = cls._text_from_snapshot("择偶要求", preference_snapshot)
+        preference_text = "\n".join(
+            [
+                cls._text_from_snapshot("择偶要求", preference_snapshot),
+                cls._text_from_snapshot("深访择偶要求复核建议", insight_preference_snapshot),
+            ]
+        )
         return {
             "self_snapshot": self_snapshot,
             "preference_snapshot": preference_snapshot,

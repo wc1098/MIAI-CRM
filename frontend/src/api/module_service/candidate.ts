@@ -1,5 +1,6 @@
 import request from "@/utils/request";
 import type { PartnerPreference } from "@/api/module_crm/lead";
+import type { PersonDetail, PersonTimelineItem } from "@/api/module_crm/person";
 import type { CustomerCertificationArchiveItem, CustomerCertificationMaterialForm } from "@/api/module_crm/customer";
 
 const API_PATH = "/service/candidate";
@@ -10,6 +11,12 @@ const CandidateAPI = {
       url: `${API_PATH}/list`,
       method: "get",
       params: query,
+    });
+  },
+  detailCandidate(id: number) {
+    return request<ApiResponse<CandidateDetail>>({
+      url: `${API_PATH}/detail/${id}`,
+      method: "get",
     });
   },
   searchPerson(query?: { keyword?: string; limit?: number }) {
@@ -115,6 +122,59 @@ export interface CandidateRecord extends BaseType {
   approved_by?: number;
   approved_at?: string;
   contact_unmasked_after_approval?: boolean;
+}
+
+export interface CandidateDetail {
+  person: {
+    id: number;
+    display_no?: string;
+    name: string;
+    gender: string;
+    mobile?: string;
+    wechat?: string;
+    birth_date?: string;
+    age?: number;
+    height_cm?: number;
+    weight_kg?: number;
+    ethnicity?: string;
+    occupation?: string;
+    occupation_code?: string;
+    annual_income?: string;
+    marital_status?: string;
+    education?: string;
+    graduated_school?: string;
+    major?: string;
+    unit_type?: string;
+    job_title?: string;
+    work_company?: string;
+    hometown?: string;
+    residence?: string;
+    house_status?: string;
+    car_status?: string;
+    accept_long_distance_self?: boolean;
+    accept_flash_marriage?: boolean;
+    willing_relocate?: boolean;
+    marriage_plan?: string;
+    profile_intro?: string;
+    profile_remark?: string;
+    photo_urls?: string[];
+    certification_level?: string;
+    store_id?: number;
+    store_name?: string;
+  };
+  partner_preference?: PartnerPreference;
+  person_center?: PersonDetail;
+  timeline?: PersonTimelineItem[];
+  candidate?: CandidateRecord;
+  backup: {
+    in_backup: boolean;
+    backup_item_id?: number;
+    contact_unmasked: boolean;
+    pending_request: boolean;
+    pending_request_id?: number;
+    request_scope: "store" | "brand";
+    unlock_method: "backup_approved" | "pending_review" | "join_request";
+  };
 }
 
 export interface PersonOption {

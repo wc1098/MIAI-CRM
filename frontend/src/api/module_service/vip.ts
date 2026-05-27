@@ -367,6 +367,7 @@ export interface VipPageQuery extends PageQuery {
   ended_end?: string;
   close_review_status?: string;
   mine?: boolean;
+  pending_interview?: boolean;
 }
 
 export interface ServiceCaseTable extends BaseType {
@@ -452,6 +453,7 @@ export interface ServiceCaseDetail extends ServiceCaseTable {
   entitlements: ServiceEntitlement[];
   usages: UsageRecord[];
   deep_interviews: DeepInterview[];
+  profile_insight?: Record<string, any>;
 }
 
 export type VipDetail = ServiceCaseDetail;
@@ -1064,15 +1066,23 @@ export interface ServiceCourseRecord {
 
 export interface DeepInterview {
   id: number;
+  person_id?: number;
+  interview_scope?: string;
   interview_type: string;
+  interview_method?: string;
   interviewed_at: string;
   content: string;
+  structured_payload?: Record<string, any>;
   keywords?: string[];
   summary?: string;
+  manual_notes?: string;
   interview_status: string;
+  is_current_source?: boolean;
   matchmaker_id?: number;
   matchmaker_name?: string;
   created_by_name?: string;
+  void_reason?: string;
+  voided_at?: string;
 }
 
 export interface MatchmakerOption {
@@ -1101,11 +1111,15 @@ export interface UsageForm {
 }
 
 export interface InterviewForm {
+  interview_scope?: string;
   interview_type?: string;
+  interview_method?: string;
   interviewed_at?: string;
   content?: string;
+  structured_payload?: Record<string, any>;
   keywords?: string[];
   summary?: string;
+  manual_notes?: string;
 }
 
 export interface ServiceCustomerProcessForm {
