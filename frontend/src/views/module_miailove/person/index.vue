@@ -462,7 +462,6 @@ import PersonAPI, {
   type PersonUserOption,
   type SensitiveLogRecord,
 } from "@/api/module_crm/person";
-import DeptAPI, { type DeptTable } from "@/api/module_system/dept";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
 import LeadAPI from "@/api/module_crm/lead";
 import PersonInsightInterviewForm from "@/views/module_miailove/components/PersonInsightInterviewForm.vue";
@@ -816,12 +815,12 @@ async function reloadSensitiveLog() {
 }
 
 async function loadOptions() {
-  const [deptRes, userRes, channelRes] = await Promise.all([
-    DeptAPI.listDept({ status: "0" }),
+  const [storeRes, userRes, channelRes] = await Promise.all([
+    PersonAPI.storeOptions(),
     PersonAPI.userOptions(),
     LeadAPI.sourceOptions(),
   ]);
-  deptOptions.value = flattenDept(deptRes.data.data || []);
+  deptOptions.value = storeRes.data.data || [];
   userOptions.value = userRes.data.data || [];
   channelOptions.value = (channelRes.data.data || []).map((item) => ({
     label: item.name || item.code || "",
@@ -862,20 +861,6 @@ async function loadDictOptions() {
       );
     })
   );
-}
-
-function flattenDept(nodes: DeptTable[]) {
-  const result: Array<{ id: number; name?: string }> = [];
-  const walk = (items: DeptTable[]) => {
-    items.forEach((item) => {
-      if (typeof item.id === "number") {
-        result.push({ id: item.id, name: item.name });
-      }
-      if (item.children?.length) walk(item.children);
-    });
-  };
-  walk(nodes);
-  return result;
 }
 
 function genderLabel(value?: string) {

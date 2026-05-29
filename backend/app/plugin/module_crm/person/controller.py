@@ -19,6 +19,7 @@ from .schema import (
     PersonProfileInsightSaveSchema,
     PersonQualitySchema,
     PersonQueryParam,
+    PersonStoreOptionSchema,
     PersonTimelineOutSchema,
     PersonUserOptionSchema,
     SensitiveLogOutSchema,
@@ -46,6 +47,14 @@ async def user_options_controller(
 ) -> JSONResponse:
     result = await PersonCenterService.user_options_service(auth=auth)
     return SuccessResponse(data=result, msg="查询资源中心人员筛选项成功")
+
+
+@PersonRouter.get("/store-options", summary="查询资源中心门店筛选项", response_model=ResponseSchema[list[PersonStoreOptionSchema]])
+async def store_options_controller(
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:person:query"], check_data_scope=False))],
+) -> JSONResponse:
+    result = await PersonCenterService.store_options_service(auth=auth)
+    return SuccessResponse(data=result, msg="查询资源中心门店筛选项成功")
 
 
 @PersonRouter.get("/detail/{person_id}", summary="查询资源详情", response_model=ResponseSchema[PersonDetailOutSchema])

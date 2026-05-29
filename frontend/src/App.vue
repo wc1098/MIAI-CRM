@@ -25,10 +25,12 @@ import AiAssistant from "@/components/AiAssistant/index.vue";
 const appStore = useAppStore();
 const settingsStore = useSettingsStore();
 const userStore = useUserStore();
+const route = useRoute();
 
 const locale = computed(() => appStore.locale);
 const size = computed(() => appStore.size as ComponentSize);
-const showWatermark = computed(() => settingsStore.showWatermark);
+const isScreenRoute = computed(() => route.path.startsWith("/screen/"));
+const showWatermark = computed(() => settingsStore.showWatermark && !isScreenRoute.value);
 const watermarkContent = computed(() => {
   return userStore.basicInfo?.name || userStore.basicInfo?.username || defaultSettings.watermarkContent;
 });
@@ -36,6 +38,7 @@ const watermarkContent = computed(() => {
 // 只有在启用 AI 助手且用户已登录时才显示
 // 使用 userInfo 作为响应式依赖，当用户退出登录时会自动更新
 const enableAiAssistant = computed(() => {
+  if (isScreenRoute.value) return false;
   const isEnabled = settingsStore.userEnableAi;
   const isLoggedIn = userStore.basicInfo && Object.keys(userStore.basicInfo).length > 0;
   return isEnabled && isLoggedIn;

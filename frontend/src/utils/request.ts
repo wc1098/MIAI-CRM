@@ -19,6 +19,16 @@ const httpRequest: AxiosInstance = axios.create({
   paramsSerializer: (params) => qs.stringify(params, { indices: false }),
 });
 
+declare module "axios" {
+  interface AxiosRequestConfig {
+    silentSuccess?: boolean;
+  }
+
+  interface InternalAxiosRequestConfig {
+    silentSuccess?: boolean;
+  }
+}
+
 /**
  * 请求拦截器 - 添加 Authorization 头
  */
@@ -69,7 +79,8 @@ httpRequest.interceptors.response.use(
     if (
       response.config.method?.toUpperCase() !== "GET" &&
       !response.config.url?.includes("login") &&
-      !response.config.url?.includes("logout")
+      !response.config.url?.includes("logout") &&
+      !response.config.silentSuccess
     ) {
       ElMessage.success(data.msg);
     }

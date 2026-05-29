@@ -1,3 +1,4 @@
+import re
 import socket
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -23,6 +24,12 @@ RETRY_DELAYS = [60, 300, 900, 1800, 3600]
 WORKER_JOB_ID = "person_ai_profile_task_worker"
 WORKER_SCAN_SECONDS = 60
 GENDER_LABELS = {"0": "男", "1": "女", "2": "未知"}
+FORBIDDEN_DIRECT_FACT_PATTERN = re.compile(
+    r"(\d{2}岁|\d{3}\s?(?:cm|CM|厘米)|体重|公斤|kg|KG|"
+    r"硕士|博士|本科|大专|高中|学历|毕业|学校|专业|"
+    r"年收入|收入|有车|无车|有房|无房|无贷|房贷|车贷|"
+    r"郑州|洛阳|北京大学|北大|律师|教师|模特)"
+)
 ETHNICITY_LABELS = {
     "han": "汉族",
     "mongol": "蒙古族",
@@ -109,7 +116,6 @@ class PersonAiProfileService:
             "gender": cls._label(GENDER_LABELS, person.gender),
             "age": cls._age(person.birth_date),
             "height_cm": person.height_cm,
-            "weight_kg": person.weight_kg,
             "ethnicity": cls._label(ETHNICITY_LABELS, person.ethnicity),
             "occupation": person.occupation_code or person.occupation,
             "annual_income": cls._label(ANNUAL_INCOME_LABELS, person.annual_income),
@@ -393,7 +399,9 @@ class PersonAiProfileService:
         if choice.get("finish_reason") == "length":
             raise CustomException(msg="AI生成结果被截断，等待重试")
         content = ((choice.get("message") or {}).get("content") or "").strip()
-        return cls._clean_content(content)
+        content = cls._clean_content(content)
+        cls._validate_content(content)
+        return content
 
     @classmethod
     def _build_prompt(cls, snapshot: dict[str, Any]) -> str:
@@ -401,6 +409,10 @@ class PersonAiProfileService:
             "请基于以下脱敏资料，为婚恋小程序用户详情页生成一段“觅AI印象”。\n"
             "要求：120-220字；不要写标题；必须是完整段落，结尾要自然收束，不能以半句话或条件句结尾；"
             "必须严格按资料中的性别称呼，gender=男时只能使用“他/这位男士”，gender=女时只能使用“她/这位女士”；"
+            "年龄、身高、学历、职业、收入、婚况、籍贯、常驻地、房车等资料字段可以作为判断生活阶段、气质、稳定性和关系期待的背景素材，但不能直接输出原字段数字、单位或枚举值，不能写“35岁”“172cm”“身高172厘米”等；"
+            "体重不可作为素材，也不能输出体重相关描述；"
+            "不要复述资料页已经单独展示的结构化字段，不要罗列学历、学校、专业、职业、收入、婚况、民族、籍贯、常驻地、房车情况，要转化成生活状态、相处气质、沟通建议或关系期待；"
+            "不要用“这位女士35岁、身高172cm”“硕士学历、从事某职业、有车无贷”这类资料罗列开场；"
             "不要编造具体姓名、手机号、微信号、公司、收入精确值、住址、证件、证明、合同、支付信息；"
             "避免绝对化承诺和诊断式评价；语气温和可信，突出性格、生活状态、关系期待与相处建议。\n"
             f"脱敏资料：{snapshot}"
@@ -412,6 +424,11 @@ class PersonAiProfileService:
             if content.startswith(prefix):
                 content = content[len(prefix):].strip()
         return content[:800]
+
+    @classmethod
+    def _validate_content(cls, content: str) -> None:
+        if FORBIDDEN_DIRECT_FACT_PATTERN.search(content):
+            raise CustomException(msg="AI生成结果直接复述了资料字段，等待重试")
 
     @classmethod
     async def _write_profile(cls, db: AsyncSession, task: PersonAiProfileTaskModel, content: str) -> None:

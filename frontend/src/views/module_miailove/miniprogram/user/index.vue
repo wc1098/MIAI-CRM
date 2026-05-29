@@ -63,6 +63,16 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="允许上墙" width="110">
+          <template #default="{ row }">
+            <el-switch
+              v-model="row.allow_user_wall"
+              v-hasPerm="['operation:miniprogram:update']"
+              :disabled="row.is_invisible"
+              @change="(value: boolean | string | number) => updateUserWall(row, Boolean(value))"
+            />
+          </template>
+        </el-table-column>
         <el-table-column prop="registered_at" label="注册时间" min-width="170" />
         <el-table-column prop="last_login_at" label="最近登录" min-width="170" />
         <el-table-column fixed="right" label="操作" width="180">
@@ -97,6 +107,8 @@
           <el-descriptions-item label="openid">{{ detail.openid || "-" }}</el-descriptions-item>
           <el-descriptions-item label="注册时间">{{ detail.registered_at || "-" }}</el-descriptions-item>
           <el-descriptions-item label="最近登录">{{ detail.last_login_at || "-" }}</el-descriptions-item>
+          <el-descriptions-item label="隐身状态">{{ detail.is_invisible ? "已隐身" : "未隐身" }}</el-descriptions-item>
+          <el-descriptions-item label="允许上墙">{{ detail.allow_user_wall ? "是" : "否" }}</el-descriptions-item>
           <el-descriptions-item label="当前线索ID">{{ detail.lead_id || "-" }}</el-descriptions-item>
           <el-descriptions-item label="来源事件数">{{ eventCountLabel(detail.source_event_count) }}</el-descriptions-item>
         </el-descriptions>
@@ -120,7 +132,7 @@
           <el-descriptions-item label="婚况">{{ dictLabel("maritalStatus", detail.person?.marital_status) }}</el-descriptions-item>
           <el-descriptions-item label="学历">{{ dictLabel("education", detail.person?.education) }}</el-descriptions-item>
           <el-descriptions-item label="籍贯">{{ detail.person?.hometown || "-" }}</el-descriptions-item>
-          <el-descriptions-item label="常驻地">{{ detail.person?.residence || "-" }}</el-descriptions-item>
+          <el-descriptions-item label="常住地">{{ detail.person?.residence || "-" }}</el-descriptions-item>
           <el-descriptions-item label="房产信息">{{ dictLabel("houseStatus", detail.person?.house_status) }}</el-descriptions-item>
           <el-descriptions-item label="购车信息">{{ dictLabel("carStatus", detail.person?.car_status) }}</el-descriptions-item>
         </el-descriptions>
@@ -137,7 +149,7 @@
           <el-descriptions v-if="detail.partner_preference" :column="2" border>
             <el-descriptions-item label="年龄范围">{{ rangeLabel(detail.partner_preference.age_min, detail.partner_preference.age_max, "岁") }}</el-descriptions-item>
             <el-descriptions-item label="身高范围">{{ rangeLabel(detail.partner_preference.height_min_cm, detail.partner_preference.height_max_cm, "cm") }}</el-descriptions-item>
-            <el-descriptions-item label="常驻地">{{ listLabel(detail.partner_preference.preferred_residence_region_codes) }}</el-descriptions-item>
+            <el-descriptions-item label="常住地">{{ listLabel(detail.partner_preference.preferred_residence_region_codes) }}</el-descriptions-item>
             <el-descriptions-item label="籍贯">{{ listLabel(detail.partner_preference.preferred_hometown_region_codes) }}</el-descriptions-item>
             <el-descriptions-item label="学历">{{ dictLabels("education", detail.partner_preference.preferred_education_codes) }}</el-descriptions-item>
             <el-descriptions-item label="婚况">{{ dictLabels("maritalStatus", detail.partner_preference.preferred_marital_status_codes) }}</el-descriptions-item>
@@ -228,7 +240,7 @@
           <el-col :span="12"><el-form-item label="婚况"><el-select v-model="profileForm.marital_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.maritalStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="学历"><el-select v-model="profileForm.education" clearable style="width: 100%"><el-option v-for="item in dictOptions.education" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="籍贯"><el-input v-model="profileForm.hometown" clearable /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="常驻地"><el-input v-model="profileForm.residence" clearable /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="常住地"><el-input v-model="profileForm.residence" clearable /></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="房产"><el-select v-model="profileForm.house_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.houseStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="车辆"><el-select v-model="profileForm.car_status" clearable style="width: 100%"><el-option v-for="item in dictOptions.carStatus" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
           <el-col :span="24">
@@ -425,6 +437,28 @@ async function openDetail(id: number) {
   const res = await MpUserAPI.detailUser(id);
   detail.value = res.data.data;
   detailVisible.value = true;
+}
+
+async function updateUserWall(row: MpUserTable, allowUserWall: boolean) {
+  const previous = !allowUserWall;
+  if (!row.id) {
+    row.allow_user_wall = previous;
+    return;
+  }
+  if (allowUserWall && row.is_invisible) {
+    row.allow_user_wall = false;
+    ElMessage.warning("隐身用户不能开启上墙");
+    return;
+  }
+  try {
+    const res = await MpUserAPI.updateUserWall(row.id, allowUserWall);
+    Object.assign(row, res.data.data);
+    if (detail.value?.id === row.id) {
+      detail.value = res.data.data;
+    }
+  } catch {
+    row.allow_user_wall = previous;
+  }
 }
 
 async function openEdit(row: MpUserTable) {

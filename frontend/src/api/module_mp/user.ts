@@ -27,6 +27,14 @@ const MpUserAPI = {
     });
   },
 
+  updateUserWall(id: number, allow_user_wall: boolean) {
+    return request<ApiResponse<MpUserTable>>({
+      url: `${API_PATH}/${id}/user-wall`,
+      method: "put",
+      data: { allow_user_wall },
+    });
+  },
+
   getSettings() {
     return request<ApiResponse<MpOperationSettings>>({
       url: `${API_PATH}/settings`,

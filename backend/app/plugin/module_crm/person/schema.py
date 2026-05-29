@@ -91,6 +91,13 @@ class PersonUserOptionSchema(BaseModel):
     dept_id: int | None = None
 
 
+class PersonStoreOptionSchema(BaseModel):
+    """用户资源中心门店筛选选项"""
+
+    id: int
+    name: str | None = None
+
+
 class PersonBriefSchema(BaseModel):
     id: int
     display_no: str | None = None

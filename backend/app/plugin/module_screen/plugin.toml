@@ -1,0 +1,5 @@
+[plugin]
+name = "module_screen"
+title = "大屏管理"
+description = "大屏底座与用户墙"
+version = "0.1.0"

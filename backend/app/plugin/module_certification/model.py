@@ -66,7 +66,7 @@ class CertificationApplicationModel(ModelMixin):
     __loader_options__ = ["records", "package"]
 
     brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("mini_program_user.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="小程序用户ID")
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("mini_program_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="小程序用户ID")
     person_id: Mapped[int] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="人员ID")
     package_id: Mapped[int] = mapped_column(Integer, ForeignKey("certification_package.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False, index=True, comment="套餐ID")
     order_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("payment_order.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="支付订单ID")
@@ -94,7 +94,7 @@ class CertificationRecordModel(ModelMixin):
 
     brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
     application_id: Mapped[int] = mapped_column(Integer, ForeignKey("certification_application.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="申请ID")
-    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="小程序用户ID")
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, comment="小程序用户ID")
     person_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="人员ID")
     item_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="认证项编码")
     item_name: Mapped[str] = mapped_column(String(64), nullable=False, comment="认证项名称")
@@ -120,7 +120,7 @@ class CertificationMaterialModel(ModelMixin):
     brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
     application_id: Mapped[int] = mapped_column(Integer, ForeignKey("certification_application.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="申请ID")
     record_id: Mapped[int] = mapped_column(Integer, ForeignKey("certification_record.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="单项记录ID")
-    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="小程序用户ID")
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, comment="小程序用户ID")
     person_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="人员ID")
     item_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="认证项编码")
     material_type: Mapped[str] = mapped_column(String(32), nullable=False, default="file", index=True, comment="材料类型")

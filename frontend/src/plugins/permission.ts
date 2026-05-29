@@ -25,7 +25,7 @@ export function setupPermission() {
         await handleAuthenticatedUser(to, from, next);
       } else {
         // 未登录用户的处理
-        if (whiteList.includes(to.path)) {
+        if (whiteList.includes(to.path) || to.path.startsWith("/screen/")) {
           next();
         } else {
           next(`/login?redirect=${encodeURIComponent(to.fullPath)}`);

@@ -80,6 +80,10 @@ class LeadService:
         "备注",
     ]
 
+    IMPORT_HEADER_ALIASES = {
+        "常驻地": ["常住地"],
+    }
+
     @classmethod
     def register_scheduler(cls) -> None:
         """注册线索自动回公海任务。"""
@@ -873,8 +877,9 @@ class LeadService:
         auth.db.add(person)
         await auth.db.flush()
 
+        now = datetime.now()
         if owner_sales_id:
-            pool_type, lead_type, assigned_at = "sales_private", "new", datetime.now()
+            pool_type, lead_type, assigned_at = "sales_private", "new", now
         elif store_id:
             pool_type, lead_type, assigned_at = "store_pool", "pending", None
         else:
@@ -887,6 +892,7 @@ class LeadService:
             pool_type=pool_type,
             lead_type=lead_type,
             source_channel_code=data.source_channel_code,
+            store_entered_at=now if store_id else None,
             assigned_at=assigned_at,
             description=data.description,
         )
@@ -1032,6 +1038,8 @@ class LeadService:
             if not cls._is_brand_admin(auth) and cls._is_store_mgr(auth) and store_id != (auth.user.dept_id if auth.user else None):
                 raise CustomException(msg="门店管理员只能分配本门店线索", code=10403, status_code=403)
             await cls._validate_owner_in_store(auth, store_id, owner_sales_id)
+            if store_id and not lead.store_entered_at:
+                lead.store_entered_at = datetime.now()
             lead.store_id = store_id
             lead.owner_sales_id = owner_sales_id
             if owner_sales_id:
@@ -1070,6 +1078,8 @@ class LeadService:
             if lead.pool_type != "store_pool" or not lead.store_id:
                 raise CustomException(msg=f"线索{lead_id}不在门店公海，无法领取")
             old_owner = lead.owner_sales_id
+            if not lead.store_entered_at:
+                lead.store_entered_at = datetime.now()
             lead.owner_sales_id = auth.user.id if auth.user else None
             lead.pool_type = "sales_private"
             lead.lead_type = "second_hand" if lead.assigned_at else "new"
@@ -1182,6 +1192,17 @@ class LeadService:
         return {"男": "0", "女": "1", "未知": "2", "0": "0", "1": "1", "2": "2"}.get(text, "")
 
     @classmethod
+    def _row_value(cls, row: Any, header: str) -> Any:
+        value = row.get(header, "")
+        if str(value).strip():
+            return value
+        for alias in cls.IMPORT_HEADER_ALIASES.get(header, []):
+            value = row.get(alias, "")
+            if str(value).strip():
+                return value
+        return ""
+
+    @classmethod
     async def import_service(cls, auth: AuthSchema, file: UploadFile) -> dict:
         if not (cls._is_brand_admin(auth) or cls._is_store_mgr(auth)):
             raise CustomException(msg="无权限导入线索", code=10403, status_code=403)
@@ -1222,7 +1243,7 @@ class LeadService:
                     marital_status=str(row.get("婚况", "")).strip() or None,
                     education=str(row.get("学历", "")).strip() or None,
                     hometown=str(row.get("籍贯", "")).strip() or None,
-                    residence=str(row.get("常驻地", "")).strip() or None,
+                    residence=str(cls._row_value(row, "常驻地")).strip() or None,
                     house_status=str(row.get("房产信息", "")).strip() or None,
                     car_status=str(row.get("购车信息", "")).strip() or None,
                     source_channel_code=str(row.get("来源渠道", "")).strip().upper() or "IMPORT",

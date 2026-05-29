@@ -111,6 +111,12 @@ class MpUserOutSchema(BaseSchema):
     coupon_summary: dict | None = Field(default=None, description="免费券摘要")
 
 
+class MpUserWallUpdateSchema(BaseModel):
+    """小程序用户上墙开关更新。"""
+
+    allow_user_wall: bool = Field(default=True, description="是否允许上墙")
+
+
 class MpUserQueryParam:
     """小程序注册用户查询参数。"""
 

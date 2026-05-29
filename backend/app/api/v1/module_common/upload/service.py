@@ -30,6 +30,7 @@ class UploadSceneConfig:
 
 
 IMAGE_MIME_TYPES = ("image/jpeg", "image/png", "image/webp")
+VIDEO_MIME_TYPES = ("video/mp4",)
 SCENE_CONFIG: dict[str, UploadSceneConfig] = {
     "mp_register_photo": UploadSceneConfig("mp/register-photo", 4 * 1024 * 1024, IMAGE_MIME_TYPES),
     "certification_material": UploadSceneConfig("certification/material", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
@@ -37,11 +38,14 @@ SCENE_CONFIG: dict[str, UploadSceneConfig] = {
     "crm_contract_attachment": UploadSceneConfig("crm/contract-attachment", 12 * 1024 * 1024, (*IMAGE_MIME_TYPES, "application/pdf")),
     "event_cover": UploadSceneConfig("event/cover", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
     "common_image": UploadSceneConfig("common/image", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
+    "screen_promo_image": UploadSceneConfig("screen/promo-image", 12 * 1024 * 1024, IMAGE_MIME_TYPES),
+    "screen_promo_video": UploadSceneConfig("screen/promo-video", 5 * 1024 * 1024 * 1024, VIDEO_MIME_TYPES),
 }
 CONTENT_TYPE_EXTENSIONS = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp",
+    "video/mp4": ".mp4",
 }
 
 
@@ -84,9 +88,9 @@ class CommonUploadService:
         scene_config = cls._scene(data.scene)
         content_type = (data.content_type or "").split(";", 1)[0].strip().lower()
         if content_type not in scene_config.mime_types:
-            raise CustomException(msg="当前场景只支持 JPG、PNG、WEBP 图片")
+            raise CustomException(msg="上传文件类型不符合当前场景要求")
         if data.size and data.size > scene_config.max_size:
-            raise CustomException(msg=f"图片超过上传限制，最大 {scene_config.max_size // 1024 // 1024}MB")
+            raise CustomException(msg=f"文件超过上传限制，最大 {scene_config.max_size // 1024 // 1024}MB")
 
         if await StorageConfig.get_storage_driver() != "aliyun_oss":
             raise CustomException(msg="当前资源存储未启用阿里云 OSS，不能使用直传")

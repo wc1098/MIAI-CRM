@@ -886,6 +886,9 @@ function miniprogramRequiredMissing(photoUrls: string[]) {
 }
 
 function resetForm() {
+  Object.keys(form).forEach((key) => {
+    delete (form as Record<string, unknown>)[key];
+  });
   Object.assign(form, defaultForm());
   detail.value = undefined;
   certification.value = undefined;

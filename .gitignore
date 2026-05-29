@@ -43,6 +43,12 @@ frontend/.env.development
 frontend/.env.production
 docker-compose.yaml
 
+# ============ Android TV ============
+android_tv/.gradle/
+android_tv/**/build/
+android_tv/local.properties
+!android_tv/gradle/wrapper/gradle-wrapper.jar
+
 # ============ Python ============
 *.egg-info/
 dist/

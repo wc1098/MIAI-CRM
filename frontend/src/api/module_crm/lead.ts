@@ -269,6 +269,7 @@ export interface LeadTable extends BaseType {
   source_channel_name?: string;
   latest_follow_at?: string;
   next_follow_at?: string;
+  store_entered_at?: string;
   assigned_at?: string;
   last_recycled_at?: string;
   protect_due_at?: string;

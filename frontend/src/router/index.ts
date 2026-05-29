@@ -23,6 +23,18 @@ export const constantRoutes: RouteRecordRaw[] = [
     component: () => import("@/views/module_system/auth/index.vue"),
   },
   {
+    path: "/screen/player",
+    name: "ScreenPlayer",
+    meta: { hidden: true, title: "大屏播放" },
+    component: () => import("@/views/screen/player.vue"),
+  },
+  {
+    path: "/screen/promo/player",
+    name: "ScreenPromoPlayer",
+    meta: { hidden: true, title: "宣传大屏播放" },
+    component: () => import("@/views/screen/promo-player.vue"),
+  },
+  {
     path: "/401",
     name: "401",
     meta: { hidden: true, title: "401" },
@@ -48,7 +60,7 @@ export const constantRoutes: RouteRecordRaw[] = [
     children: [
       {
         path: "home",
-        component: () => import("@/views/dashboard/index.vue"),
+        component: () => import("@/views/module_miailove/workbench/overview.vue"),
         // 用于 keep-alive 功能，需要与 SFC 中自动推导或显式声明的组件名称一致
         // 参考文档: https://cn.vuejs.org/guide/built-ins/keep-alive.html#include-exclude
         name: "Home",

@@ -244,6 +244,7 @@ class LeadOutSchema(BaseSchema, UserBySchema):
     latest_source_event_id: int | None = None
     latest_follow_at: DateTimeStr | None = None
     next_follow_at: DateTimeStr | None = None
+    store_entered_at: DateTimeStr | None = None
     assigned_at: DateTimeStr | None = None
     last_recycled_at: DateTimeStr | None = None
     converted_customer_at: DateTimeStr | None = None

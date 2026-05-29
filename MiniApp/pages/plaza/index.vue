@@ -396,7 +396,7 @@ export default {
 				const data = await plazaList(this.queryParams())
 				const list = data.items || []
 				this.items = this.pageNo === 1 ? list : this.items.concat(list)
-				this.total = data.total || 0
+				this.total = data.total + 210000 || 0
 				this.hasNext = Boolean(data.has_next)
 			} catch (error) {
 				uni.showToast({ title: error.message || '加载失败', icon: 'none' })

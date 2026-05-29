@@ -42,15 +42,17 @@
       </template>
 
       <el-table v-loading="loading" :data="rows" border stripe row-key="id">
-        <el-table-column prop="contract_no" label="合同编号" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="contract_no" label="合同编号" min-width="130" show-overflow-tooltip />
         <el-table-column prop="contract_name" label="合同名称" min-width="160" show-overflow-tooltip />
         <el-table-column label="客户" min-width="130">
-          <template #default="{ row }">{{ row.person?.name || "-" }} <span class="muted">{{ row.person_display_no || "" }}</span></template>
+          <template #default="{ row }">{{ row.person?.name || "-" }} 
+            <!-- <span class="muted">{{ row.person_display_no || "" }}</span> -->
+          </template>
         </el-table-column>
-        <el-table-column label="手机号" min-width="130">
+        <!-- <el-table-column label="手机号" min-width="120">
           <template #default="{ row }">{{ row.person_mobile || "-" }}</template>
-        </el-table-column>
-        <el-table-column label="合同金额" width="120" align="right">
+        </el-table-column> -->
+        <el-table-column label="金额" width="100" align="right">
           <template #default="{ row }">{{ money(row.contract_amount) }}</template>
         </el-table-column>
         <el-table-column label="已收金额" min-width="180">
@@ -69,7 +71,7 @@
         <el-table-column label="状态" width="100">
           <template #default="{ row }"><el-tag :type="contractStatusType(row.contract_status)">{{ optionLabel(dictOptions.contractStatus, row.contract_status) }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="VIP等级" width="100">
+        <el-table-column label="VIP等级" width="80">
           <template #default="{ row }">{{ optionLabel(dictOptions.vipLevel, row.vip_level) }}</template>
         </el-table-column>
         <el-table-column label="有效期限" min-width="190">
@@ -78,7 +80,7 @@
         <el-table-column prop="store_name" label="门店" min-width="120" />
         <el-table-column prop="owner_user_name" label="销售" min-width="100" />
         <el-table-column prop="updated_time" label="更新时间" min-width="170" />
-        <el-table-column fixed="right" label="操作" width="360" align="center">
+        <el-table-column fixed="right" label="操作" width="160" align="center">
           <template #default="{ row }">
             <div class="table-actions">
               <el-button v-hasPerm="['crm:contract:detail']" link type="primary" icon="View" @click="openDetail(row.id)">详情</el-button>
@@ -662,7 +664,7 @@ onMounted(async () => {
 .toolbar-note, .muted { color: var(--el-text-color-secondary); font-size: 13px; }
 .form-tip { margin-left: 10px; color: var(--el-text-color-secondary); font-size: 13px; }
 .receipt-summary { margin-bottom: 16px; }
-.table-actions { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.table-actions { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; }
 .payment-progress { display: flex; flex-direction: column; gap: 4px; }
 .payment-progress__text { font-size: 12px; line-height: 16px; color: var(--el-text-color-primary); white-space: nowrap; }
 .pager { display: flex; justify-content: flex-end; padding-top: 16px; }

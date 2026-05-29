@@ -101,6 +101,7 @@ class CrmLeadProfileModel(ModelMixin, UserMixin):
     latest_source_event_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, comment="最近来源事件ID")
     latest_follow_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="最后跟进时间")
     next_follow_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="下次跟进时间")
+    store_entered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="首次进入门店时间")
     assigned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="最近分配/领取时间")
     last_recycled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="最近自动回收时间")
     converted_customer_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="转建档客户时间")

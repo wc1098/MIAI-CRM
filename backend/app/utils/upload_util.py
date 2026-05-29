@@ -79,6 +79,7 @@ MIME_TYPE_MAPPING = {
     "application/pdf": ".pdf",
     "text/plain": ".txt",
     "text/csv": ".csv",
+    "video/mp4": ".mp4",
 }
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}

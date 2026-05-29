@@ -43,6 +43,7 @@ from .schema import (
     MpUserOutSchema,
     MpUserProfileUpdateSchema,
     MpUserQueryParam,
+    MpUserWallUpdateSchema,
 )
 
 
@@ -315,6 +316,29 @@ class MpAdminService:
                 source_type="admin_miniprogram_update",
                 source_id=user.id,
             )
+        await auth.db.flush()
+        return await cls.detail_user(auth.db, user_id)
+
+    @classmethod
+    async def update_user_wall(
+        cls,
+        auth: AuthSchema,
+        user_id: int,
+        data: MpUserWallUpdateSchema,
+    ) -> dict:
+        result = await auth.db.execute(
+            select(MiniProgramUserModel).where(
+                MiniProgramUserModel.id == user_id,
+                MiniProgramUserModel.is_deleted == False,
+            )
+        )
+        user = result.scalars().first()
+        if not user:
+            raise CustomException(msg="小程序用户不存在")
+        if data.allow_user_wall and user.is_invisible:
+            raise CustomException(msg="隐身用户不能开启上墙")
+        user.allow_user_wall = data.allow_user_wall
+        user.updated_id = auth.user.id if auth.user else None
         await auth.db.flush()
         return await cls.detail_user(auth.db, user_id)
 

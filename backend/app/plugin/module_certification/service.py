@@ -1041,11 +1041,11 @@ class CertificationService:
         item = await cls._certification_item(db, item_code)
         if not item:
             return {"status": "skipped", "message": "认证项不存在，资料仅存档"}
-        user = await cls._ensure_staff_archive_user(db, person_id)
-        if not user:
+        person = await db.get(CrmPersonModel, person_id)
+        if not person or person.is_deleted:
             return {"status": "skipped", "message": "客户不存在，资料仅存档"}
 
-        record = await cls._target_staff_record(db, user, item)
+        record = await cls._target_staff_record(db, person, item)
         if record.record_status == "approved":
             raise CustomException(msg=f"{record.item_name}已通过审核，不能继续上传资料")
         previous_status = record.record_status
@@ -1117,53 +1117,24 @@ class CertificationService:
         ).scalars().first()
 
     @classmethod
-    async def _mini_program_user_by_person(cls, db: AsyncSession, person_id: int) -> MiniProgramUserModel | None:
-        return (
-            await db.execute(
-                select(MiniProgramUserModel)
-                .where(MiniProgramUserModel.person_id == person_id, MiniProgramUserModel.is_deleted == False)
-                .order_by(MiniProgramUserModel.id.desc())
-            )
-        ).scalars().first()
-
-    @classmethod
-    async def _ensure_staff_archive_user(cls, db: AsyncSession, person_id: int) -> MiniProgramUserModel | None:
-        user = await cls._mini_program_user_by_person(db, person_id)
-        if user:
-            return user
-        person = await db.get(CrmPersonModel, person_id)
-        if not person or person.is_deleted:
-            return None
-        user = MiniProgramUserModel(
-            brand_id=person.brand_id or 1,
-            person_id=person.id,
-            nickname=person.name,
-            avatar_url=(person.photo_urls or [None])[0],
-        )
-        db.add(user)
-        await db.flush()
-        logger.info("为工作人员认证资料创建后台占位小程序用户: person_id={}, user_id={}", person.id, user.id)
-        return user
-
-    @classmethod
     async def _target_staff_record(
         cls,
         db: AsyncSession,
-        user: MiniProgramUserModel,
+        person: CrmPersonModel,
         item: CertificationItemModel,
     ) -> CertificationRecordModel:
-        approved = await cls._latest_person_record(db, user.person_id or 0, item.item_code, ["approved"])
+        approved = await cls._latest_person_record(db, person.id, item.item_code, ["approved"])
         if approved:
             return approved
-        existing = await cls._latest_person_record(db, user.person_id or 0, item.item_code, ["pending_review", "not_submitted", "rejected"])
+        existing = await cls._latest_person_record(db, person.id, item.item_code, ["pending_review", "not_submitted", "rejected"])
         if existing:
             return existing
-        app = await cls._staff_application(db, user, item.item_code)
+        app = await cls._staff_application(db, person, item.item_code)
         record = CertificationRecordModel(
-            brand_id=1,
+            brand_id=person.brand_id or 1,
             application_id=app.id,
-            user_id=user.id,
-            person_id=user.person_id or 0,
+            user_id=None,
+            person_id=person.id,
             item_code=item.item_code,
             item_name=item.item_name,
             verify_mode=item.verify_mode,
@@ -1197,13 +1168,12 @@ class CertificationService:
         ).scalars().first()
 
     @classmethod
-    async def _staff_application(cls, db: AsyncSession, user: MiniProgramUserModel, item_code: str) -> CertificationApplicationModel:
+    async def _staff_application(cls, db: AsyncSession, person: CrmPersonModel, item_code: str) -> CertificationApplicationModel:
         app = (
             await db.execute(
                 select(CertificationApplicationModel)
                 .where(
-                    CertificationApplicationModel.user_id == user.id,
-                    CertificationApplicationModel.person_id == user.person_id,
+                    CertificationApplicationModel.person_id == person.id,
                     CertificationApplicationModel.description == STAFF_UPLOAD_SOURCE,
                     CertificationApplicationModel.is_deleted == False,
                 )
@@ -1225,9 +1195,9 @@ class CertificationService:
         if not package:
             raise CustomException(msg="认证套餐配置不存在，无法创建工作人员认证承载记录")
         app = CertificationApplicationModel(
-            brand_id=1,
-            user_id=user.id,
-            person_id=user.person_id or 0,
+            brand_id=person.brand_id or 1,
+            user_id=None,
+            person_id=person.id,
             package_id=package.id,
             level_code=STAFF_UPLOAD_LEVEL_CODE,
             level_name=STAFF_UPLOAD_LEVEL_NAME,
@@ -1477,7 +1447,7 @@ class CertificationService:
 
     @classmethod
     async def page_applications(cls, db: AsyncSession, page_no: int, page_size: int, search: CertificationApplicationQueryParam) -> dict[str, Any]:
-        stmt = select(CertificationApplicationModel, MiniProgramUserModel, CrmPersonModel).join(MiniProgramUserModel, CertificationApplicationModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationApplicationModel.person_id == CrmPersonModel.id)
+        stmt = select(CertificationApplicationModel, MiniProgramUserModel, CrmPersonModel).outerjoin(MiniProgramUserModel, CertificationApplicationModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationApplicationModel.person_id == CrmPersonModel.id)
         conditions = [CertificationApplicationModel.is_deleted == False]
         if search.status:
             conditions.append(CertificationApplicationModel.application_status == search.status)
@@ -1486,7 +1456,7 @@ class CertificationService:
         if search.keyword:
             keyword = f"%{search.keyword}%"
             conditions.append(or_(MiniProgramUserModel.nickname.like(keyword), MiniProgramUserModel.mobile.like(keyword), CrmPersonModel.name.like(keyword), CrmPersonModel.primary_mobile.like(keyword), CrmPersonModel.display_no.like(keyword)))
-        count_stmt = select(func.count(CertificationApplicationModel.id)).join(MiniProgramUserModel, CertificationApplicationModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationApplicationModel.person_id == CrmPersonModel.id).where(and_(*conditions))
+        count_stmt = select(func.count(CertificationApplicationModel.id)).outerjoin(MiniProgramUserModel, CertificationApplicationModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationApplicationModel.person_id == CrmPersonModel.id).where(and_(*conditions))
         rows = (
             await db.execute(
                 stmt.where(and_(*conditions))
@@ -1501,7 +1471,7 @@ class CertificationService:
 
     @classmethod
     async def page_records(cls, db: AsyncSession, page_no: int, page_size: int, search: CertificationRecordQueryParam) -> dict[str, Any]:
-        stmt = select(CertificationRecordModel, MiniProgramUserModel, CrmPersonModel).join(MiniProgramUserModel, CertificationRecordModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationRecordModel.person_id == CrmPersonModel.id)
+        stmt = select(CertificationRecordModel, MiniProgramUserModel, CrmPersonModel).outerjoin(MiniProgramUserModel, CertificationRecordModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationRecordModel.person_id == CrmPersonModel.id)
         conditions = [CertificationRecordModel.is_deleted == False]
         if search.status:
             conditions.append(CertificationRecordModel.record_status == search.status)
@@ -1510,7 +1480,7 @@ class CertificationService:
         if search.keyword:
             keyword = f"%{search.keyword}%"
             conditions.append(or_(MiniProgramUserModel.nickname.like(keyword), MiniProgramUserModel.mobile.like(keyword), CrmPersonModel.name.like(keyword), CrmPersonModel.primary_mobile.like(keyword), CrmPersonModel.display_no.like(keyword)))
-        total = (await db.execute(select(func.count(CertificationRecordModel.id)).join(MiniProgramUserModel, CertificationRecordModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationRecordModel.person_id == CrmPersonModel.id).where(and_(*conditions)))).scalar() or 0
+        total = (await db.execute(select(func.count(CertificationRecordModel.id)).outerjoin(MiniProgramUserModel, CertificationRecordModel.user_id == MiniProgramUserModel.id).join(CrmPersonModel, CertificationRecordModel.person_id == CrmPersonModel.id).where(and_(*conditions)))).scalar() or 0
         rows = (await db.execute(stmt.where(and_(*conditions)).options(selectinload(CertificationRecordModel.materials)).order_by(CertificationRecordModel.id.desc()).offset((page_no - 1) * page_size).limit(page_size))).all()
         operator_ids = {
             int((record.payload or {}).get("operator_id"))
@@ -1541,7 +1511,7 @@ class CertificationService:
         row = (
             await db.execute(
                 select(CertificationApplicationModel, MiniProgramUserModel, CrmPersonModel, PaymentOrderModel)
-                .join(MiniProgramUserModel, CertificationApplicationModel.user_id == MiniProgramUserModel.id)
+                .outerjoin(MiniProgramUserModel, CertificationApplicationModel.user_id == MiniProgramUserModel.id)
                 .join(CrmPersonModel, CertificationApplicationModel.person_id == CrmPersonModel.id)
                 .outerjoin(PaymentOrderModel, CertificationApplicationModel.order_id == PaymentOrderModel.id)
                 .where(CertificationApplicationModel.id == application_id, CertificationApplicationModel.is_deleted == False)
@@ -1570,7 +1540,7 @@ class CertificationService:
         applications = (
             await db.execute(
                 select(CertificationApplicationModel, MiniProgramUserModel, PaymentOrderModel)
-                .join(MiniProgramUserModel, CertificationApplicationModel.user_id == MiniProgramUserModel.id)
+                .outerjoin(MiniProgramUserModel, CertificationApplicationModel.user_id == MiniProgramUserModel.id)
                 .outerjoin(PaymentOrderModel, CertificationApplicationModel.order_id == PaymentOrderModel.id)
                 .where(CertificationApplicationModel.person_id == person_id, CertificationApplicationModel.is_deleted == False)
                 .options(selectinload(CertificationApplicationModel.records).selectinload(CertificationRecordModel.materials))
@@ -1795,12 +1765,12 @@ class CertificationService:
         return data
 
     @classmethod
-    def _application_admin_out(cls, app: CertificationApplicationModel, user: MiniProgramUserModel, person: CrmPersonModel) -> dict[str, Any]:
+    def _application_admin_out(cls, app: CertificationApplicationModel, user: MiniProgramUserModel | None, person: CrmPersonModel) -> dict[str, Any]:
         data = cls._application_out(app) or {}
         data.update(
             {
-                "nickname": user.nickname or person.name,
-                "mobile": user.mobile or person.primary_mobile,
+                "nickname": (user.nickname if user else None) or person.name,
+                "mobile": (user.mobile if user else None) or person.primary_mobile,
                 "display_no": person.display_no,
                 "person_name": person.name,
                 "person": cls._admin_person_brief(person),
@@ -1811,9 +1781,9 @@ class CertificationService:
         return data
 
     @classmethod
-    def _person_application_out(cls, app: CertificationApplicationModel, user: MiniProgramUserModel, order: PaymentOrderModel | None) -> dict[str, Any]:
+    def _person_application_out(cls, app: CertificationApplicationModel, user: MiniProgramUserModel | None, order: PaymentOrderModel | None) -> dict[str, Any]:
         data = cls._application_out(app) or {}
-        data.update({"nickname": user.nickname, "mobile": user.mobile, "order": cls._order_out(order) if order else None, "reward_granted": bool(app.reward_granted_at)})
+        data.update({"nickname": user.nickname if user else None, "mobile": user.mobile if user else None, "order": cls._order_out(order) if order else None, "reward_granted": bool(app.reward_granted_at)})
         return data
 
     @classmethod
@@ -1822,15 +1792,15 @@ class CertificationService:
         return {"id": row.id, "application_id": row.application_id, "user_id": row.user_id, "person_id": row.person_id, "item_code": row.item_code, "item_name": row.item_name, "verify_mode": row.verify_mode, "record_status": row.record_status, "submitted_at": row.submitted_at, "verified_at": row.verified_at, "reviewed_at": row.reviewed_at, "reviewer_id": row.reviewer_id, "reject_reason": row.reject_reason, "expire_at": row.expire_at, "payload": row.payload, "materials": [cls._material_out(item) for item in materials]}
 
     @classmethod
-    def _record_admin_out(cls, record: CertificationRecordModel, user: MiniProgramUserModel, person: CrmPersonModel, operator_map: dict[int, UserModel] | None = None) -> dict[str, Any]:
+    def _record_admin_out(cls, record: CertificationRecordModel, user: MiniProgramUserModel | None, person: CrmPersonModel, operator_map: dict[int, UserModel] | None = None) -> dict[str, Any]:
         data = cls._record_out(record)
         payload = record.payload or {}
         operator_id = payload.get("operator_id")
         operator = operator_map.get(int(operator_id)) if operator_map and operator_id else None
         data.update(
             {
-                "nickname": user.nickname or person.name,
-                "mobile": user.mobile or person.primary_mobile,
+                "nickname": (user.nickname if user else None) or person.name,
+                "mobile": (user.mobile if user else None) or person.primary_mobile,
                 "display_no": person.display_no,
                 "person_name": person.name,
                 "person": cls._admin_person_brief(person),

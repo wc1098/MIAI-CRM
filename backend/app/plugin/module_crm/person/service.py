@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 
 from app.api.v1.module_system.auth.schema import AuthSchema
 from app.api.v1.module_system.dept.model import DeptModel
@@ -195,6 +195,24 @@ class PersonCenterService:
             for row in result.scalars().all()
             if row.id
         ]
+
+    @classmethod
+    async def store_options_service(cls, auth: AuthSchema) -> list[dict[str, Any]]:
+        conditions: list[Any] = [
+            DeptModel.is_deleted == False,
+            DeptModel.status == "0",
+            DeptModel.parent_id.is_not(None),
+        ]
+        if not cls._is_brand_admin(auth):
+            if not auth.user or not auth.user.dept_id:
+                return []
+            conditions.append(DeptModel.id == auth.user.dept_id)
+        result = await auth.db.execute(
+            select(DeptModel.id, DeptModel.name)
+            .where(and_(*conditions))
+            .order_by(DeptModel.order.asc(), DeptModel.id.asc())
+        )
+        return [{"id": row[0], "name": row[1]} for row in result.all()]
 
     @classmethod
     def _scope_condition(cls, auth: AuthSchema) -> Any | None:

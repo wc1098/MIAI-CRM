@@ -19,6 +19,7 @@ from .schema import (
     MpUnlockRevokeSchema,
     MpUserProfileUpdateSchema,
     MpUserQueryParam,
+    MpUserWallUpdateSchema,
 )
 from .service import MpAdminService
 
@@ -57,6 +58,16 @@ async def update_user_profile_controller(
 ) -> JSONResponse:
     result = await MpAdminService.update_user_profile(auth=auth, user_id=user_id, data=data)
     return SuccessResponse(data=result, msg="保存小程序用户资料成功")
+
+
+@MpAdminRouter.put("/{user_id}/user-wall", summary="更新小程序用户上墙开关")
+async def update_user_wall_controller(
+    user_id: int,
+    data: MpUserWallUpdateSchema,
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["operation:miniprogram:update"]))],
+) -> JSONResponse:
+    result = await MpAdminService.update_user_wall(auth=auth, user_id=user_id, data=data)
+    return SuccessResponse(data=result, msg="保存用户上墙状态成功")
 
 
 @MpAdminRouter.get("/settings", summary="小程序运营设置")

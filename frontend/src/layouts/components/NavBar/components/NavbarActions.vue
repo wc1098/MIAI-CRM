@@ -58,17 +58,17 @@
               <el-icon><User /></el-icon>
               {{ t("navbar.profile") }}
             </el-dropdown-item>
-            <el-dropdown-item @click="handleConfigClick">
+            <el-dropdown-item v-if="isAdmin" @click="handleConfigClick">
               <el-icon><Setting /></el-icon>
               {{ t("navbar.config") }}
             </el-dropdown-item>
-            <el-dropdown-item @click="handleDocumentClick">
+            <!-- <el-dropdown-item @click="handleDocumentClick">
               <el-icon><Document /></el-icon>
               {{ t("navbar.document") }}
-            </el-dropdown-item>
-            <el-dropdown-item @click="handleGiteeClick">
+            </el-dropdown-item> -->
+            <el-dropdown-item @click="handleHelpClick">
               <el-icon><Reading /></el-icon>
-              {{ t("navbar.gitee") }}
+              {{ t("navbar.help") }}
             </el-dropdown-item>
             <el-dropdown-item @click="handleTourClick">
               <el-icon><Position /></el-icon>
@@ -132,6 +132,9 @@ const router = useRouter();
 
 // 是否为桌面设备
 const isDesktop = computed(() => appStore.device === DeviceEnum.DESKTOP);
+const isAdmin = computed(() =>
+  (userStore.basicInfo.roles || []).some((role) => role.code === "ADMIN")
+);
 
 /**
  * 打开个人中心页面
@@ -163,10 +166,10 @@ function handleSettingsClick() {
 }
 
 /**
- * Gitee 项目地址
+ * 系统使用说明
  */
-function handleGiteeClick() {
-  window.open("https://gitee.com/fastapiadmin/FastapiAdmin");
+function handleHelpClick() {
+  window.open("https://help.miai.love", "_blank");
 }
 
 /**

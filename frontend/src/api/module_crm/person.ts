@@ -98,6 +98,12 @@ const PersonAPI = {
       method: "get",
     });
   },
+  storeOptions() {
+    return request<ApiResponse<PersonStoreOption[]>>({
+      url: `${API_PATH}/store-options`,
+      method: "get",
+    });
+  },
 };
 
 export default PersonAPI;
@@ -119,6 +125,11 @@ export interface PersonUserOption {
   name?: string;
   username?: string;
   dept_id?: number;
+}
+
+export interface PersonStoreOption {
+  id: number;
+  name?: string;
 }
 
 export interface PersonBrief {

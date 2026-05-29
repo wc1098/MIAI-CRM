@@ -87,3 +87,44 @@ export async function uploadImageDirect(file: File, scene: UploadScene): Promise
     return fallbackUpload(compressed);
   }
 }
+
+export async function uploadFileDirect(file: File, scene: UploadScene, onProgress?: (percent: number) => void): Promise<UploadConfirmResponse> {
+  try {
+    onProgress?.(1);
+    const policyRes = await CommonUploadAPI.ossPolicy({
+      scene,
+      filename: file.name,
+      content_type: file.type || "application/octet-stream",
+      size: file.size,
+    });
+    const policy = policyRes.data.data;
+    const formData = new FormData();
+    formData.append("key", policy.object_key);
+    formData.append("policy", policy.policy);
+    formData.append("OSSAccessKeyId", policy.access_key_id);
+    formData.append("Signature", policy.signature);
+    formData.append("success_action_status", "200");
+    formData.append("Content-Type", file.type || "application/octet-stream");
+    formData.append("file", file);
+    await axios.post(policy.host, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: (event) => {
+        if (!event.total) return;
+        const percent = Math.min(99, Math.max(1, Math.round((event.loaded / event.total) * 100)));
+        onProgress?.(percent);
+      },
+    });
+    const confirmRes = await CommonUploadAPI.confirm({
+      scene,
+      object_key: policy.object_key,
+      file_url: policy.file_url,
+    });
+    onProgress?.(100);
+    return confirmRes.data.data;
+  } catch (error) {
+    console.warn("OSS直传失败，回退后端上传", error);
+    const result = await fallbackUpload(file);
+    onProgress?.(100);
+    return result;
+  }
+}

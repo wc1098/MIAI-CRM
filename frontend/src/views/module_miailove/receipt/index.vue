@@ -39,20 +39,22 @@
 
       <el-table v-loading="loading" :data="rows" border stripe row-key="id">
         <el-table-column prop="receipt_no" label="收款单号" min-width="165" show-overflow-tooltip />
-        <el-table-column prop="contract_no" label="合同编号" min-width="170" show-overflow-tooltip />
-        <el-table-column label="客户" min-width="130">
-          <template #default="{ row }">{{ row.person_name || "-" }} <span class="muted">{{ row.person_display_no || "" }}</span></template>
+        <el-table-column prop="contract_no" label="合同编号" min-width="130" show-overflow-tooltip />
+        <el-table-column label="客户" min-width="100">
+          <template #default="{ row }">{{ row.person_name || "-" }} 
+            <!-- <span class="muted">{{ row.person_display_no || "" }}</span> -->
+          </template>
         </el-table-column>
         <el-table-column label="类型" width="90"><template #default="{ row }">{{ optionLabel(dictOptions.receiptType, row.receipt_type) }}</template></el-table-column>
         <el-table-column label="场景" width="95"><template #default="{ row }">{{ optionLabel(dictOptions.paymentScene, row.payment_scene) }}</template></el-table-column>
         <el-table-column label="方式" width="95"><template #default="{ row }">{{ optionLabel(dictOptions.payMethod, row.pay_method) }}</template></el-table-column>
-        <el-table-column label="金额" width="115" align="right"><template #default="{ row }">{{ money(row.amount) }}</template></el-table-column>
+        <el-table-column label="金额" width="100" align="right"><template #default="{ row }">{{ money(row.amount) }}</template></el-table-column>
         <el-table-column label="状态" width="105"><template #default="{ row }"><el-tag :type="statusType(row.receipt_status)">{{ optionLabel(dictOptions.receiptStatus, row.receipt_status) }}</el-tag></template></el-table-column>
         <el-table-column prop="store_name" label="门店" min-width="110" show-overflow-tooltip />
-        <el-table-column prop="owner_user_name" label="销售" min-width="100" />
+        <el-table-column prop="owner_user_name" label="销售" min-width="80" />
         <el-table-column prop="submitted_at" label="提交时间" min-width="160" />
         <el-table-column prop="confirmed_at" label="确认时间" min-width="160" />
-        <el-table-column fixed="right" label="操作" width="330" align="center">
+        <el-table-column fixed="right" label="操作" width="260" align="center">
           <template #default="{ row }">
             <div class="table-actions">
               <el-button v-hasPerm="['crm:receipt:detail']" link type="primary" icon="View" @click="openDetail(row.id)">详情</el-button>
