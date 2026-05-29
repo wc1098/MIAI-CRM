@@ -1,82 +1,45 @@
 <template>
   <div class="auth-view" :style="{ '--login-background-url': `url(${loginBackgroundUrl})` }">
-    <!-- 右侧切换主题、语言按钮  -->
-    <div class="auth-view__toolbar">
-      <el-tooltip :content="t('login.themeToggle')" placement="bottom">
-        <CommonWrapper>
-          <ThemeSwitch />
-        </CommonWrapper>
-      </el-tooltip>
-      <el-tooltip :content="t('login.languageToggle')" placement="bottom">
-        <CommonWrapper>
-          <LangSelect size="text-20px" />
-        </CommonWrapper>
-      </el-tooltip>
-    </div>
-    <!-- 登录页主体 -->
     <div class="auth-view__wrapper">
-      <!-- 可选：左侧产品介绍区域，如不需要可整段删除，右侧登录表单会自动居中展示 -->
       <section class="auth-feature">
-        <div class="auth-feature__badge">
-          <span class="auth-feature__dot" />
-          Enterprise Ready
+        <div class="auth-feature__brand">
+          <div class="auth-feature__mark">觅</div>
+          <div>
+            <p>高端婚恋会员运营系统</p>
+            <span>MI AI MEMBER CARE</span>
+          </div>
         </div>
-        <h1 class="auth-feature__title">企业级管理系统</h1>
+        <div class="auth-feature__badge">STAFF PORTAL · MEMBER CARE</div>
+        <h1 class="auth-feature__title">把每一次相遇，交给更专业的服务流程。</h1>
         <p class="auth-feature__subtitle">
-          提供安全、高效、可扩展的管理解决方案，助力企业数字化转型与业务增长。
+          会员画像、匹配线索、红娘跟进与实名认证统一沉淀，让门店服务节奏清晰、客户经营更稳。
         </p>
-        <ul class="auth-feature__highlights">
-          <li>
-            <span>✓</span>
-            统一身份认证与权限管理
-          </li>
-          <li>
-            <span>✓</span>
-            支持定时任务与任务调度
-          </li>
-          <li>
-            <span>✓</span>
-            数据安全与操作审计
-          </li>
-          <li>
-            <span>✓</span>
-            灵活扩展与高可用架构
-          </li>
-        </ul>
+
+        <div class="auth-orbit" aria-hidden="true">
+          <span class="auth-orbit__ring auth-orbit__ring--one" />
+          <span class="auth-orbit__ring auth-orbit__ring--two" />
+          <span class="auth-orbit__dot auth-orbit__dot--one" />
+          <span class="auth-orbit__dot auth-orbit__dot--two" />
+          <span class="auth-orbit__core">AI</span>
+        </div>
+
+        <div class="auth-feature__insights">
+          <article>
+            <span>全链路会员运营</span>
+            <p>线索、建档、合同、服务计划与跟进记录统一沉淀。</p>
+          </article>
+          <article>
+            <span>智能匹配辅助</span>
+            <p>结合会员画像与择偶偏好，帮助红娘更快筛选候选人。</p>
+          </article>
+          <article>
+            <span>门店协同管控</span>
+            <p>围绕门店、角色和权限管理客户资源与服务流程。</p>
+          </article>
+        </div>
       </section>
 
-      <!-- 登录页主体容器 -->
       <section class="auth-panel">
-        <!-- 标题 -->
-        <div class="auth-panel__brand">
-          <div class="auth-panel__logo-wrap">
-            <!-- logo -->
-            <el-image
-              :src="configStore.configData?.sys_web_logo?.config_value || ''"
-              class="auth-panel__logo"
-            />
-          </div>
-          <div class="auth-panel__meta">
-            <div class="auth-panel__title-row">
-              <span class="auth-panel__title">
-                {{ configStore.configData?.sys_web_title?.config_value || "" }}
-              </span>
-              <el-tooltip
-                :content="configStore.configData?.sys_web_description?.config_value || ''"
-                placement="bottom"
-              >
-                <el-icon class="cursor-help"><QuestionFilled /></el-icon>
-              </el-tooltip>
-            </div>
-            <div class="auth-panel__version-row">
-              <span class="auth-panel__version-label">Version</span>
-              <span class="auth-panel__version-pill">
-                v{{ configStore.configData?.sys_web_version?.config_value || "" }}
-              </span>
-            </div>
-          </div>
-        </div>
-        <!-- 组件切换 -->
         <transition name="fade-slide" mode="out-in">
           <component
             :is="formComponents[component]"
@@ -87,7 +50,6 @@
           />
         </transition>
 
-        <!-- 登录页底部版权 -->
         <footer class="auth-panel__footer">
           <el-text size="small">
             <a :href="configStore.configData?.sys_git_code?.config_value || ''" target="_blank">
@@ -116,8 +78,6 @@
 <script setup lang="ts">
 // import logo from "@/assets/logo.png";
 // import { defaultSettings } from "@/settings";
-import CommonWrapper from "@/components/CommonWrapper/index.vue";
-import ThemeSwitch from "@/components/ThemeSwitch/index.vue";
 import { useConfigStore } from "@/store";
 
 const configStore = useConfigStore();
@@ -132,8 +92,6 @@ const loginBackgroundUrl = computed(() => {
 });
 
 type LayoutMap = "login" | "register" | "resetPwd";
-
-const t = useI18n().t;
 
 const component = ref<LayoutMap>("login"); // 切换显示的组件
 const formComponents = {
@@ -177,15 +135,32 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .auth-view {
+  --miai-bg: oklch(98% 0.012 55);
+  --miai-surface: oklch(100% 0 0);
+  --miai-fg: oklch(22% 0.028 255);
+  --miai-muted: oklch(50% 0.018 255);
+  --miai-border: oklch(90% 0.016 55);
+  --miai-accent: oklch(63% 0.14 18);
+  --miai-accent-soft: oklch(94% 0.04 18);
+  --miai-gold: oklch(75% 0.09 78);
+  --miai-rose-deep: oklch(42% 0.09 18);
+  --miai-ink-soft: oklch(33% 0.025 255);
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: clamp(1rem, 3vw, 2rem);
+  min-height: 100vh;
+  padding: clamp(18px, 4vw, 48px);
   overflow: hidden;
-  background-color: var(--el-bg-color-page);
+  color: var(--miai-fg);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI",
+    system-ui, sans-serif;
+  background:
+    radial-gradient(circle at 14% 18%, oklch(95% 0.045 18) 0 18rem, transparent 31rem),
+    radial-gradient(circle at 86% 12%, oklch(95% 0.035 78) 0 14rem, transparent 28rem),
+    linear-gradient(135deg, var(--miai-bg), oklch(96% 0.018 45));
 
   &::before {
     position: fixed;
@@ -193,6 +168,7 @@ onBeforeUnmount(() => {
     z-index: -2;
     content: "";
     background: var(--login-background-url) center/cover no-repeat;
+    opacity: 0.05;
   }
 
   &::after {
@@ -201,64 +177,66 @@ onBeforeUnmount(() => {
     z-index: -1;
     pointer-events: none;
     content: "";
-    background: linear-gradient(120deg, var(--el-bg-color), transparent);
+    background: transparent;
   }
 }
-
-.auth-view__toolbar {
-  display: inline-flex;
-  gap: 0.75rem;
-  align-self: flex-end;
-  padding: 0.5rem 0.75rem;
-  background-color: var(--el-bg-color-overlay);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 999px;
-  box-shadow: var(--el-box-shadow-light);
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
-
-  &:hover {
-    box-shadow: var(--el-box-shadow);
-    transform: translateY(-2px);
-  }
-
-  @media (max-width: 640px) {
-    position: fixed;
-    top: 12px;
-    right: 16px;
-    z-index: 20;
-    align-self: flex-end;
-    justify-content: center;
-  }
-
-  // 暗色/亮色交给 Element Plus 变量处理，不在页面里写死颜色分支
-}
-
-/* 暗色样式交给全局主题变量 */
 
 .auth-view__wrapper {
   display: grid;
   flex: 1;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: clamp(1.5rem, 3vw, 3rem);
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.78fr);
+  gap: 0;
   align-items: stretch;
-  padding: clamp(1.5rem, 2vw, 2.5rem);
+  width: min(1180px, 100%);
+  min-height: min(760px, calc(100vh - 48px));
+  margin: auto;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--miai-surface), transparent 4%);
+  border: 1px solid color-mix(in oklch, var(--miai-border), white 25%);
+  border-radius: 32px;
+  box-shadow: 0 30px 80px color-mix(in oklch, var(--miai-fg), transparent 88%);
 }
 
 .auth-feature {
+  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: clamp(1.5rem, 3vw, 3rem);
-  color: var(--el-text-color-primary);
+  justify-content: space-between;
+  min-height: auto;
+  padding: clamp(32px, 5vw, 64px);
+  color: var(--miai-fg);
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in oklch, var(--miai-surface), transparent 5%),
+      color-mix(in oklch, var(--miai-accent-soft), transparent 18%)
+    ),
+    radial-gradient(
+      circle at 70% 34%,
+      color-mix(in oklch, var(--miai-accent), transparent 84%),
+      transparent 24rem
+    );
+  border-inline-end: 1px solid var(--miai-border);
+  isolation: isolate;
   animation: featureFade 0.8s ease-out;
+
+  &::before {
+    position: absolute;
+    inset: 9%;
+    z-index: -1;
+    content: "";
+    border: 1px solid color-mix(in oklch, var(--miai-accent), transparent 72%);
+    border-radius: 999px;
+    transform: rotate(-10deg);
+  }
 }
 
 @media (max-width: 768px) {
   .auth-view__wrapper {
-    display: block;
-    padding: 1.25rem 0.75rem 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 54px;
   }
 
   .auth-feature {
@@ -268,161 +246,189 @@ onBeforeUnmount(() => {
   .auth-panel {
     width: 100%;
     margin-inline: 0;
-    box-shadow: var(--el-box-shadow);
   }
+}
+
+.auth-feature__brand {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 0;
+  color: var(--miai-ink-soft);
+
+  p {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  span {
+    font-size: 13px;
+    color: var(--miai-muted);
+    letter-spacing: 0;
+  }
+}
+
+.auth-feature__mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  font-family: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: white;
+  background: linear-gradient(135deg, var(--miai-rose-deep), var(--miai-accent));
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white, transparent 65%);
 }
 
 .auth-feature__badge {
   display: inline-flex;
-  gap: 0.5rem;
-  align-items: center;
   width: fit-content;
-  padding: 0.3rem 0.9rem;
-  font-size: 0.875rem;
-  color: var(--el-color-primary);
+  padding: 8px 12px;
+  margin-bottom: 18px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--miai-rose-deep);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  background: var(--el-color-primary-light-9);
+  letter-spacing: 0;
+  background: color-mix(in oklch, var(--miai-accent-soft), white 22%);
+  border: 1px solid color-mix(in oklch, var(--miai-accent), transparent 55%);
   border-radius: 999px;
 }
 
-.auth-feature__dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  background: var(--el-color-primary);
-  border-radius: 50%;
-  box-shadow: var(--el-box-shadow-light);
-}
-
 .auth-feature__title {
-  margin: 1.5rem 0 0.5rem;
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  font-weight: 600;
-  line-height: 1.2;
+  max-width: 670px;
+  margin: 0;
+  font-family: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+  font-size: clamp(42px, 6vw, 82px);
+  font-weight: 700;
+  line-height: 1.03;
+  letter-spacing: 0;
 }
 
 .auth-feature__subtitle {
-  margin-bottom: 1.5rem;
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--el-text-color-regular);
+  max-width: 560px;
+  margin: 22px 0 0;
+  font-size: clamp(17px, 1.45vw, 21px);
+  line-height: 1.75;
+  color: var(--miai-muted);
 }
 
-.auth-feature__highlights {
+.auth-orbit {
+  position: absolute;
+  inset-block-start: 142px;
+  inset-inline-end: clamp(22px, 5vw, 72px);
+  width: clamp(180px, 22vw, 280px);
+  aspect-ratio: 1;
+  margin-top: 0;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+.auth-orbit__ring,
+.auth-orbit__dot,
+.auth-orbit__core {
+  position: absolute;
+  display: block;
+}
+
+.auth-orbit__ring {
+  border: 1px solid color-mix(in oklch, var(--miai-accent), transparent 62%);
+  border-radius: 50%;
+}
+
+.auth-orbit__ring--one {
+  inset: 0;
+}
+
+.auth-orbit__ring--two {
+  inset: 15%;
+  border-color: color-mix(in oklch, var(--miai-gold), transparent 42%);
+  transform: translate(-5%, 6%);
+}
+
+.auth-orbit__dot {
+  width: 16px;
+  height: 16px;
+  background: var(--miai-accent);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 8px color-mix(in oklch, var(--miai-accent), transparent 82%);
+}
+
+.auth-orbit__dot--one {
+  top: 13%;
+  right: 26%;
+}
+
+.auth-orbit__dot--two {
+  bottom: 22%;
+  right: 9%;
+  left: auto;
+  width: 12px;
+  height: 12px;
+  background: var(--miai-gold);
+}
+
+.auth-orbit__core {
+  inset: 31%;
   display: grid;
-  gap: 0.75rem;
-  padding: 0;
+  place-items: center;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--miai-rose-deep);
+  background: color-mix(in oklch, var(--miai-surface), transparent 12%);
+  border: 1px solid color-mix(in oklch, var(--miai-accent), transparent 62%);
+  border-radius: 50%;
+  box-shadow: 0 12px 40px color-mix(in oklch, var(--miai-accent), transparent 86%);
+}
+
+.auth-feature__insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
   margin: 0;
-  list-style: none;
 
-  li {
+  article {
     display: flex;
-    gap: 0.5rem;
-    align-items: flex-start;
-    padding: 0.75rem 1rem;
-    font-weight: 500;
-    color: var(--el-text-color-primary);
-    background: var(--el-bg-color-overlay);
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 12px;
-    backdrop-filter: blur(6px);
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 0;
+    min-height: 126px;
+    padding: 18px;
+    background: color-mix(in oklch, var(--miai-surface), transparent 14%);
+    border: 1px solid color-mix(in oklch, var(--miai-border), white 15%);
+    border-radius: 22px;
+  }
 
-    span {
-      font-size: 0.75rem;
-      line-height: 1.6;
-      color: var(--el-color-primary);
-    }
+  span {
+    display: block;
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--miai-fg);
+  }
+
+  p {
+    margin: 12px 0 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--miai-muted);
   }
 }
 
 .auth-panel {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
   justify-content: flex-start;
   justify-self: end;
-  width: min(520px, 100%);
-  padding: clamp(2rem, 3vw, 2.75rem);
-  margin-inline: auto;
-  background: var(--el-bg-color-overlay);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 24px;
-  box-shadow: var(--el-box-shadow);
-  backdrop-filter: blur(20px);
+  width: 100%;
+  padding: clamp(28px, 4vw, 56px);
+  background: color-mix(in oklch, var(--miai-surface), transparent 0%);
   animation: panelLift 0.7s ease;
-}
-
-.auth-panel__brand {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 0.85rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.auth-panel__logo-wrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  background: var(--el-fill-color-light);
-  border-radius: 18px;
-  box-shadow: var(--el-box-shadow-light);
-}
-
-.auth-panel__logo {
-  flex-shrink: 0;
-  width: 52px;
-  height: 52px;
-}
-
-.auth-panel__meta {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.auth-panel__title-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-}
-
-.auth-panel__title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 1.2rem;
-  font-weight: 650;
-  line-height: 1.4;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-}
-
-.auth-panel__version-row {
-  display: inline-flex;
-  gap: 0.5rem;
-  align-items: center;
-  font-size: 0.78rem;
-}
-
-.auth-panel__version-label {
-  color: var(--el-text-color-placeholder);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.auth-panel__version-pill {
-  padding: 0.1rem 0.55rem;
-  font-weight: 500;
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 999px;
 }
 
 .auth-panel__form {
@@ -431,19 +437,25 @@ onBeforeUnmount(() => {
   margin-inline: auto;
 
   :deep(.el-form-item) {
-    margin-bottom: 1.25rem;
+    margin-bottom: 1rem;
   }
 
   :deep(.el-input__wrapper) {
-    box-shadow: 0 0 0 1px var(--el-border-color) inset;
+    min-height: 54px;
+    background: oklch(99% 0.004 55);
+    border-radius: 16px;
+    box-shadow: 0 0 0 1px var(--miai-border) inset;
     transition: all 0.2s ease;
 
     &:hover {
-      box-shadow: 0 0 0 1px var(--el-border-color-hover) inset;
+      box-shadow: 0 0 0 1px color-mix(in oklch, var(--miai-accent), white 5%) inset;
     }
 
     &.is-focus {
-      box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+      box-shadow:
+        0 0 0 1px color-mix(in oklch, var(--miai-accent), white 5%) inset,
+        0 0 0 4px color-mix(in oklch, var(--miai-accent), transparent 84%);
+      background: white;
     }
   }
 
@@ -456,19 +468,33 @@ onBeforeUnmount(() => {
 .auth-panel__footer {
   padding-top: 0.875rem;
   margin-top: 0.125rem;
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   text-align: center;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--miai-border);
 
   a {
     margin-left: 0.1rem;
-    color: var(--el-text-color-regular);
+    color: var(--miai-muted);
     text-decoration: none;
     transition: color 0.2s ease;
 
     &:hover {
-      color: var(--el-color-primary);
+      color: var(--miai-rose-deep);
     }
+  }
+}
+
+@media (max-width: 1100px) {
+  .auth-view__wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-feature {
+    display: none;
+  }
+
+  .auth-panel {
+    justify-self: center;
   }
 }
 

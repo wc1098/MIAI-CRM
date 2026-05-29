@@ -1,6 +1,14 @@
 <template>
-  <div>
-    <h3 text-center m-0 mb-20px>{{ t("login.login") }}</h3>
+  <div class="miai-login">
+    <div class="miai-login__header">
+      <p class="miai-login__eyebrow">STAFF LOGIN</p>
+      <h2>员工登录</h2>
+      <p class="miai-login__desc">请使用后台账号进入会员服务工作台。</p>
+      <div class="miai-login__status">
+        <span>会员资料库正常</span>
+        <span>AI 匹配引擎在线</span>
+      </div>
+    </div>
 
     <el-tabs v-model="activeTab" class="login-tabs">
       <!-- 账号登录 -->
@@ -16,7 +24,7 @@
           <el-form-item prop="username">
             <el-input
               v-model.trim="loginForm.username"
-              :placeholder="t('login.username')"
+              placeholder="员工账号"
               clearable
             >
               <template #prefix>
@@ -30,7 +38,7 @@
             <el-form-item prop="password">
               <el-input
                 v-model.trim="loginForm.password"
-                :placeholder="t('login.password')"
+                placeholder="登录密码"
                 type="password"
                 show-password
                 clearable
@@ -78,17 +86,21 @@
 
           <div class="flex-x-between w-full">
             <el-checkbox v-model="loginForm.remember">{{ t("login.rememberMe") }}</el-checkbox>
-            <el-link type="primary" underline="never" @click="toOtherForm('resetPwd')">
-              {{ t("login.forgetPassword") }}
-            </el-link>
           </div>
 
           <!-- 登录按钮 -->
           <el-form-item>
-            <el-button :loading="loading" type="primary" class="w-full" @click="handleLoginSubmit">
-              {{ t("login.login") }}
+            <el-button
+              :loading="loading"
+              type="primary"
+              class="miai-login__submit"
+              @click="handleLoginSubmit"
+            >
+              进入员工工作台
             </el-button>
           </el-form-item>
+
+          <div class="miai-login__note">安全连接已启用，请妥善保管账号凭证。</div>
         </el-form>
 
         <!-- <div flex-center gap-10px>
@@ -103,13 +115,13 @@
       <el-tab-pane v-if="autoLoginUsers.length > 0" label="快速登录" name="quick">
         <div class="quick-login-section">
           <div class="quick-login-tip">
-            <el-text type="info">{{ t("login.quickLoginTip") }}</el-text>
+            {{ t("login.quickLoginTip") }}
           </div>
           <!-- 当用户数量大于4个时使用下拉选择，否则使用网格展示 -->
           <template v-if="autoLoginUsers.length > 3">
             <el-select
               v-model="selectedUserId"
-              class="w-full"
+              class="miai-quick-select"
               :placeholder="t('login.selectUser')"
               size="large"
               @change="handleAutoLogin"
@@ -181,7 +193,6 @@ import { useI18n } from "vue-i18n";
 import { onActivated, onMounted, watch } from "vue";
 import AuthAPI, { type LoginFormData, type CaptchaInfo } from "@/api/module_system/auth";
 import { useAppStore, useUserStore, useSettingsStore } from "@/store";
-import CommonWrapper from "@/components/CommonWrapper/index.vue";
 import { User, Loading, Lock, Close } from "@element-plus/icons-vue";
 import { Auth } from "@/utils/auth";
 import { QuickLoginStorage, type QuickLoginAccount } from "@/utils/quickLogin";
@@ -467,29 +478,211 @@ function toOtherForm(type: "register" | "resetPwd") {
 </script>
 
 <style lang="scss" scoped>
+.miai-login {
+  color: var(--miai-fg, oklch(22% 0.028 255));
+}
+
+.miai-login__header {
+  margin-bottom: 18px;
+
+  h2 {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: 0;
+    color: var(--miai-fg, oklch(22% 0.028 255));
+  }
+}
+
+.miai-login__eyebrow {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--miai-rose-deep, oklch(42% 0.09 18));
+  letter-spacing: 0;
+}
+
+.miai-login__desc {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--miai-muted, oklch(50% 0.018 255));
+}
+
+.miai-login__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--miai-muted, oklch(50% 0.018 255));
+    background: white;
+    border: 1px solid var(--miai-border, oklch(90% 0.016 55));
+    border-radius: 999px;
+
+    &::before {
+      width: 8px;
+      height: 8px;
+      margin-right: 8px;
+      content: "";
+      background: oklch(58% 0.12 155);
+      border-radius: 50%;
+    }
+  }
+}
+
 .login-tabs {
   margin-bottom: 20px;
 
+  :deep(.el-tabs__header) {
+    margin-bottom: 18px;
+  }
+
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+    background-color: var(--miai-border, oklch(90% 0.016 55));
+  }
+
+  :deep(.el-tabs__active-bar) {
+    height: 3px;
+    background-color: var(--miai-accent, oklch(63% 0.14 18));
+    border-radius: 999px;
+  }
+
+  :deep(.el-tabs__item) {
+    height: 38px;
+    padding: 0 18px 0 0;
+    font-weight: 700;
+    color: var(--miai-muted, oklch(50% 0.018 255));
+
+    &.is-active,
+    &:hover {
+      color: var(--miai-rose-deep, oklch(42% 0.09 18));
+    }
+  }
+
   :deep(.el-tabs__content) {
-    min-height: 300px;
+    min-height: 360px;
     overflow: visible;
   }
 
   :deep(.el-tab-pane) {
     position: relative;
+    min-height: 360px;
     overflow: visible;
   }
+
+  :deep(.el-form-item__error) {
+    padding-left: 6px;
+  }
+
+  :deep(.el-checkbox__label),
+  :deep(.el-link__inner) {
+    font-size: 13px;
+  }
+
+  :deep(.el-checkbox) {
+    --el-checkbox-checked-bg-color: var(--miai-accent, oklch(63% 0.14 18));
+    --el-checkbox-checked-input-border-color: var(--miai-accent, oklch(63% 0.14 18));
+    --el-checkbox-checked-text-color: var(--miai-rose-deep, oklch(42% 0.09 18));
+    --el-checkbox-input-border-color-hover: var(--miai-accent, oklch(63% 0.14 18));
+    color: var(--miai-muted, oklch(50% 0.018 255));
+  }
+
+  :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+    background-color: var(--miai-accent, oklch(63% 0.14 18));
+    border-color: var(--miai-accent, oklch(63% 0.14 18));
+  }
+
+  :deep(.el-checkbox__input.is-focus .el-checkbox__inner) {
+    border-color: var(--miai-accent, oklch(63% 0.14 18));
+  }
+
+  :deep(.el-link.el-link--primary) {
+    --el-link-text-color: var(--miai-rose-deep, oklch(42% 0.09 18));
+    --el-link-hover-text-color: var(--miai-accent, oklch(63% 0.14 18));
+  }
+}
+
+.miai-login__submit {
+  width: 100%;
+  min-height: 50px;
+  margin-top: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: white;
+  background: linear-gradient(
+    135deg,
+    var(--miai-rose-deep, oklch(42% 0.09 18)),
+    var(--miai-accent, oklch(63% 0.14 18))
+  );
+  border: 0;
+  border-radius: 18px;
+  box-shadow: 0 18px 38px color-mix(in oklch, var(--miai-accent, oklch(63% 0.14 18)), transparent 74%);
+
+  &:hover,
+  &:focus {
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--miai-rose-deep, oklch(42% 0.09 18)), black 8%),
+      color-mix(in oklch, var(--miai-accent, oklch(63% 0.14 18)), black 5%)
+    );
+  }
+}
+
+.miai-login__note {
+  padding: 12px 14px;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--miai-muted, oklch(50% 0.018 255));
+  background: color-mix(in oklch, var(--miai-accent-soft, oklch(94% 0.04 18)), white 55%);
+  border: 1px solid color-mix(in oklch, var(--miai-border, oklch(90% 0.016 55)), white 10%);
+  border-radius: 18px;
 }
 
 .quick-login-section {
   position: relative;
   min-height: 200px;
-  padding: 20px 0;
+  padding: 0;
 
   .quick-login-tip {
-    margin-bottom: 20px;
-    font-size: 14px;
-    text-align: center;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--miai-muted, oklch(50% 0.018 255));
+    background: color-mix(in oklch, var(--miai-accent-soft, oklch(94% 0.04 18)), white 55%);
+    border: 1px solid color-mix(in oklch, var(--miai-border, oklch(90% 0.016 55)), white 10%);
+    border-radius: 18px;
+  }
+
+  .miai-quick-select {
+    width: 100%;
+
+    :deep(.el-select__wrapper) {
+      min-height: 54px;
+      background: oklch(99% 0.004 55);
+      border-radius: 16px;
+      box-shadow: 0 0 0 1px var(--miai-border, oklch(90% 0.016 55)) inset;
+      transition: all 0.2s ease;
+
+      &:hover,
+      &.is-focused {
+        background: white;
+        box-shadow:
+          0 0 0 1px color-mix(in oklch, var(--miai-accent, oklch(63% 0.14 18)), white 5%) inset,
+          0 0 0 4px color-mix(in oklch, var(--miai-accent, oklch(63% 0.14 18)), transparent 84%);
+      }
+    }
   }
 
   // 下拉菜单样式
@@ -563,41 +756,43 @@ function toOtherForm(type: "register" | "resetPwd") {
   }
 
   .auto-login-users {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    justify-content: center;
-    padding: 10px 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 0;
 
     .auto-login-user-item {
       position: relative;
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      flex-direction: row;
+      gap: 12px;
       align-items: center;
-      justify-content: center;
-      width: 120px;
-      padding: 12px;
+      justify-content: flex-start;
+      width: 100%;
+      min-height: 64px;
+      padding: 10px 44px 10px 12px;
       cursor: pointer;
-      background-color: var(--el-fill-color-lighter);
-      border: 2px solid var(--el-border-color-light);
-      border-radius: 12px;
-      box-shadow: var(--el-box-shadow-light);
+      background-color: oklch(99% 0.004 55);
+      border: 1px solid var(--miai-border, oklch(90% 0.016 55));
+      border-radius: 16px;
+      box-shadow: none;
       transition: all 0.3s ease;
 
       .remove-quick-login {
         position: absolute;
-        top: 4px;
-        right: 4px;
-        opacity: 0;
+        top: 50%;
+        right: 10px;
+        color: var(--miai-muted, oklch(50% 0.018 255));
+        opacity: 0.75;
+        transform: translateY(-50%);
         transition: opacity 0.2s ease;
       }
 
       &:hover {
-        background-color: var(--el-color-primary-light-9);
-        border-color: var(--el-color-primary);
-        box-shadow: var(--el-box-shadow);
-        transform: translateY(-2px);
+        background: white;
+        border-color: color-mix(in oklch, var(--miai-accent, oklch(63% 0.14 18)), white 5%);
+        box-shadow: 0 0 0 4px color-mix(in oklch, var(--miai-accent, oklch(63% 0.14 18)), transparent 84%);
+        transform: none;
 
         .remove-quick-login {
           opacity: 1;
@@ -605,30 +800,33 @@ function toOtherForm(type: "register" | "resetPwd") {
       }
 
       .user-avatar {
-        border: 2px solid var(--el-border-color);
+        flex-shrink: 0;
+        border: 1px solid var(--miai-border, oklch(90% 0.016 55));
         transition: all 0.3s ease;
 
         &:hover {
-          border-color: var(--el-color-primary);
+          border-color: var(--miai-accent, oklch(63% 0.14 18));
         }
       }
 
       .user-name {
-        max-width: 80px;
+        max-width: none;
         overflow: hidden;
         text-overflow: ellipsis;
         font-size: 14px;
-        font-weight: 500;
-        text-align: center;
+        font-weight: 700;
+        color: var(--miai-ink-soft, oklch(33% 0.025 255));
+        text-align: left;
         white-space: nowrap;
       }
 
       .user-username {
-        max-width: 80px;
+        max-width: none;
         overflow: hidden;
         text-overflow: ellipsis;
         font-size: 12px;
-        text-align: center;
+        color: var(--miai-muted, oklch(50% 0.018 255));
+        text-align: left;
         white-space: nowrap;
       }
     }

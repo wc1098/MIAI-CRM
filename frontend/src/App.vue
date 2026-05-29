@@ -30,7 +30,10 @@ const route = useRoute();
 const locale = computed(() => appStore.locale);
 const size = computed(() => appStore.size as ComponentSize);
 const isScreenRoute = computed(() => route.path.startsWith("/screen/"));
-const showWatermark = computed(() => settingsStore.showWatermark && !isScreenRoute.value);
+const isLoginRoute = computed(() => route.path === "/login");
+const showWatermark = computed(
+  () => settingsStore.showWatermark && !isScreenRoute.value && !isLoginRoute.value
+);
 const watermarkContent = computed(() => {
   return userStore.basicInfo?.name || userStore.basicInfo?.username || defaultSettings.watermarkContent;
 });
