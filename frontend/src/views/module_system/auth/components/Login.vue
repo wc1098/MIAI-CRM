@@ -299,6 +299,8 @@ async function handleAutoLogin(userId: number) {
       return;
     }
 
+    await userStore.resetAllState();
+
     // 1. 使用本机凭证登录
     const loginResponse = await AuthAPI.autoLogin({
       user_id: account.user_id,

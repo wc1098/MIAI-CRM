@@ -527,21 +527,42 @@ class MpAdminService:
 
     @classmethod
     async def page_actions(cls, db, page_no: int, page_size: int, search: MpActionQueryParam | None = None) -> dict:
+        viewer_user = aliased(MiniProgramUserModel)
+        target_user = aliased(MiniProgramUserModel)
+        viewer_person = aliased(CrmPersonModel)
+        target_person = aliased(CrmPersonModel)
         conditions = [MpUserProfileActionModel.is_deleted == False]
-        stmt = select(MpUserProfileActionModel, MiniProgramUserModel, CrmPersonModel).join(
-            MiniProgramUserModel,
-            MpUserProfileActionModel.target_user_id == MiniProgramUserModel.id,
-        ).outerjoin(CrmPersonModel, MiniProgramUserModel.person_id == CrmPersonModel.id)
-        count_stmt = select(func.count(MpUserProfileActionModel.id)).join(
-            MiniProgramUserModel,
-            MpUserProfileActionModel.target_user_id == MiniProgramUserModel.id,
-        ).outerjoin(CrmPersonModel, MiniProgramUserModel.person_id == CrmPersonModel.id)
+        stmt = (
+            select(MpUserProfileActionModel, viewer_user, viewer_person, target_user, target_person)
+            .outerjoin(viewer_user, MpUserProfileActionModel.viewer_user_id == viewer_user.id)
+            .outerjoin(viewer_person, viewer_user.person_id == viewer_person.id)
+            .outerjoin(target_user, MpUserProfileActionModel.target_user_id == target_user.id)
+            .outerjoin(target_person, target_user.person_id == target_person.id)
+        )
+        count_stmt = (
+            select(func.count(MpUserProfileActionModel.id))
+            .outerjoin(viewer_user, MpUserProfileActionModel.viewer_user_id == viewer_user.id)
+            .outerjoin(viewer_person, viewer_user.person_id == viewer_person.id)
+            .outerjoin(target_user, MpUserProfileActionModel.target_user_id == target_user.id)
+            .outerjoin(target_person, target_user.person_id == target_person.id)
+        )
         if search:
             if search.action_type:
                 conditions.append(MpUserProfileActionModel.action_type == search.action_type)
             if search.keyword:
                 keyword = f"%{search.keyword}%"
-                conditions.append(or_(MiniProgramUserModel.nickname.like(keyword), MiniProgramUserModel.mobile.like(keyword), CrmPersonModel.name.like(keyword), CrmPersonModel.display_no.like(keyword)))
+                conditions.append(
+                    or_(
+                        viewer_user.nickname.like(keyword),
+                        viewer_user.mobile.like(keyword),
+                        viewer_person.name.like(keyword),
+                        viewer_person.display_no.like(keyword),
+                        target_user.nickname.like(keyword),
+                        target_user.mobile.like(keyword),
+                        target_person.name.like(keyword),
+                        target_person.display_no.like(keyword),
+                    )
+                )
         total = (await db.execute(count_stmt.where(and_(*conditions)))).scalar() or 0
         rows = (
             await db.execute(
@@ -561,14 +582,19 @@ class MpAdminService:
                     "id": action.id,
                     "action_type": action.action_type,
                     "viewer_user_id": action.viewer_user_id,
+                    "viewer_display_no": viewer_person_row.display_no if viewer_person_row else None,
+                    "viewer_name": viewer_person_row.name if viewer_person_row else None,
+                    "viewer_nickname": viewer_user_row.nickname if viewer_user_row else None,
+                    "viewer_mobile": viewer_user_row.mobile if viewer_user_row else None,
                     "target_user_id": action.target_user_id,
-                    "target_display_no": person.display_no if person else None,
-                    "target_name": person.name if person else None,
-                    "target_nickname": user.nickname,
+                    "target_display_no": target_person_row.display_no if target_person_row else None,
+                    "target_name": target_person_row.name if target_person_row else None,
+                    "target_nickname": target_user_row.nickname if target_user_row else None,
+                    "target_mobile": target_user_row.mobile if target_user_row else None,
                     "occurred_at": action.occurred_at,
                     "payload": action.payload,
                 }
-                for action, user, person in rows
+                for action, viewer_user_row, viewer_person_row, target_user_row, target_person_row in rows
             ],
         }
 

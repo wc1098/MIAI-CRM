@@ -322,6 +322,21 @@ class LeadQueryParam:
         store_id: int | None = Query(None, description="归属门店"),
         owner_sales_id: int | None = Query(None, description="归属人"),
         latest_follow_time: list[DateTimeStr] | None = Query(None, description="最后跟进时间范围"),
+        gender: str | None = Query(None, description="性别"),
+        age_min: int | None = Query(None, ge=18, le=100, description="最小年龄"),
+        age_max: int | None = Query(None, ge=18, le=100, description="最大年龄"),
+        height_min_cm: int | None = Query(None, ge=80, le=260, description="最小身高"),
+        height_max_cm: int | None = Query(None, ge=80, le=260, description="最大身高"),
+        ethnicity: str | None = Query(None, description="民族"),
+        occupation_codes: list[str] | None = Query(None, description="职业"),
+        annual_income: list[str] | None = Query(None, description="收入"),
+        marital_status: str | None = Query(None, description="婚况"),
+        education: list[str] | None = Query(None, description="学历"),
+        unit_type: list[str] | None = Query(None, description="单位类型"),
+        house_status: list[str] | None = Query(None, description="住房情况"),
+        car_status: list[str] | None = Query(None, description="购车情况"),
+        hometown: str | None = Query(None, description="籍贯"),
+        residence: str | None = Query(None, description="常驻地"),
     ) -> None:
         self.keyword = keyword
         self.lead_type = lead_type
@@ -329,3 +344,18 @@ class LeadQueryParam:
         self.store_id = store_id
         self.owner_sales_id = owner_sales_id
         self.latest_follow_time = latest_follow_time
+        self.gender = gender
+        self.age_min = age_min
+        self.age_max = age_max
+        self.height_min_cm = height_min_cm
+        self.height_max_cm = height_max_cm
+        self.ethnicity = ethnicity
+        self.occupation_codes = occupation_codes or []
+        self.annual_income = annual_income or []
+        self.marital_status = marital_status
+        self.education = education or []
+        self.unit_type = unit_type or []
+        self.house_status = house_status or []
+        self.car_status = car_status or []
+        self.hometown = hometown
+        self.residence = residence

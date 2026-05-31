@@ -394,14 +394,23 @@ class ReceiptService:
         if search.confirmed_end:
             conditions.append(CrmContractReceiptModel.confirmed_at <= search.confirmed_end)
         if search.keyword:
-            like = f"%{search.keyword}%"
+            keyword = search.keyword.strip()
+            like = f"%{keyword}%"
             conditions.append(
                 or_(
+                    CrmContractReceiptModel.receipt_no == keyword,
+                    CrmContractReceiptModel.receipt_no.like(f"{keyword}%"),
                     CrmContractReceiptModel.receipt_no.like(like),
+                    CrmContractModel.contract_no == keyword,
+                    CrmContractModel.contract_no.like(f"{keyword}%"),
                     CrmContractModel.contract_no.like(like),
                     CrmContractModel.contract_name.like(like),
                     CrmPersonModel.name.like(like),
+                    CrmPersonModel.primary_mobile == keyword,
+                    CrmPersonModel.primary_mobile.like(f"{keyword}%"),
                     CrmPersonModel.primary_mobile.like(like),
+                    CrmPersonModel.display_no == keyword,
+                    CrmPersonModel.display_no.like(f"{keyword}%"),
                     CrmPersonModel.display_no.like(like),
                 )
             )
@@ -448,13 +457,20 @@ class ReceiptService:
         conditions = cls._contract_scope_conditions(auth)
         conditions.append(CrmContractModel.contract_status.in_(["pending_payment", "effective"]))
         if keyword:
-            like = f"%{keyword.strip()}%"
+            keyword_value = keyword.strip()
+            like = f"%{keyword_value}%"
             conditions.append(
                 or_(
+                    CrmContractModel.contract_no == keyword_value,
+                    CrmContractModel.contract_no.like(f"{keyword_value}%"),
                     CrmContractModel.contract_no.like(like),
                     CrmContractModel.contract_name.like(like),
                     CrmPersonModel.name.like(like),
+                    CrmPersonModel.primary_mobile == keyword_value,
+                    CrmPersonModel.primary_mobile.like(f"{keyword_value}%"),
                     CrmPersonModel.primary_mobile.like(like),
+                    CrmPersonModel.display_no == keyword_value,
+                    CrmPersonModel.display_no.like(f"{keyword_value}%"),
                     CrmPersonModel.display_no.like(like),
                 )
             )

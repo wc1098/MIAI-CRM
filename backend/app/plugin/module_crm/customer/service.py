@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select
@@ -172,6 +172,14 @@ class CustomerService:
             return None
         animals = ["鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"]
         return animals[(birth_date.year - 1900) % 12]
+
+    @classmethod
+    def _age_cutoff(cls, age: int) -> date:
+        today = date.today()
+        try:
+            return date(today.year - age, today.month, today.day)
+        except ValueError:
+            return date(today.year - age, today.month, 28)
 
     @classmethod
     def _surname_name(cls, name: str | None, gender: str | None) -> str:
@@ -596,11 +604,16 @@ class CustomerService:
     ) -> dict:
         if search:
             if search.keyword:
+                keyword = search.keyword.strip()
                 conditions.append(
                     or_(
-                        CrmPersonModel.display_no.like(f"%{search.keyword}%"),
-                        CrmPersonModel.name.like(f"%{search.keyword}%"),
-                        CrmPersonModel.primary_mobile.like(f"%{search.keyword}%"),
+                        CrmPersonModel.display_no == keyword,
+                        CrmPersonModel.display_no.like(f"{keyword}%"),
+                        CrmPersonModel.display_no.like(f"%{keyword}%"),
+                        CrmPersonModel.name.like(f"%{keyword}%"),
+                        CrmPersonModel.primary_mobile == keyword,
+                        CrmPersonModel.primary_mobile.like(f"{keyword}%"),
+                        CrmPersonModel.primary_mobile.like(f"%{keyword}%"),
                     )
                 )
             if search.current_stage:
@@ -609,10 +622,30 @@ class CustomerService:
                 conditions.append(CrmCustomerProfileModel.max_stage == search.max_stage)
             if search.gender:
                 conditions.append(CrmPersonModel.gender == search.gender)
-            if search.education:
-                conditions.append(CrmPersonModel.education == search.education)
+            if search.height_min_cm:
+                conditions.append(CrmPersonModel.height_cm >= search.height_min_cm)
+            if search.height_max_cm:
+                conditions.append(CrmPersonModel.height_cm <= search.height_max_cm)
+            if search.ethnicity:
+                conditions.append(CrmPersonModel.ethnicity == search.ethnicity)
+            if search.occupation_codes:
+                conditions.append(CrmPersonModel.occupation_code.in_(search.occupation_codes))
+            if search.annual_income:
+                conditions.append(CrmPersonModel.annual_income.in_(search.annual_income))
             if search.marital_status:
                 conditions.append(CrmPersonModel.marital_status == search.marital_status)
+            if search.education:
+                conditions.append(CrmPersonModel.education.in_(search.education))
+            if search.unit_type:
+                conditions.append(CrmPersonModel.unit_type.in_(search.unit_type))
+            if search.house_status:
+                conditions.append(CrmPersonModel.house_status.in_(search.house_status))
+            if search.car_status:
+                conditions.append(CrmPersonModel.car_status.in_(search.car_status))
+            if search.hometown:
+                conditions.append(CrmPersonModel.hometown.like(f"{search.hometown.strip()}%"))
+            if search.residence:
+                conditions.append(CrmPersonModel.residence.like(f"{search.residence.strip()}%"))
             if search.store_id:
                 conditions.append(CrmCustomerProfileModel.store_id == search.store_id)
             if search.owner_user_id:
@@ -634,11 +667,10 @@ class CustomerService:
                     CrmCustomerProfileModel.created_time.between(search.created_time[0], search.created_time[1])
                 )
             if search.age_min or search.age_max:
-                year = date.today().year
                 if search.age_min:
-                    conditions.append(CrmPersonModel.birth_date <= date(year - search.age_min, date.today().month, date.today().day))
+                    conditions.append(CrmPersonModel.birth_date <= cls._age_cutoff(search.age_min))
                 if search.age_max:
-                    conditions.append(CrmPersonModel.birth_date >= date(year - search.age_max - 1, date.today().month, date.today().day))
+                    conditions.append(CrmPersonModel.birth_date >= cls._age_cutoff(search.age_max + 1) + timedelta(days=1))
         total_result = await auth.db.execute(
             select(func.count(CrmCustomerProfileModel.id))
             .join(CrmPersonModel, CrmCustomerProfileModel.person_id == CrmPersonModel.id)
@@ -1114,11 +1146,16 @@ class CustomerService:
         conditions = cls._visit_scope_conditions(auth)
         if search:
             if search.keyword:
+                keyword = search.keyword.strip()
                 conditions.append(
                     or_(
-                        CrmPersonModel.display_no.like(f"%{search.keyword}%"),
-                        CrmPersonModel.name.like(f"%{search.keyword}%"),
-                        CrmPersonModel.primary_mobile.like(f"%{search.keyword}%"),
+                        CrmPersonModel.display_no == keyword,
+                        CrmPersonModel.display_no.like(f"{keyword}%"),
+                        CrmPersonModel.display_no.like(f"%{keyword}%"),
+                        CrmPersonModel.name.like(f"%{keyword}%"),
+                        CrmPersonModel.primary_mobile == keyword,
+                        CrmPersonModel.primary_mobile.like(f"{keyword}%"),
+                        CrmPersonModel.primary_mobile.like(f"%{keyword}%"),
                     )
                 )
             if search.scheduled_time and len(search.scheduled_time) == 2:

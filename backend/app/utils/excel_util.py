@@ -37,6 +37,7 @@ class ExcelUtil:
         header_list: list[str],
         selector_header_list: list[str],
         option_list: list[dict[str, list[str]]],
+        example_rows: list[dict[str, Any]] | None = None,
     ) -> bytes:
         """
         生成 Excel 模板文件。
@@ -66,6 +67,11 @@ class ExcelUtil:
             cell.alignment = Alignment(horizontal="center")
             # 设置列宽度为16
             ws.column_dimensions[get_column_letter(col_num)].width = 12
+
+        # 写入示例行
+        for row_num, row in enumerate(example_rows or [], 2):
+            for col_num, header in enumerate(header_list, 1):
+                ws.cell(row=row_num, column=col_num).value = row.get(header, "")
 
         # 设置下拉选择
         for selector_header in selector_header_list:

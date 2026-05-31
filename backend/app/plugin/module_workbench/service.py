@@ -1,8 +1,9 @@
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 
 from app.api.v1.module_system.auth.schema import AuthSchema
 from app.api.v1.module_system.user.model import UserModel
@@ -38,6 +39,8 @@ class WorkbenchService:
 
     DONE_PLAN_STATUSES = {"completed", "cancelled", "skipped"}
     ACTIVE_CASE_STATUSES = {"serving", "reopened", "pending_close_review"}
+    SUMMARY_CACHE_SECONDS = 60
+    _workbench_cache: dict[str, tuple[datetime, dict[str, Any]]] = {}
 
     @classmethod
     def _role_codes(cls, auth: AuthSchema) -> set[str]:
@@ -64,6 +67,37 @@ class WorkbenchService:
     def _is_brand_admin(cls, auth: AuthSchema) -> bool:
         codes = cls._role_codes(auth)
         return bool(auth.user and auth.user.is_superuser) or bool(codes & {"ADMIN", "HQ_OPS"})
+
+    @classmethod
+    def _cache_user_scope(cls, auth: AuthSchema) -> str:
+        role_codes = ",".join(sorted(cls._role_codes(auth)))
+        user_id = auth.user.id if auth.user else 0
+        dept_id = auth.user.dept_id if auth.user else 0
+        is_superuser = bool(auth.user and auth.user.is_superuser)
+        return f"{user_id}:{dept_id}:{is_superuser}:{role_codes}"
+
+    @classmethod
+    def _cache_get(cls, key: str, now: datetime) -> dict[str, Any] | None:
+        cached = cls._workbench_cache.get(key)
+        if cached and (now - cached[0]).total_seconds() < cls.SUMMARY_CACHE_SECONDS:
+            return deepcopy(cached[1])
+        return None
+
+    @classmethod
+    def _cache_set(cls, key: str, now: datetime, data: dict[str, Any]) -> None:
+        cls._workbench_cache[key] = (now, deepcopy(data))
+
+    @classmethod
+    def _prune_workbench_cache(cls, now: datetime) -> None:
+        if len(cls._workbench_cache) <= 256:
+            return
+        expired_keys = [
+            key
+            for key, (cached_at, _) in cls._workbench_cache.items()
+            if (now - cached_at).total_seconds() >= cls.SUMMARY_CACHE_SECONDS
+        ]
+        for key in expired_keys:
+            cls._workbench_cache.pop(key, None)
 
     @staticmethod
     def _day_bounds(target: date | None = None) -> tuple[datetime, datetime]:
@@ -213,27 +247,48 @@ class WorkbenchService:
     @classmethod
     async def _soon_reclaim_count(cls, auth: AuthSchema, conditions: list[Any], days: int = 1) -> int:
         rules = await cls._reclaim_days_by_store(auth)
-        result = await auth.db.execute(
-            select(CrmLeadProfileModel).where(
-                *conditions,
-                CrmLeadProfileModel.pool_type == "sales_private",
-                CrmLeadProfileModel.owner_sales_id.is_not(None),
-                CrmLeadProfileModel.assigned_at.is_not(None),
-                CrmLeadProfileModel.lead_type.in_(["new", "second_hand"]),
-            )
-        )
         now = datetime.now()
-        count = 0
-        for lead in result.scalars().all():
-            reclaim_days = rules.get(lead.store_id or 0, 7)
-            due_at = lead.assigned_at + timedelta(days=reclaim_days)
-            has_follow = bool(lead.latest_follow_at and lead.latest_follow_at >= lead.assigned_at)
-            if not has_follow and now <= due_at <= now + timedelta(days=days):
-                count += 1
-        return count
+        window_end = now + timedelta(days=days)
+        base_conditions = [
+            *conditions,
+            CrmLeadProfileModel.pool_type == "sales_private",
+            CrmLeadProfileModel.owner_sales_id.is_not(None),
+            CrmLeadProfileModel.assigned_at.is_not(None),
+            CrmLeadProfileModel.lead_type.in_(["new", "second_hand"]),
+            or_(CrmLeadProfileModel.latest_follow_at.is_(None), CrmLeadProfileModel.latest_follow_at < CrmLeadProfileModel.assigned_at),
+        ]
+
+        async def count_for_store(store_condition: Any, reclaim_days: int) -> int:
+            due_start = now - timedelta(days=reclaim_days)
+            due_end = window_end - timedelta(days=reclaim_days)
+            result = await auth.db.execute(
+                select(func.count(CrmLeadProfileModel.id)).where(
+                    *base_conditions,
+                    store_condition,
+                    CrmLeadProfileModel.assigned_at >= due_start,
+                    CrmLeadProfileModel.assigned_at <= due_end,
+                )
+            )
+            return result.scalar() or 0
+
+        total = 0
+        for store_id, reclaim_days in rules.items():
+            total += await count_for_store(CrmLeadProfileModel.store_id == store_id, reclaim_days)
+
+        default_store_condition = CrmLeadProfileModel.store_id.is_not(None)
+        if rules:
+            default_store_condition = and_(default_store_condition, CrmLeadProfileModel.store_id.notin_(list(rules.keys())))
+        total += await count_for_store(default_store_condition, 7)
+        return total
 
     @classmethod
     async def summary_service(cls, auth: AuthSchema, search: SummaryQueryParam) -> dict:
+        cache_key = f"summary:{cls._cache_user_scope(auth)}:{search.range}:{search.store_id or 0}"
+        now = datetime.now()
+        cached = cls._cache_get(cache_key, now)
+        if cached:
+            return cached
+        cls._prune_workbench_cache(now)
         role_type, role_name = cls._role_type(auth)
         start_at, end_at = cls._range_bounds(search.range)
         day_start, day_end = cls._day_bounds()
@@ -276,7 +331,9 @@ class WorkbenchService:
             else:
                 add("my_private_leads", "我的私海线索", await cls._count(auth, CrmLeadProfileModel, [*lead_scope, CrmLeadProfileModel.pool_type == "sales_private"]), route_path="/miailove/lead/sales-private")
                 add("soon_reclaim_leads", "即将回公海线索", await cls._soon_reclaim_count(auth, lead_scope), priority="warning", route_path="/miailove/lead/sales-private")
-        return {"role_type": role_type, "role_name": role_name, "range": search.range, "scope": "store" if role_type == "manager" else "mine", "metrics": metrics}
+        data = {"role_type": role_type, "role_name": role_name, "range": search.range, "scope": "store" if role_type == "manager" else "mine", "metrics": metrics}
+        cls._cache_set(cache_key, now, data)
+        return data
 
     @classmethod
     async def _valid_lead_count(cls, auth: AuthSchema, lead_scope: list[Any], start_at: datetime, end_at: datetime) -> int:
@@ -364,6 +421,12 @@ class WorkbenchService:
 
     @classmethod
     async def tasks_service(cls, auth: AuthSchema, search: TasksQueryParam) -> dict:
+        cache_key = f"tasks:{cls._cache_user_scope(auth)}:{search.bucket}:{search.days}:{search.limit}"
+        now = datetime.now()
+        cached = cls._cache_get(cache_key, now)
+        if cached:
+            return cached
+        cls._prune_workbench_cache(now)
         role_type, _ = cls._role_type(auth)
         items: list[dict[str, Any]] = []
         if role_type == "matchmaker":
@@ -374,7 +437,9 @@ class WorkbenchService:
         items.sort(key=lambda item: (priority_rank.get(item["priority"], 9), item["due_at"] or "9999-12-31 23:59:59"))
         total = len(items)
         items = items[: search.limit]
-        return {"role_type": role_type, "bucket": search.bucket, "total": total, "items": items}
+        data = {"role_type": role_type, "bucket": search.bucket, "total": total, "items": items}
+        cls._cache_set(cache_key, now, data)
+        return data
 
     @classmethod
     async def _append_sales_manager_tasks(cls, auth: AuthSchema, search: TasksQueryParam, items: list[dict[str, Any]]) -> None:
@@ -491,6 +556,12 @@ class WorkbenchService:
 
     @classmethod
     async def nodes_service(cls, auth: AuthSchema, search: NodesQueryParam) -> dict:
+        cache_key = f"nodes:{cls._cache_user_scope(auth)}:{search.scope}:{search.store_id or 0}"
+        now = datetime.now()
+        cached = cls._cache_get(cache_key, now)
+        if cached:
+            return cached
+        cls._prune_workbench_cache(now)
         role_type, _ = cls._role_type(auth)
         force_mine = search.scope == "mine" and role_type != "manager"
         groups: list[dict[str, Any]] = []
@@ -498,7 +569,9 @@ class WorkbenchService:
             groups.extend(await cls._crm_node_groups(auth, search, force_mine))
         if role_type in {"manager", "matchmaker"}:
             groups.extend(await cls._service_node_groups(auth, search, force_mine or role_type == "matchmaker"))
-        return {"role_type": role_type, "scope": search.scope, "groups": groups}
+        data = {"role_type": role_type, "scope": search.scope, "groups": groups}
+        cls._cache_set(cache_key, now, data)
+        return data
 
     @classmethod
     async def _crm_node_groups(cls, auth: AuthSchema, search: NodesQueryParam, force_mine: bool) -> list[dict[str, Any]]:

@@ -256,3 +256,23 @@ html.sidebar-color-blue .el-menu--popup {
     border-bottom: none !important;
   }
 }
+
+// 小程序运营列表页：这些页面以表格为主，不能继承 el-card__body 的 flex + overflow:hidden，
+// 否则 Element Plus 表格主体和分页会被裁剪，只剩表头或半行数据。
+.mp-admin-page {
+  .el-card__body {
+    display: block;
+    overflow: visible;
+  }
+
+  .pager,
+  .mp-pager {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 16px;
+  }
+
+  .filter-card {
+    margin-bottom: 12px;
+  }
+}

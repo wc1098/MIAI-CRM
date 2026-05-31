@@ -136,6 +136,21 @@ export interface LeadPageQuery extends PageQuery {
   store_id?: number;
   owner_sales_id?: number;
   latest_follow_time?: string[];
+  gender?: string;
+  age_min?: number;
+  age_max?: number;
+  height_min_cm?: number;
+  height_max_cm?: number;
+  ethnicity?: string;
+  occupation_codes?: string[];
+  annual_income?: string[];
+  marital_status?: string;
+  education?: string[];
+  unit_type?: string[];
+  house_status?: string[];
+  car_status?: string[];
+  hometown?: string;
+  residence?: string;
 }
 
 export interface LeadPerson extends BaseType {

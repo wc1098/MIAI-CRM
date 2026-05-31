@@ -59,10 +59,14 @@
             <el-row :gutter="12">
               <el-col :span="6"><el-form-item label="范围"><el-select v-model="discoverQuery.scope" style="width: 100%"><el-option v-for="item in scopeOptions" :key="item.dict_value" :label="item.dict_label" :value="item.dict_value || ''" /></el-select></el-form-item></el-col>
               <el-col v-if="canAssignService" :span="6"><el-form-item label="归属红娘"><el-select v-model="discoverQuery.matchmaker_id" clearable filterable placeholder="申请时选择" style="width: 100%"><el-option v-for="item in matchmakerOptions" :key="item.id" :label="`${item.name}${item.mobile ? `（${item.mobile}）` : ''}`" :value="item.id" /></el-select></el-form-item></el-col>
-              <el-col :span="6"><el-form-item label="关键词"><el-input v-model="discoverQuery.keyword" clearable placeholder="姓名/手机号/编号/ID" /></el-form-item></el-col>
+              <el-col :span="6"><el-form-item label="快捷搜索"><el-input v-model="discoverQuery.keyword" clearable :disabled="hasDiscoverPreciseSearch" placeholder="姓名/手机号/编号" /></el-form-item></el-col>
               <el-col :span="6"><el-form-item label="姓名"><el-input v-model="discoverQuery.name" clearable /></el-form-item></el-col>
               <el-col :span="6"><el-form-item label="展示编号"><el-input v-model="discoverQuery.display_no" clearable /></el-form-item></el-col>
               <el-col :span="6"><el-form-item label="手机号"><el-input v-model="discoverQuery.mobile" clearable /></el-form-item></el-col>
+            </el-row>
+            <el-collapse class="filter-collapse">
+              <el-collapse-item title="个人条件筛选" name="profile">
+                <el-row :gutter="12">
               <el-col :span="6"><el-form-item label="性别"><el-select v-model="discoverQuery.gender" clearable style="width: 100%"><el-option label="男" value="0" /><el-option label="女" value="1" /><el-option label="未知" value="2" /></el-select></el-form-item></el-col>
               <el-col :span="6"><el-form-item label="年龄"><div class="range"><el-input-number v-model="discoverQuery.age_min" :min="18" :max="120" controls-position="right" /><span>-</span><el-input-number v-model="discoverQuery.age_max" :min="18" :max="120" controls-position="right" /></div></el-form-item></el-col>
               <el-col :span="6"><el-form-item label="身高"><div class="range"><el-input-number v-model="discoverQuery.height_min" :min="80" :max="260" controls-position="right" /><span>-</span><el-input-number v-model="discoverQuery.height_max" :min="80" :max="260" controls-position="right" /></div></el-form-item></el-col>
@@ -83,9 +87,9 @@
               <el-col :span="6"><el-form-item label="结婚计划"><dict-select v-model="discoverQuery.marriage_plan" :options="marriagePlanOptions" /></el-form-item></el-col>
               <el-col :span="6"><el-form-item label="有照片"><bool-select v-model="discoverQuery.has_photo" /></el-form-item></el-col>
               <el-col :span="6"><el-form-item label="认证等级"><el-select v-model="discoverQuery.certification_level" clearable style="width: 100%"><el-option label="未认证" value="none" /><el-option label="基础认证" value="basic" /><el-option label="增强认证" value="enhanced" /></el-select></el-form-item></el-col>
-            </el-row>
-            <el-collapse class="filter-collapse">
-              <el-collapse-item title="择偶条件筛选" name="preference">
+                </el-row>
+              </el-collapse-item>
+              <el-collapse-item title="候选人的择偶条件筛选" name="preference">
                 <el-row :gutter="12">
                   <el-col :span="6"><el-form-item label="期望年龄"><div class="range"><el-input-number v-model="discoverQuery.pref_age_min" :min="18" :max="120" controls-position="right" /><span>-</span><el-input-number v-model="discoverQuery.pref_age_max" :min="18" :max="120" controls-position="right" /></div></el-form-item></el-col>
                   <el-col :span="6"><el-form-item label="期望身高"><div class="range"><el-input-number v-model="discoverQuery.pref_height_min" :min="80" :max="260" controls-position="right" /><span>-</span><el-input-number v-model="discoverQuery.pref_height_max" :min="80" :max="260" controls-position="right" /></div></el-form-item></el-col>
@@ -110,25 +114,50 @@
             </div>
           </el-form>
 
-          <el-table v-loading="discoverLoading" :data="discoverRows" border stripe row-key="id">
-            <el-table-column prop="display_no" label="编号" width="100" />
-            <el-table-column prop="name" label="姓名" width="110" />
-            <el-table-column label="性别/年龄" width="110"><template #default="{ row }">{{ genderText(row.gender) }} / {{ row.age ?? "-" }}</template></el-table-column>
-            <el-table-column prop="mobile" label="手机号" width="130" />
-            <el-table-column prop="wechat" label="微信" width="120" />
-            <el-table-column prop="store_name" label="归属门店" width="140" show-overflow-tooltip />
-            <el-table-column prop="height_cm" label="身高" width="80" />
-            <el-table-column prop="weight_kg" label="体重" width="80" />
-            <el-table-column prop="residence" label="常驻地" width="130" show-overflow-tooltip />
-            <el-table-column label="学历" width="120"><template #default="{ row }">{{ dictText(educationOptions, row.education) }}</template></el-table-column>
-            <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag v-if="row.already_in_backup" type="success">已加入</el-tag><el-tag v-else-if="row.pending_request" type="warning">待审核</el-tag><span v-else>-</span></template></el-table-column>
-            <el-table-column label="操作" fixed="right" width="120">
-              <template #default="{ row }">
-                <el-button v-if="!row.already_in_backup && !row.pending_request" v-hasPerm="['service:candidate:join_request']" link type="primary" @click="openJoinRequest(row)">申请加入</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div class="pager"><el-pagination v-model:current-page="discoverQuery.page_no" v-model:page-size="discoverQuery.page_size" :total="discoverTotal" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" @size-change="loadDiscover" @current-change="loadDiscover" /></div>
+          <div class="discover-result">
+            <div class="result-head">
+              <div class="result-title">筛选结果</div>
+              <div class="result-meta">共 {{ discoverTotal }} 条</div>
+            </div>
+            <el-table v-loading="discoverLoading" :data="discoverRows" border stripe row-key="id" size="small" class="discover-result-table" empty-text="暂无候选结果">
+              <el-table-column prop="display_no" label="编号" width="110" show-overflow-tooltip />
+              <el-table-column prop="name" label="姓名" width="120" show-overflow-tooltip />
+              <el-table-column label="基础信息" min-width="170">
+                <template #default="{ row }">
+                  <div class="cell-main">{{ genderText(row.gender) }} / {{ row.age ?? "-" }}岁</div>
+                  <div class="cell-sub">{{ row.height_cm ? `${row.height_cm}cm` : "-" }} / {{ row.weight_kg ? `${row.weight_kg}kg` : "-" }}</div>
+                </template>
+              </el-table-column>
+              <el-table-column label="联系方式" min-width="190">
+                <template #default="{ row }">
+                  <div class="cell-main">{{ row.mobile || "-" }}</div>
+                  <div class="cell-sub">微信：{{ row.wechat || "-" }}</div>
+                </template>
+              </el-table-column>
+              <el-table-column label="门店/地域" min-width="220" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <div class="cell-main">{{ row.store_name || "-" }}</div>
+                  <div class="cell-sub">常驻：{{ row.residence || "-" }}</div>
+                </template>
+              </el-table-column>
+              <el-table-column label="资料" min-width="170">
+                <template #default="{ row }">
+                  <div class="cell-main">{{ dictText(educationOptions, row.education) }}</div>
+                  <div class="cell-sub">{{ dictText(maritalOptions, row.marital_status) }}</div>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="105" align="center">
+                <template #default="{ row }"><el-tag v-if="row.already_in_backup" type="success">已加入</el-tag><el-tag v-else-if="row.pending_request" type="warning">待审核</el-tag><span v-else class="cell-sub">可申请</span></template>
+              </el-table-column>
+              <el-table-column label="操作" fixed="right" width="150" align="center">
+                <template #default="{ row }">
+                  <el-button v-hasPerm="['service:candidate:discover']" link type="primary" @click="openCandidatePersonDetail(row)">详情</el-button>
+                  <el-button v-if="!row.already_in_backup && !row.pending_request" v-hasPerm="['service:candidate:join_request']" link type="primary" @click="openJoinRequest(row)">申请加入</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="pager"><el-pagination v-model:current-page="discoverQuery.page_no" v-model:page-size="discoverQuery.page_size" :total="discoverTotal" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" @size-change="loadDiscover" @current-change="loadDiscover" /></div>
+          </div>
         </el-tab-pane>
 
         <el-tab-pane v-if="canQueryRequest" label="我的申请" name="requests">
@@ -283,8 +312,8 @@
         <el-tab-pane label="过程记录" name="timeline">
           <el-timeline>
             <el-timeline-item v-for="item in candidateDetail.timeline || []" :key="item.id" :timestamp="item.occurred_at">
-              <div class="timeline-title">{{ timelineSourceText(item.source_type) }} · {{ item.title || "-" }}</div>
-              <div class="timeline-content">{{ item.content || "-" }}</div>
+              <div class="timeline-title">{{ timelineSourceText(item.source_type) }} · {{ timelineTitleText(item) }}</div>
+              <div class="timeline-content">{{ timelineContentText(item) }}</div>
               <div class="toolbar-note">操作人：{{ item.operator_user_name || item.operator_user_id || "-" }}</div>
             </el-timeline-item>
           </el-timeline>
@@ -412,6 +441,9 @@ const houseOptions = ref<DictDataTable[]>([]);
 const carOptions = ref<DictDataTable[]>([]);
 const marriagePlanOptions = ref<DictDataTable[]>([]);
 const tagOptions = ref<DictDataTable[]>([]);
+const leadProcessActionOptions = ref<DictDataTable[]>([]);
+const customerProcessRecordTypeOptions = ref<DictDataTable[]>([]);
+const timelineSourceOptions = ref<DictDataTable[]>([]);
 const matchmakerOptions = ref<MatchmakerOption[]>([]);
 const joinVisible = ref(false);
 const manualVisible = ref(false);
@@ -447,6 +479,7 @@ const canReviewRequest = computed(() => hasPerm("service:candidate:join_request:
 const canQueryRule = computed(() => hasPerm("service:candidate:rule:query"));
 const canUpdateRule = computed(() => hasPerm("service:candidate:rule:update"));
 const canAssignService = computed(() => hasPerm("service:vip:assign"));
+const hasDiscoverPreciseSearch = computed(() => !!(discoverQuery.name || discoverQuery.display_no || discoverQuery.mobile));
 const manualPersonDictOptions = computed(() => ({
   ethnicity: ethnicityOptions.value,
   occupation: occupationOptions.value,
@@ -478,7 +511,7 @@ const joinRules = reactive<FormRules<CandidateJoinRequestForm>>({ request_reason
 const manualRules = reactive<FormRules<CandidateCreateForm>>({ name: [{ required: true, message: "请填写姓名", trigger: "blur" }], primary_mobile: [{ required: true, message: "请填写手机号", trigger: "blur" }], gender: [{ required: true, message: "请选择性别", trigger: "change" }] });
 
 async function loadDicts() {
-  const [sourceRes, scopeRes, statusRes, educationRes, incomeRes, maritalRes, ethnicityRes, occupationRes, unitRes, houseRes, carRes, planRes, tagRes] = await Promise.all([
+  const [sourceRes, scopeRes, statusRes, educationRes, incomeRes, maritalRes, ethnicityRes, occupationRes, unitRes, houseRes, carRes, planRes, tagRes, leadActionRes, customerRecordTypeRes, timelineSourceRes] = await Promise.all([
     DictAPI.getInitDict("candidate_source_type"),
     DictAPI.getInitDict("candidate_search_scope"),
     DictAPI.getInitDict("candidate_join_request_status"),
@@ -492,6 +525,9 @@ async function loadDicts() {
     DictAPI.getInitDict("crm_car_status"),
     DictAPI.getInitDict("crm_marriage_plan"),
     DictAPI.getInitDict("candidate_private_tag"),
+    DictAPI.getInitDict("crm_lead_process_action"),
+    DictAPI.getInitDict("crm_customer_process_record_type"),
+    DictAPI.getInitDict("unified_timeline_source"),
   ]);
   sourceOptions.value = sourceRes.data.data || [];
   scopeOptions.value = scopeRes.data.data || [];
@@ -506,6 +542,9 @@ async function loadDicts() {
   carOptions.value = carRes.data.data || [];
   marriagePlanOptions.value = planRes.data.data || [];
   tagOptions.value = tagRes.data.data || [];
+  leadProcessActionOptions.value = leadActionRes.data.data || [];
+  customerProcessRecordTypeOptions.value = customerRecordTypeRes.data.data || [];
+  timelineSourceOptions.value = timelineSourceRes.data.data || [];
 }
 
 async function loadMine() {
@@ -601,7 +640,164 @@ function timelineSourceText(value?: string) {
     candidate_join_request: "备选申请",
     certification: "认证",
   };
-  return value ? map[value] || value : "-";
+  return value ? map[value] || dictText(timelineSourceOptions.value, value) : "-";
+}
+
+function normalizeCode(value?: string) {
+  return (value || "").trim();
+}
+
+function timelineTitleText(item: { source_type?: string; title?: string; payload?: Record<string, unknown> }) {
+  const title = normalizeCode(item.title);
+  if (!title) return "-";
+  if (item.source_type === "source_event") return eventTypeText(title);
+  if (item.source_type === "service_log") return serviceOperationText(title);
+  if (item.source_type === "lead_lifecycle" || item.source_type === "customer_lifecycle") return lifecycleOperationText(title);
+  if (item.source_type === "candidate_join_request") {
+    const status = String(item.payload?.review_status || title.replace("备选加入申请-", ""));
+    return `备选加入申请-${dictText(requestStatusOptions.value, status)}`;
+  }
+  if (item.source_type === "certification") {
+    const status = String(item.payload?.record_status || title.split("-").pop() || "");
+    const itemName = title.includes("-") ? title.slice(0, title.lastIndexOf("-")) : title;
+    return `${itemName || "认证资料"}-${certificationRecordStatusText(status)}`;
+  }
+  return lifecycleOperationText(title);
+}
+
+function timelineContentText(item: { source_type?: string; content?: string }) {
+  const content = normalizeCode(item.content);
+  if (!content) return "-";
+  if (item.source_type === "source_event") return channelText(content);
+  return content;
+}
+
+function lifecycleOperationText(value?: string) {
+  const code = normalizeCode(value);
+  if (!code) return "-";
+  if (code.startsWith("service_")) return serviceOperationText(code.replace("service_", ""));
+  const leadText = dictText(leadProcessActionOptions.value, code);
+  if (leadText !== code) return leadText;
+  const customerText = dictText(customerProcessRecordTypeOptions.value, code);
+  if (customerText !== code) return customerText;
+  return lifecycleStaticText(code);
+}
+
+function serviceOperationText(value?: string) {
+  const code = normalizeCode(value);
+  const map: Record<string, string> = {
+    assign: "服务分配",
+    transfer: "服务改派",
+    close_apply: "申请关单",
+    close_review: "审核关单",
+    reopen: "服务重开",
+    communication: "服务沟通",
+    requirement_confirm: "需求确认",
+    recommendation_explain: "推荐说明",
+    meeting_feedback: "约见反馈",
+    renewal_communication: "续费沟通",
+    close_communication: "关单沟通",
+    profile_update: "服务阶段编辑VIP资料",
+  };
+  return map[code] || lifecycleStaticText(code);
+}
+
+function lifecycleStaticText(value?: string) {
+  const code = normalizeCode(value);
+  const map: Record<string, string> = {
+    create_from_lead: "线索转客户",
+    edit: "编辑资料",
+    transfer_owner: "同店转派",
+    transfer_store: "跨店转交",
+    return_lead: "退回线索",
+    returned_lead: "退回线索",
+    service_profile_update: "服务阶段编辑VIP资料",
+    convert_customer: "线索转建档客户",
+    converted_customer: "已转建档客户",
+    customer_convert: "线索转建档客户",
+    customer_return: "客户退回线索",
+    converted_vip: "已转VIP",
+    create: "新增线索",
+    assign: "分配线索",
+    claim: "领取线索",
+    auto_reclaim: "自动回公海",
+    sync_mp_user: "同步小程序用户",
+    source_event: "来源事件",
+    register: "小程序注册",
+    event_register: "活动报名",
+    event_checkin: "活动签到",
+    contact_unlock: "联系方式解锁",
+    follow: "普通跟进",
+    invalid: "标记无效",
+    release: "释放线索",
+    contract_create: "创建合同草稿",
+    contract_update: "编辑合同草稿",
+    contract_attachment: "上传合同影像",
+    contract_attachment_delete: "删除合同影像",
+    contract_sign: "合同已签",
+    contract_submit_review: "合同提交审核",
+    contract_review: "合同审核",
+    contract_review_skipped: "合同免审通过",
+    contract_void: "合同作废",
+    contract_receipt_submit: "提交收款",
+    contract_receipt_confirm: "确认收款",
+    contract_receipt_review: "审核收款",
+    contract_receipt_void: "作废收款",
+    contract_receipt_reverse: "收款冲正",
+    contract_receipt_refund_register: "登记退款",
+    contract_first_payment_effective: "首款到账生效",
+  };
+  return map[code] || code || "-";
+}
+
+function eventTypeText(value?: string) {
+  const code = normalizeCode(value);
+  const map: Record<string, string> = {
+    register: "小程序注册",
+    miniapp_register: "小程序注册",
+    manual_create: "后台手动创建",
+    MANUAL_CREATE: "后台手动创建",
+    import: "批量导入",
+    IMPORT: "批量导入",
+    external_push: "外部推送",
+    EXTERNAL_PUSH: "外部推送",
+    event_register: "活动报名",
+    event_checkin: "活动签到",
+    contact_unlock: "联系方式解锁",
+  };
+  return map[code] || code || "-";
+}
+
+function channelText(value?: string) {
+  const code = normalizeCode(value);
+  const map: Record<string, string> = {
+    MINIAPP_REGISTER: "小程序注册",
+    MANUAL_CREATE: "后台手动创建",
+    IMPORT: "批量导入",
+    EXTERNAL_PUSH: "外部推送",
+  };
+  return map[code] || eventTypeText(code);
+}
+
+function certificationRecordStatusText(value?: string) {
+  const code = normalizeCode(value);
+  const map: Record<string, string> = {
+    pending_payment: "待支付",
+    paid_pending_submit: "待提交",
+    in_progress: "进行中",
+    not_submitted: "未提交",
+    pending: "待提交",
+    submitted: "已提交",
+    reviewing: "审核中",
+    verifying: "核验中",
+    pending_review: "待审核",
+    verified: "已通过",
+    approved: "已通过",
+    rejected: "已驳回",
+    expired: "已过期",
+    void: "已作废",
+  };
+  return map[code] || code || "-";
 }
 
 async function loadMatchmakers() {
@@ -642,6 +838,23 @@ async function openCandidateDetail(row: CandidateRecord) {
   }
 }
 
+async function openCandidatePersonDetail(row: CandidateDiscoverRecord) {
+  detailVisible.value = true;
+  detailActiveTab.value = "profile";
+  detailLoading.value = true;
+  candidateDetail.value = undefined;
+  try {
+    const res = await CandidateAPI.detailCandidate(row.id, {
+      by_person: true,
+      scope: discoverQuery.scope,
+      matchmaker_id: discoverQuery.matchmaker_id,
+    });
+    candidateDetail.value = res.data.data;
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
 async function openRuleDialog() {
   const res = await CandidateAPI.getRule();
   ruleForm.store_join_requires_review = res.data.data.store_join_requires_review;
@@ -664,10 +877,13 @@ async function submitJoinRequest() {
   if (!valid) return;
   submitLoading.value = true;
   try {
-    await CandidateAPI.createJoinRequest(joinForm);
-    ElMessage.success("加入申请已提交");
+    const res = await CandidateAPI.createJoinRequest(joinForm);
+    const record = res.data.data;
+    const autoApproved = record?.review_status === "approved" && !!record.approved_backup_item_id;
+    ElMessage.success(autoApproved ? "已自动审核通过并加入备选库" : "加入申请已提交");
     joinVisible.value = false;
     await loadDiscover();
+    if (autoApproved) await loadMine();
     if (canQueryRequest.value) await loadRequests();
   } finally {
     submitLoading.value = false;
@@ -830,6 +1046,37 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.candidate-page > :deep(.el-card) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.candidate-page > :deep(.el-card > .el-card__body) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.candidate-page :deep(.el-tabs) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.candidate-page :deep(.el-tabs__content) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
 }
 
 .toolbar {
@@ -872,6 +1119,13 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 
+.filter-collapse :deep(.el-collapse-item__content) {
+  padding-bottom: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
@@ -879,10 +1133,48 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 
+.discover-result {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--el-fill-color-light);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.result-title {
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+}
+
+.result-meta,
+.cell-sub {
+  color: var(--el-text-color-secondary);
+}
+
+.cell-main {
+  color: var(--el-text-color-primary);
+  line-height: 20px;
+}
+
+.discover-result-table {
+  width: 100%;
+}
+
+.discover-result-table :deep(.el-table__cell) {
+  padding: 7px 0;
+}
+
 .pager {
   display: flex;
   justify-content: flex-end;
-  padding-top: 16px;
+  padding: 12px;
 }
 
 .tag {
@@ -916,6 +1208,22 @@ onMounted(async () => {
 .timeline-content {
   margin-top: 4px;
   color: var(--el-text-color-regular);
+}
+
+.relation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.relation-card {
+  min-width: 0;
+}
+
+.section-subtitle {
+  margin: 10px 0 8px;
+  color: var(--el-text-color-primary);
+  font-weight: 600;
 }
 
 .cert-material-grid {

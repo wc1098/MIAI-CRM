@@ -55,6 +55,9 @@ export class Auth {
       // 使用localStorage长期保存
       Storage.set(AUTH_KEYS.ACCESS_TOKEN, accessToken);
       Storage.set(AUTH_KEYS.REFRESH_TOKEN, refreshToken);
+      // 清除sessionStorage中可能存在的旧token，避免登录方式切换后读到脏会话
+      Storage.sessionRemove(AUTH_KEYS.ACCESS_TOKEN);
+      Storage.sessionRemove(AUTH_KEYS.REFRESH_TOKEN);
     } else {
       // 使用sessionStorage临时保存
       Storage.sessionSet(AUTH_KEYS.ACCESS_TOKEN, accessToken);

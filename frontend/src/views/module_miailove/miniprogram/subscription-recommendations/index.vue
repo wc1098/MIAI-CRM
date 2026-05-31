@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container">
+  <div class="app-container mp-admin-page">
     <el-card shadow="never">
       <template #header><div class="toolbar"><div class="toolbar-title">订阅推荐记录</div><el-button @click="load">刷新</el-button></div></template>
       <el-form :inline="true" :model="query">
@@ -15,14 +15,18 @@
         </el-form-item>
         <el-form-item><el-button type="primary" @click="load">查询</el-button></el-form-item>
       </el-form>
-      <el-table v-loading="loading" :data="items">
+      <el-table v-loading="loading" :data="items" border stripe row-key="id" empty-text="暂无订阅推荐记录">
         <el-table-column prop="viewer_display_no" label="订阅人" width="110" />
         <el-table-column prop="viewer_nickname" label="订阅人昵称" min-width="120" />
         <el-table-column prop="target_display_no" label="推荐对象" width="110" />
         <el-table-column prop="target_nickname" label="对象昵称" min-width="120" />
         <el-table-column prop="recommend_index" label="序号" width="70" />
         <el-table-column prop="unlock_at" label="开放时间" min-width="170" />
-        <el-table-column prop="status" label="状态" width="110" />
+        <el-table-column prop="status" label="状态" width="110">
+          <template #default="{ row }">
+            <el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="match_score" label="匹配度" width="90" />
         <el-table-column label="AI状态" width="110">
           <template #default="{ row }">{{ reasonStatusText(row.reason_generation_status) }}</template>
@@ -35,7 +39,17 @@
           <template #default="{ row }"><el-button link type="primary" @click="rematch(row.id)">重新匹配</el-button></template>
         </el-table-column>
       </el-table>
-      <pagination v-if="total > 0" v-model:total="total" v-model:page="query.page_no" v-model:limit="query.page_size" @pagination="load" />
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="query.page_no"
+          v-model:page-size="query.page_size"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="load"
+          @current-change="load"
+        />
+      </div>
     </el-card>
   </div>
 </template>
@@ -63,6 +77,14 @@ async function rematch(id: number) {
 function reasonStatusText(status?: string) {
   const map: Record<string, string> = { none: "未生成", pending: "等待中", processing: "生成中", success: "已生成", failed: "失败", cancelled: "已取消" };
   return map[status || "none"] || status || "未生成";
+}
+function statusText(status?: string) {
+  const map: Record<string, string> = { locked: "未到期", matching: "匹配中", waiting_candidate: "持续寻找", unlocked: "已开放", viewed: "已查看" };
+  return map[status || ""] || status || "-";
+}
+function statusTagType(status?: string) {
+  const map: Record<string, "success" | "info" | "warning" | "danger"> = { locked: "info", matching: "warning", waiting_candidate: "warning", unlocked: "success", viewed: "success" };
+  return map[status || ""] || "info";
 }
 onMounted(load);
 </script>

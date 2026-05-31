@@ -13,6 +13,7 @@ from sqlalchemy.pool import NullPool
 
 from app.api.v1.module_system.auth.schema import AuthSchema
 from app.api.v1.module_system.dept.model import DeptModel
+from app.api.v1.module_system.dict.model import DictDataModel
 from app.api.v1.module_system.user.model import UserModel
 from app.config.setting import get_settings
 from app.core.database import async_db_session
@@ -65,23 +66,53 @@ class LeadService:
         "微信号",
         "出生日期",
         "身高",
+        "体重",
         "民族",
         "职业",
+        "职业补充",
         "年收入",
         "婚况",
         "学历",
+        "毕业院校",
+        "专业",
+        "单位类型",
+        "职务",
+        "工作单位",
         "籍贯",
         "常驻地",
         "房产信息",
         "购车信息",
+        "接受异地",
+        "接受闪婚",
+        "愿意搬家",
+        "结婚计划",
+        "家庭情况",
+        "档案备注",
+        "照片URL",
         "来源渠道",
         "归属门店",
         "归属人",
+        "同步小程序",
         "备注",
     ]
 
     IMPORT_HEADER_ALIASES = {
         "常驻地": ["常住地"],
+        "房产信息": ["住房情况"],
+        "购车信息": ["购车情况"],
+        "照片URL": ["照片", "照片相册", "照片链接"],
+    }
+
+    IMPORT_DICT_FIELDS = {
+        "民族": "crm_ethnicity",
+        "职业": "crm_occupation",
+        "年收入": "crm_annual_income",
+        "婚况": "crm_marital_status",
+        "学历": "crm_education",
+        "单位类型": "crm_unit_type",
+        "房产信息": "crm_house_status",
+        "购车信息": "crm_car_status",
+        "结婚计划": "crm_marriage_plan",
     }
 
     @classmethod
@@ -116,7 +147,7 @@ class LeadService:
         engine = None
         try:
             settings = get_settings()
-            engine = create_engine(settings.SYNC_DB_URI, poolclass=NullPool)
+            engine = create_engine(settings.DB_URI, poolclass=NullPool)
             with engine.connect() as conn:
                 value = conn.execute(
                     text(
@@ -232,6 +263,14 @@ class LeadService:
         return animals[(birth_date.year - 1900) % 12]
 
     @classmethod
+    def _age_cutoff(cls, age: int) -> date:
+        today = date.today()
+        try:
+            return date(today.year - age, today.month, today.day)
+        except ValueError:
+            return date(today.year - age, today.month, 28)
+
+    @classmethod
     async def _generate_person_display_no(cls, auth: AuthSchema) -> str:
         for _ in range(50):
             display_no = str(1000000 + secrets.randbelow(9000000))
@@ -297,7 +336,6 @@ class LeadService:
             ("birth_date", "出生日期"),
             ("height_cm", "身高"),
             ("ethnicity", "民族"),
-            ("occupation", "职业"),
             ("annual_income", "年收入"),
             ("marital_status", "婚况"),
             ("education", "学历"),
@@ -310,6 +348,8 @@ class LeadService:
             value = getattr(data, field)
             if value is None or value == "":
                 missing.append(label)
+        if not data.occupation_code and not data.occupation:
+            missing.append("职业")
         if not data.photo_urls:
             missing.append("照片")
         if missing:
@@ -549,25 +589,54 @@ class LeadService:
                 raise
 
     @classmethod
-    async def recycle_overdue_by_db(cls, db: AsyncSession, operator_id: int | None = None) -> int:
-        result = await db.execute(
-            select(CrmLeadProfileModel)
-            .where(
-                CrmLeadProfileModel.pool_type == "sales_private",
-                CrmLeadProfileModel.lead_type.in_(["new", "second_hand"]),
-                CrmLeadProfileModel.owner_sales_id.is_not(None),
-                CrmLeadProfileModel.assigned_at.is_not(None),
-                CrmLeadProfileModel.is_deleted == False,
+    async def _overdue_reclaim_batch(cls, db: AsyncSession, now: datetime, batch_size: int) -> list[tuple[CrmLeadProfileModel, int]]:
+        rules_result = await db.execute(select(CrmLeadStoreRuleModel).where(CrmLeadStoreRuleModel.is_deleted == False))
+        rules = {rule.store_id: rule.no_follow_reclaim_days for rule in rules_result.scalars().all()}
+        rows: list[tuple[CrmLeadProfileModel, int]] = []
+
+        async def append_rows(store_condition: Any, reclaim_days: int) -> None:
+            if len(rows) >= batch_size:
+                return
+            due_before = now - timedelta(days=reclaim_days)
+            result = await db.execute(
+                select(CrmLeadProfileModel)
+                .where(
+                    CrmLeadProfileModel.pool_type == "sales_private",
+                    CrmLeadProfileModel.lead_type.in_(["new", "second_hand"]),
+                    CrmLeadProfileModel.owner_sales_id.is_not(None),
+                    CrmLeadProfileModel.assigned_at.is_not(None),
+                    CrmLeadProfileModel.assigned_at <= due_before,
+                    or_(CrmLeadProfileModel.latest_follow_at.is_(None), CrmLeadProfileModel.latest_follow_at < CrmLeadProfileModel.assigned_at),
+                    CrmLeadProfileModel.is_deleted == False,
+                    store_condition,
+                )
+                .order_by(CrmLeadProfileModel.assigned_at.asc(), CrmLeadProfileModel.id.asc())
+                .limit(batch_size - len(rows))
+                .with_for_update(skip_locked=True)
             )
-            .options(selectinload(CrmLeadProfileModel.person))
-        )
+            rows.extend((lead, reclaim_days) for lead in result.scalars().all())
+
+        for store_id, reclaim_days in sorted(rules.items()):
+            await append_rows(CrmLeadProfileModel.store_id == store_id, reclaim_days)
+
+        default_store_condition = CrmLeadProfileModel.store_id.is_not(None)
+        if rules:
+            default_store_condition = and_(default_store_condition, CrmLeadProfileModel.store_id.notin_(rules.keys()))
+        await append_rows(default_store_condition, 7)
+        return rows
+
+    @classmethod
+    async def recycle_overdue_by_db(cls, db: AsyncSession, operator_id: int | None = None, batch_size: int = 500) -> int:
         now = datetime.now()
         count = 0
-        for lead in result.scalars().all():
+        ensured_store_rule_ids: set[int] = set()
+        for lead, reclaim_days in await cls._overdue_reclaim_batch(db, now, batch_size):
             if not lead.store_id or not lead.assigned_at:
                 continue
-            rule = await cls._store_rule_by_db(db, lead.store_id, operator_id=operator_id)
-            due_at = lead.assigned_at + timedelta(days=rule.no_follow_reclaim_days)
+            if lead.store_id not in ensured_store_rule_ids:
+                await cls._store_rule_by_db(db, lead.store_id, operator_id=operator_id)
+                ensured_store_rule_ids.add(lead.store_id)
+            due_at = lead.assigned_at + timedelta(days=reclaim_days)
             if now < due_at:
                 continue
             if lead.latest_follow_at and lead.latest_follow_at >= lead.assigned_at:
@@ -590,7 +659,7 @@ class LeadService:
                     "to_pool": "store_pool",
                     "from_owner_sales_id": old_owner,
                     "to_owner_sales_id": None,
-                    "reason": f"{rule.no_follow_reclaim_days}天未跟进自动回门店公海",
+                    "reason": f"{reclaim_days}天未跟进自动回门店公海",
                 },
             )
             if operator_id:
@@ -687,10 +756,13 @@ class LeadService:
         conditions = cls._scope_conditions(auth, view)
         if search:
             if search.keyword:
+                keyword = search.keyword.strip()
                 conditions.append(
                     or_(
-                        CrmPersonModel.name.like(f"%{search.keyword}%"),
-                        CrmPersonModel.primary_mobile.like(f"%{search.keyword}%"),
+                        CrmPersonModel.name.like(f"%{keyword}%"),
+                        CrmPersonModel.primary_mobile == keyword,
+                        CrmPersonModel.primary_mobile.like(f"{keyword}%"),
+                        CrmPersonModel.primary_mobile.like(f"%{keyword}%"),
                     )
                 )
             if search.lead_type:
@@ -707,6 +779,36 @@ class LeadService:
                         search.latest_follow_time[0], search.latest_follow_time[1]
                     )
                 )
+            if search.gender:
+                conditions.append(CrmPersonModel.gender == search.gender)
+            if search.age_min:
+                conditions.append(CrmPersonModel.birth_date <= cls._age_cutoff(search.age_min))
+            if search.age_max:
+                conditions.append(CrmPersonModel.birth_date >= cls._age_cutoff(search.age_max + 1) + timedelta(days=1))
+            if search.height_min_cm:
+                conditions.append(CrmPersonModel.height_cm >= search.height_min_cm)
+            if search.height_max_cm:
+                conditions.append(CrmPersonModel.height_cm <= search.height_max_cm)
+            if search.ethnicity:
+                conditions.append(CrmPersonModel.ethnicity == search.ethnicity)
+            if search.occupation_codes:
+                conditions.append(CrmPersonModel.occupation_code.in_(search.occupation_codes))
+            if search.annual_income:
+                conditions.append(CrmPersonModel.annual_income.in_(search.annual_income))
+            if search.marital_status:
+                conditions.append(CrmPersonModel.marital_status == search.marital_status)
+            if search.education:
+                conditions.append(CrmPersonModel.education.in_(search.education))
+            if search.unit_type:
+                conditions.append(CrmPersonModel.unit_type.in_(search.unit_type))
+            if search.house_status:
+                conditions.append(CrmPersonModel.house_status.in_(search.house_status))
+            if search.car_status:
+                conditions.append(CrmPersonModel.car_status.in_(search.car_status))
+            if search.hometown:
+                conditions.append(CrmPersonModel.hometown.like(f"{search.hometown.strip()}%"))
+            if search.residence:
+                conditions.append(CrmPersonModel.residence.like(f"{search.residence.strip()}%"))
         total_result = await auth.db.execute(
             select(func.count(CrmLeadProfileModel.id))
             .join(CrmPersonModel, CrmLeadProfileModel.person_id == CrmPersonModel.id)
@@ -1179,17 +1281,205 @@ class LeadService:
             raise CustomException(msg="线索规则只能配置实际门店，不能配置品牌/总部节点")
 
     @classmethod
-    async def download_template_service(cls) -> bytes:
+    async def _dict_options(cls, db: AsyncSession, dict_types: set[str]) -> dict[str, list[tuple[str, str]]]:
+        if not dict_types:
+            return {}
+        result = await db.execute(
+            select(DictDataModel)
+            .where(
+                DictDataModel.dict_type.in_(dict_types),
+                DictDataModel.status == "0",
+                DictDataModel.is_deleted == False,
+            )
+            .order_by(DictDataModel.dict_sort.asc(), DictDataModel.id.asc())
+        )
+        data: dict[str, list[tuple[str, str]]] = {}
+        for row in result.scalars().all():
+            data.setdefault(row.dict_type, []).append((row.dict_label, row.dict_value))
+        return data
+
+    @classmethod
+    async def _dict_value_maps(cls, db: AsyncSession, dict_types: set[str]) -> dict[str, dict[str, str]]:
+        options = await cls._dict_options(db, dict_types)
+        maps: dict[str, dict[str, str]] = {}
+        for dict_type, rows in options.items():
+            field_map: dict[str, str] = {}
+            for label, value in rows:
+                field_map[str(label).strip()] = value
+                field_map[str(value).strip()] = value
+            maps[dict_type] = field_map
+        return maps
+
+    @classmethod
+    async def download_template_service(cls, auth: AuthSchema) -> bytes:
+        dict_options = await cls._dict_options(auth.db, set(cls.IMPORT_DICT_FIELDS.values()))
+        option_map: dict[str, list[str]] = {
+            "性别": ["男", "女", "未知"],
+            "接受异地": ["是", "否"],
+            "接受闪婚": ["是", "否"],
+            "愿意搬家": ["是", "否"],
+            "同步小程序": ["是", "否"],
+        }
+        for header, dict_type in cls.IMPORT_DICT_FIELDS.items():
+            option_map[header] = [label for label, _ in dict_options.get(dict_type, [])]
+        channel_result = await auth.db.execute(
+            select(CrmChannelModel).where(CrmChannelModel.is_deleted == False, CrmChannelModel.status == "0").order_by(CrmChannelModel.sort.asc(), CrmChannelModel.id.asc())
+        )
+        channels = channel_result.scalars().all()
+        if channels:
+            option_map["来源渠道"] = [channel.channel_name for channel in channels]
+        example_source = channels[0].channel_name if channels else ""
+        example_rows = [
+            {
+                "手机号": "13800138000",
+                "姓名": "张三",
+                "性别": "男",
+                "微信号": "zhangsan888",
+                "出生日期": "1992-05-20",
+                "身高": "175",
+                "体重": "68",
+                "民族": "汉族",
+                "职业": "互联网/IT",
+                "职业补充": "产品经理",
+                "年收入": "20-50万",
+                "婚况": "未婚",
+                "学历": "本科",
+                "毕业院校": "郑州大学",
+                "专业": "计算机科学与技术",
+                "单位类型": "私营企业",
+                "职务": "产品经理",
+                "工作单位": "某科技公司",
+                "籍贯": "河南省/郑州市",
+                "常驻地": "河南省/郑州市",
+                "房产信息": "有房无贷",
+                "购车信息": "有车无贷",
+                "接受异地": "否",
+                "接受闪婚": "否",
+                "愿意搬家": "否",
+                "结婚计划": "1年内",
+                "家庭情况": "父母健康，家庭关系稳定",
+                "档案备注": "资料来自线下活动登记",
+                "照片URL": "https://example.com/photo1.jpg;https://example.com/photo2.jpg",
+                "来源渠道": example_source,
+                "归属门店": "郑州旗舰店",
+                "归属人": "sales01",
+                "同步小程序": "否",
+                "备注": "示例行，请导入前删除或替换",
+            }
+        ]
         return ExcelUtil.get_excel_template(
             header_list=cls.IMPORT_HEADERS,
-            selector_header_list=["性别"],
-            option_list=[{"性别": ["男", "女", "未知"]}],
+            selector_header_list=list(option_map.keys()),
+            option_list=[{key: value} for key, value in option_map.items() if value],
+            example_rows=example_rows,
         )
 
     @classmethod
     def _gender_value(cls, value: Any) -> str:
         text = str(value or "").strip()
         return {"男": "0", "女": "1", "未知": "2", "0": "0", "1": "1", "2": "2"}.get(text, "")
+
+    @classmethod
+    def _bool_value(cls, value: Any) -> bool | None:
+        text = str(value or "").strip().lower()
+        if not text:
+            return None
+        if text in {"是", "yes", "y", "true", "1"}:
+            return True
+        if text in {"否", "no", "n", "false", "0"}:
+            return False
+        raise ValueError(f"布尔字段只能填写是/否，当前值：{value}")
+
+    @classmethod
+    def _int_value(cls, value: Any, field_name: str) -> int | None:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        try:
+            return int(float(text))
+        except ValueError as exc:
+            raise ValueError(f"{field_name}必须为数字") from exc
+
+    @classmethod
+    def _date_value(cls, value: Any, field_name: str) -> date | None:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        parsed = pd.to_datetime(text, errors="coerce")
+        if pd.isna(parsed):
+            raise ValueError(f"{field_name}格式不正确")
+        return parsed.date()
+
+    @classmethod
+    def _split_urls(cls, value: Any) -> list[str]:
+        text = str(value or "").strip()
+        if not text:
+            return []
+        for separator in ["\n", "；", ";", "，", ","]:
+            text = text.replace(separator, "|")
+        return [item.strip() for item in text.split("|") if item.strip()]
+
+    @classmethod
+    def _dict_value(cls, dict_maps: dict[str, dict[str, str]], dict_type: str, value: Any, field_name: str) -> str | None:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        mapped = dict_maps.get(dict_type, {}).get(text)
+        if not mapped:
+            raise ValueError(f"{field_name}不在字典中：{text}")
+        return mapped
+
+    @classmethod
+    async def _source_channel_value(cls, db: AsyncSession, value: Any) -> str | None:
+        text_value = str(value or "").strip()
+        if not text_value:
+            return None
+        result = await db.execute(
+            select(CrmChannelModel).where(
+                CrmChannelModel.is_deleted == False,
+                or_(CrmChannelModel.channel_code == text_value.upper(), CrmChannelModel.channel_name == text_value),
+            )
+        )
+        channel = result.scalars().first()
+        if not channel:
+            raise ValueError(f"来源渠道不存在：{text_value}")
+        return channel.channel_code
+
+    @classmethod
+    async def _import_store_id(cls, db: AsyncSession, value: Any) -> int | None:
+        text_value = str(value or "").strip()
+        if not text_value:
+            return None
+        conditions = [DeptModel.is_deleted == False, DeptModel.status == "0"]
+        if text_value.isdigit():
+            conditions.append(or_(DeptModel.id == int(text_value), DeptModel.code == text_value))
+        else:
+            conditions.append(or_(DeptModel.name == text_value, DeptModel.code == text_value))
+        result = await db.execute(select(DeptModel).where(and_(*conditions)))
+        store = result.scalars().first()
+        if not store:
+            raise ValueError(f"归属门店不存在：{text_value}")
+        if store.parent_id is None:
+            raise ValueError("归属门店必须填写实际门店，不能填写品牌/总部节点")
+        return store.id
+
+    @classmethod
+    async def _import_owner_id(cls, db: AsyncSession, value: Any, store_id: int | None) -> int | None:
+        text_value = str(value or "").strip()
+        if not text_value:
+            return None
+        conditions = [UserModel.is_deleted == False, UserModel.status == "0"]
+        if text_value.isdigit():
+            conditions.append(or_(UserModel.id == int(text_value), UserModel.username == text_value, UserModel.mobile == text_value))
+        else:
+            conditions.append(or_(UserModel.name == text_value, UserModel.username == text_value, UserModel.mobile == text_value))
+        if store_id:
+            conditions.append(UserModel.dept_id == store_id)
+        result = await db.execute(select(UserModel).where(and_(*conditions)))
+        user = result.scalars().first()
+        if not user:
+            raise ValueError(f"归属人不存在或不属于目标门店：{text_value}")
+        return user.id
 
     @classmethod
     def _row_value(cls, row: Any, header: str) -> Any:
@@ -1208,6 +1498,7 @@ class LeadService:
             raise CustomException(msg="无权限导入线索", code=10403, status_code=403)
         content = await file.read()
         df = pd.read_excel(BytesIO(content), dtype=str).fillna("")
+        dict_maps = await cls._dict_value_maps(auth.db, set(cls.IMPORT_DICT_FIELDS.values()))
         failed_rows: list[dict[str, Any]] = []
         success_count = 0
         for idx, row in df.iterrows():
@@ -1226,29 +1517,44 @@ class LeadService:
                 )
                 if exists.scalars().first():
                     raise ValueError("手机号已存在")
-                store_id = int(row.get("归属门店")) if str(row.get("归属门店", "")).strip() else None
-                owner_sales_id = int(row.get("归属人")) if str(row.get("归属人", "")).strip() else None
+                store_id = await cls._import_store_id(auth.db, row.get("归属门店"))
                 if cls._is_store_mgr(auth) and auth.user:
                     store_id = auth.user.dept_id
+                owner_sales_id = await cls._import_owner_id(auth.db, row.get("归属人"), store_id)
                 payload = LeadCreateSchema(
                     mobile=mobile,
                     name=name,
                     gender=gender,
                     wechat=str(row.get("微信号", "")).strip() or None,
-                    birth_date=row.get("出生日期") or None,
-                    height_cm=int(row.get("身高")) if str(row.get("身高", "")).strip() else None,
-                    ethnicity=str(row.get("民族", "")).strip() or None,
-                    occupation=str(row.get("职业", "")).strip() or None,
-                    annual_income=str(row.get("年收入", "")).strip() or None,
-                    marital_status=str(row.get("婚况", "")).strip() or None,
-                    education=str(row.get("学历", "")).strip() or None,
+                    birth_date=cls._date_value(row.get("出生日期"), "出生日期"),
+                    height_cm=cls._int_value(row.get("身高"), "身高"),
+                    weight_kg=cls._int_value(row.get("体重"), "体重"),
+                    ethnicity=cls._dict_value(dict_maps, "crm_ethnicity", row.get("民族"), "民族"),
+                    occupation_code=cls._dict_value(dict_maps, "crm_occupation", row.get("职业"), "职业"),
+                    occupation=str(row.get("职业补充", "")).strip() or None,
+                    annual_income=cls._dict_value(dict_maps, "crm_annual_income", row.get("年收入"), "年收入"),
+                    marital_status=cls._dict_value(dict_maps, "crm_marital_status", row.get("婚况"), "婚况"),
+                    education=cls._dict_value(dict_maps, "crm_education", row.get("学历"), "学历"),
+                    graduated_school=str(row.get("毕业院校", "")).strip() or None,
+                    major=str(row.get("专业", "")).strip() or None,
+                    unit_type=cls._dict_value(dict_maps, "crm_unit_type", row.get("单位类型"), "单位类型"),
+                    job_title=str(row.get("职务", "")).strip() or None,
+                    work_company=str(row.get("工作单位", "")).strip() or None,
                     hometown=str(row.get("籍贯", "")).strip() or None,
                     residence=str(cls._row_value(row, "常驻地")).strip() or None,
-                    house_status=str(row.get("房产信息", "")).strip() or None,
-                    car_status=str(row.get("购车信息", "")).strip() or None,
-                    source_channel_code=str(row.get("来源渠道", "")).strip().upper() or "IMPORT",
+                    house_status=cls._dict_value(dict_maps, "crm_house_status", cls._row_value(row, "房产信息"), "房产信息"),
+                    car_status=cls._dict_value(dict_maps, "crm_car_status", cls._row_value(row, "购车信息"), "购车信息"),
+                    accept_long_distance_self=cls._bool_value(row.get("接受异地")),
+                    accept_flash_marriage=cls._bool_value(row.get("接受闪婚")),
+                    willing_relocate=cls._bool_value(row.get("愿意搬家")),
+                    marriage_plan=cls._dict_value(dict_maps, "crm_marriage_plan", row.get("结婚计划"), "结婚计划"),
+                    family_background=str(row.get("家庭情况", "")).strip() or None,
+                    profile_remark=str(row.get("档案备注", "")).strip() or None,
+                    photo_urls=cls._split_urls(cls._row_value(row, "照片URL")),
+                    source_channel_code=await cls._source_channel_value(auth.db, row.get("来源渠道")),
                     store_id=store_id,
                     owner_sales_id=owner_sales_id,
+                    sync_to_miniprogram=bool(cls._bool_value(row.get("同步小程序"))),
                     description=str(row.get("备注", "")).strip() or None,
                 )
                 await cls.create_service(auth, payload)

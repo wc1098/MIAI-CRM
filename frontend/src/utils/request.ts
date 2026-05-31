@@ -71,6 +71,10 @@ httpRequest.interceptors.response.use(
 
     // 检查请求是否失败
     if (data.code !== ResultEnum.SUCCESS) {
+      if (data.code === ResultEnum.TOKEN_EXPIRED) {
+        redirectToLogin(data.msg || "登录已过期，请重新登录");
+        return Promise.reject(new Error(data.msg || "登录已过期"));
+      }
       ElMessage.error(data.msg);
       return Promise.reject(response);
     }

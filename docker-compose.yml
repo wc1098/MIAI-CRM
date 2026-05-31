@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: miailove-backend:latest
+    container_name: miailove-backend
+    restart: no
+    environment:
+      ENVIRONMENT: prod
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8000
+      DATABASE_TYPE: postgres
+      DATABASE_HOST: host.docker.internal
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: Anping520
+      DATABASE_NAME: miaicrm
+      REDIS_ENABLE: "true"
+      REDIS_HOST: host.docker.internal
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: Anping520
+      REDIS_DB_NAME: 1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/env/.env.prod:/app/env/.env.prod:ro
+      - backend-static:/app/static
+      - backend-logs:/app/logs
+    networks:
+      - miailove-network
+
+networks:
+  miailove-network:
+    driver: bridge
+
+volumes:
+  backend-static:
+  backend-logs:

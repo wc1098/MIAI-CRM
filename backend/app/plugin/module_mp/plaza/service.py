@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, literal, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -393,6 +393,8 @@ class MpPlazaService:
         *,
         create: bool = True,
     ) -> MpHeartbeatProgressModel | None:
+        if not viewer.person_id or not target.person_id:
+            return None
         result = await db.execute(
             select(MpHeartbeatProgressModel).where(
                 MpHeartbeatProgressModel.viewer_user_id == viewer.id,
@@ -433,6 +435,8 @@ class MpPlazaService:
         key: str,
     ) -> MpHeartbeatProgressModel:
         progress = await cls._progress(db, viewer, target)
+        if not progress:
+            raise CustomException(msg="请先完成注册资料")
         inc = cls._int(await cls._param(db, key, DEFAULT_SETTINGS.get(key, "0")), 0)
         if inc > 0 and not progress.unlocked_by_score:
             progress.score = max(progress.score + inc, 0)
@@ -462,27 +466,22 @@ class MpPlazaService:
     async def _relation_state(cls, db: AsyncSession, viewer_id: int | None, target_id: int) -> dict[str, bool]:
         if not viewer_id:
             return {"liked": False, "favorited": False}
-        liked = (
-            await db.execute(
-                select(MpUserLikeModel.id).where(
-                    MpUserLikeModel.viewer_user_id == viewer_id,
-                    MpUserLikeModel.target_user_id == target_id,
-                    MpUserLikeModel.is_active == True,
-                    MpUserLikeModel.is_deleted == False,
-                )
-            )
-        ).scalar() is not None
-        favorited = (
-            await db.execute(
-                select(MpUserFavoriteModel.id).where(
-                    MpUserFavoriteModel.viewer_user_id == viewer_id,
-                    MpUserFavoriteModel.target_user_id == target_id,
-                    MpUserFavoriteModel.is_active == True,
-                    MpUserFavoriteModel.is_deleted == False,
-                )
-            )
-        ).scalar() is not None
-        return {"liked": liked, "favorited": favorited}
+        relation_stmt = union_all(
+            select(literal("liked").label("relation_type")).where(
+                MpUserLikeModel.viewer_user_id == viewer_id,
+                MpUserLikeModel.target_user_id == target_id,
+                MpUserLikeModel.is_active == True,
+                MpUserLikeModel.is_deleted == False,
+            ),
+            select(literal("favorited").label("relation_type")).where(
+                MpUserFavoriteModel.viewer_user_id == viewer_id,
+                MpUserFavoriteModel.target_user_id == target_id,
+                MpUserFavoriteModel.is_active == True,
+                MpUserFavoriteModel.is_deleted == False,
+            ),
+        )
+        relation_types = {row[0] for row in (await db.execute(relation_stmt)).all()}
+        return {"liked": "liked" in relation_types, "favorited": "favorited" in relation_types}
 
     @classmethod
     async def _coupon_count(cls, db: AsyncSession, user_id: int | None) -> int:
@@ -513,6 +512,32 @@ class MpPlazaService:
                 )
             )
         ).scalar() or 0
+
+    @classmethod
+    async def _viewer_unlock_counts(cls, db: AsyncSession, user_id: int | None) -> dict[str, int]:
+        if not user_id:
+            return {"coupon_count": 0, "daily_unlock_count": 0}
+        now = datetime.now()
+        start = datetime.combine(date.today(), datetime.min.time())
+        counts_stmt = union_all(
+            select(literal("coupon_count").label("count_type"), func.count(MpUnlockCouponModel.id)).where(
+                MpUnlockCouponModel.user_id == user_id,
+                MpUnlockCouponModel.coupon_status == "unused",
+                MpUnlockCouponModel.is_deleted == False,
+                or_(MpUnlockCouponModel.valid_to.is_(None), MpUnlockCouponModel.valid_to >= now),
+            ),
+            select(literal("daily_unlock_count").label("count_type"), func.count(MpContactUnlockModel.id)).where(
+                MpContactUnlockModel.viewer_user_id == user_id,
+                MpContactUnlockModel.unlock_status == "success",
+                MpContactUnlockModel.unlocked_at >= start,
+                MpContactUnlockModel.is_deleted == False,
+            ),
+        )
+        counts = {row[0]: row[1] for row in (await db.execute(counts_stmt)).all()}
+        return {
+            "coupon_count": counts.get("coupon_count", 0),
+            "daily_unlock_count": counts.get("daily_unlock_count", 0),
+        }
 
     @classmethod
     async def _assert_can_unlock_today(cls, db: AsyncSession, viewer_id: int) -> None:
@@ -587,6 +612,42 @@ class MpPlazaService:
         return (await db.execute(select(func.count(MpUnlockTaskRecordModel.id)).where(*conditions))).scalar() or 0
 
     @classmethod
+    async def _task_record_counts(
+        cls,
+        db: AsyncSession,
+        tasks: list[MpUnlockTaskModel],
+        user_id: int,
+        target_id: int,
+    ) -> dict[int, int]:
+        task_ids = [task.id for task in tasks]
+        if not task_ids:
+            return {}
+        rows = (
+            await db.execute(
+                select(
+                    MpUnlockTaskRecordModel.task_id,
+                    MpUnlockTaskRecordModel.target_user_id,
+                    func.count(MpUnlockTaskRecordModel.id),
+                )
+                .where(
+                    MpUnlockTaskRecordModel.task_id.in_(task_ids),
+                    MpUnlockTaskRecordModel.viewer_user_id == user_id,
+                    MpUnlockTaskRecordModel.completed_on == cls._today_key(),
+                    MpUnlockTaskRecordModel.is_deleted == False,
+                )
+                .group_by(MpUnlockTaskRecordModel.task_id, MpUnlockTaskRecordModel.target_user_id)
+            )
+        ).all()
+        by_task_target = {(row[0], row[1]): row[2] for row in rows}
+        by_task_total: dict[int, int] = {}
+        for task_id, _, count in rows:
+            by_task_total[task_id] = by_task_total.get(task_id, 0) + count
+        return {
+            task.id: by_task_target.get((task.id, target_id), 0) if task.is_target else by_task_total.get(task.id, 0)
+            for task in tasks
+        }
+
+    @classmethod
     async def _complete_task(
         cls,
         db: AsyncSession,
@@ -596,6 +657,8 @@ class MpPlazaService:
         source: str = "task",
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        if not viewer.person_id:
+            return {"completed": False, "score": 0, "reason": "请先完成注册资料"}
         target_id = target.id if target and task.is_target else None
         if task.daily_limit > 0 and await cls._task_record_count(db, task.id, viewer.id, target_id) >= task.daily_limit:
             return {"completed": False, "score": 0, "reason": "今日该任务已达上限"}
@@ -714,7 +777,6 @@ class MpPlazaService:
                 occurred_at=datetime.now(),
             )
         )
-        await db.flush()
 
     @classmethod
     async def detail_service(cls, db: AsyncSession, display_no: str, user_id: int | None = None) -> dict[str, Any]:
@@ -729,7 +791,7 @@ class MpPlazaService:
         unlocked = is_self or await cls._is_unlocked(db, viewer.id if viewer else None, target.id)
         relation = await cls._relation_state(db, viewer.id if viewer else None, target.id)
         progress = None
-        if viewer and not is_self:
+        if viewer and viewer.person_id and not is_self:
             progress = await cls._progress(db, viewer, target)
             task_result = await db.execute(
                 select(MpUnlockTaskModel).where(
@@ -745,8 +807,9 @@ class MpPlazaService:
         settings = await cls._settings(db)
         unlock_score = settings["target_score"]
         price = settings["contact_price"]
-        coupon_count = await cls._coupon_count(db, viewer.id if viewer else None)
-        daily_used = await cls._daily_unlock_count(db, viewer.id) if viewer else 0
+        unlock_counts = await cls._viewer_unlock_counts(db, viewer.id if viewer else None)
+        coupon_count = unlock_counts["coupon_count"]
+        daily_used = unlock_counts["daily_unlock_count"]
         await cls._record_action(db, "view", target, viewer, {"display_no": display_no})
         return {
             "visible": True,
@@ -910,9 +973,10 @@ class MpPlazaService:
                 .order_by(MpUnlockTaskModel.sort.asc(), MpUnlockTaskModel.id.asc())
             )
         ).scalars().all()
+        done_counts = await cls._task_record_counts(db, task_rows, viewer.id, target.id)
         tasks: list[dict[str, Any]] = []
         for task in task_rows:
-            done_count = await cls._task_record_count(db, task.id, viewer.id, target.id if task.is_target else None)
+            done_count = done_counts.get(task.id, 0)
             tasks.append(
                 {
                     "id": task.id,

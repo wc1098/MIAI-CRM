@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container certification-page">
+  <div class="app-container mp-admin-page certification-page">
     <el-tabs v-model="activeTab">
       <el-tab-pane label="认证套餐" name="packages">
         <el-card shadow="never">

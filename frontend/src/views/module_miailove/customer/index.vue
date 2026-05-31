@@ -28,7 +28,79 @@
         <el-form-item>
           <el-button type="primary" icon="Search" @click="fetchList">查询</el-button>
           <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+          <el-button link type="primary" :icon="advancedVisible ? 'ArrowUp' : 'ArrowDown'" @click="advancedVisible = !advancedVisible">
+            {{ advancedVisible ? "收起筛选" : "更多筛选" }}
+          </el-button>
         </el-form-item>
+        <div v-show="advancedVisible" class="advanced-filter">
+          <el-form-item label="性别">
+            <el-select v-model="query.gender" clearable placeholder="全部" style="width: 120px">
+              <el-option label="男" value="0" />
+              <el-option label="女" value="1" />
+              <el-option label="未知" value="2" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="年龄">
+            <div class="range-inputs">
+              <el-input v-model.number="query.age_min" type="number" min="18" max="100" placeholder="最小" />
+              <span>-</span>
+              <el-input v-model.number="query.age_max" type="number" min="18" max="100" placeholder="最大" />
+            </div>
+          </el-form-item>
+          <el-form-item label="身高">
+            <div class="range-inputs">
+              <el-input v-model.number="query.height_min_cm" type="number" min="80" max="260" placeholder="最小" />
+              <span>-</span>
+              <el-input v-model.number="query.height_max_cm" type="number" min="80" max="260" placeholder="最大" />
+            </div>
+          </el-form-item>
+          <el-form-item label="民族">
+            <el-select v-model="query.ethnicity" clearable filterable placeholder="全部" style="width: 160px">
+              <el-option v-for="item in dictOptions.ethnicity" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="职业">
+            <el-select v-model="query.occupation_codes" multiple collapse-tags collapse-tags-tooltip clearable filterable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.occupation" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="收入">
+            <el-select v-model="query.annual_income" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.annualIncome" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="婚况">
+            <el-select v-model="query.marital_status" clearable placeholder="全部" style="width: 160px">
+              <el-option v-for="item in dictOptions.maritalStatus" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="学历">
+            <el-select v-model="query.education" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.education" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="单位类型">
+            <el-select v-model="query.unit_type" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.unitType" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="住房情况">
+            <el-select v-model="query.house_status" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.houseStatus" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="购车情况">
+            <el-select v-model="query.car_status" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.carStatus" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="籍贯">
+            <el-cascader v-model="queryHometownValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 220px" @change="syncQueryAddressFields" />
+          </el-form-item>
+          <el-form-item label="常驻地">
+            <el-cascader v-model="queryResidenceValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 220px" @change="syncQueryAddressFields" />
+          </el-form-item>
+        </div>
       </el-form>
     </el-card>
 
@@ -468,6 +540,7 @@ import LeadAPI, { type PartnerPreference } from "@/api/module_crm/lead";
 import DictAPI, { type DictDataTable } from "@/api/module_system/dict";
 import PartnerPreferenceForm from "@/views/module_miailove/components/PartnerPreferenceForm.vue";
 import PersonProfileFields from "@/views/module_miailove/components/PersonProfileFields.vue";
+import { addressOptions } from "@/views/module_miailove/components/addressOptions";
 import { ossImage, ossImageList } from "@/utils/ossImage";
 import { uploadImageDirect } from "@/utils/upload";
 
@@ -475,6 +548,10 @@ const loading = ref(false);
 const rows = ref<CustomerTable[]>([]);
 const total = ref(0);
 const query = reactive<CustomerPageQuery>({ page_no: 1, page_size: 10 });
+const advancedVisible = ref(false);
+const queryHometownValue = ref<string[]>([]);
+const queryResidenceValue = ref<string[]>([]);
+const addressProps = { emitPath: true };
 const route = useRoute();
 const router = useRouter();
 const isDealPage = computed(() => route.path.includes("/customer/deal"));
@@ -661,12 +738,22 @@ function idCardSideLabel(value?: string) {
 async function fetchList() {
   loading.value = true;
   try {
-    const res = isDealPage.value ? await CustomerAPI.listDealCustomer(query) : await CustomerAPI.listCustomer(query);
+    const res = isDealPage.value ? await CustomerAPI.listDealCustomer(cleanQuery()) : await CustomerAPI.listCustomer(cleanQuery());
     rows.value = res.data.data.items || [];
     total.value = res.data.data.total || 0;
   } finally {
     loading.value = false;
   }
+}
+
+function cleanQuery(): CustomerPageQuery {
+  const next = { ...query };
+  Object.entries(next).forEach(([key, value]) => {
+    if (value === "" || value === undefined || value === null || (Array.isArray(value) && !value.length)) {
+      delete (next as Record<string, unknown>)[key];
+    }
+  });
+  return next;
 }
 
 function createContract(customerId?: number) {
@@ -675,8 +762,38 @@ function createContract(customerId?: number) {
 }
 
 function resetQuery() {
-  Object.assign(query, { page_no: 1, page_size: query.page_size, keyword: undefined, current_stage: undefined, max_stage: undefined, store_id: undefined, owner_user_id: undefined });
+  Object.assign(query, {
+    page_no: 1,
+    page_size: query.page_size,
+    keyword: undefined,
+    current_stage: undefined,
+    max_stage: undefined,
+    store_id: undefined,
+    owner_user_id: undefined,
+    gender: undefined,
+    age_min: undefined,
+    age_max: undefined,
+    height_min_cm: undefined,
+    height_max_cm: undefined,
+    ethnicity: undefined,
+    occupation_codes: [],
+    annual_income: [],
+    marital_status: undefined,
+    education: [],
+    unit_type: [],
+    house_status: [],
+    car_status: [],
+    hometown: undefined,
+    residence: undefined,
+  });
+  queryHometownValue.value = [];
+  queryResidenceValue.value = [];
   fetchList();
+}
+
+function syncQueryAddressFields() {
+  query.hometown = queryHometownValue.value.join("/") || undefined;
+  query.residence = queryResidenceValue.value.join("/") || undefined;
 }
 
 async function openDetail(id?: number) {
@@ -1276,6 +1393,24 @@ onMounted(() => {
 .filter-card,
 .table-card {
   border-radius: 8px;
+}
+
+.advanced-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  width: 100%;
+  padding-top: 4px;
+}
+
+.range-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.range-inputs :deep(.el-input) {
+  width: 104px;
 }
 
 .toolbar {

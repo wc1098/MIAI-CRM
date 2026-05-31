@@ -1,0 +1,17 @@
+.venv
+.venv*
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.git/
+.gitignore
+logs/
+static/upload/
+static/download/
+*.db
+*.sqlite
+*.sqlite3
+Dockerfile
+env/.env.prod

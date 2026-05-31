@@ -437,12 +437,17 @@ class ContractService:
             if search.customer_id:
                 conditions.append(CrmContractModel.customer_id == search.customer_id)
             if search.keyword:
-                like = f"%{search.keyword}%"
+                keyword = search.keyword.strip()
+                like = f"%{keyword}%"
                 conditions.append(
                     or_(
+                        CrmContractModel.contract_no == keyword,
+                        CrmContractModel.contract_no.like(f"{keyword}%"),
                         CrmContractModel.contract_no.like(like),
                         CrmContractModel.contract_name.like(like),
                         CrmPersonModel.name.like(like),
+                        CrmPersonModel.primary_mobile == keyword,
+                        CrmPersonModel.primary_mobile.like(f"{keyword}%"),
                         CrmPersonModel.primary_mobile.like(like),
                     )
                 )

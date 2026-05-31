@@ -333,26 +333,146 @@ class VipService:
         return summary
 
     @classmethod
-    async def _case_out(cls, auth: AuthSchema, case: ServiceCaseModel) -> dict:
-        vip = await auth.db.get(CrmVipProfileModel, case.vip_id)
-        person = await auth.db.get(CrmPersonModel, case.person_id)
-        contract = await auth.db.get(
-            CrmContractModel,
-            case.contract_id,
-            options=[selectinload(CrmContractModel.receipts), selectinload(CrmContractModel.items)],
+    async def _entitlement_summary_map(cls, db: AsyncSession, case_ids: set[int]) -> dict[int, dict[str, dict[str, int]]]:
+        if not case_ids:
+            return {}
+        result = await db.execute(
+            select(ServiceEntitlementModel).where(
+                ServiceEntitlementModel.service_case_id.in_(case_ids),
+                ServiceEntitlementModel.is_deleted == False,
+            )
         )
-        store = await auth.db.get(DeptModel, case.store_id)
+        summary_map: dict[int, dict[str, dict[str, int]]] = {}
+        for item in result.scalars().all():
+            summary = summary_map.setdefault(item.service_case_id, {})
+            bucket = summary.setdefault(item.entitlement_type, {"total": 0, "used": 0, "remaining": 0})
+            bucket["total"] += item.total_quota
+            bucket["used"] += item.used_quota
+            bucket["remaining"] += item.remaining_quota
+        return summary_map
+
+    @classmethod
+    async def _case_batch_context(cls, auth: AuthSchema, cases: list[ServiceCaseModel]) -> dict[str, Any]:
+        case_ids = {case.id for case in cases}
+        vip_ids = {case.vip_id for case in cases}
+        person_ids = {case.person_id for case in cases}
+        contract_ids = {case.contract_id for case in cases}
+        store_ids = {case.store_id for case in cases}
+
+        vips = {
+            item.id: item
+            for item in (
+                await auth.db.execute(select(CrmVipProfileModel).where(CrmVipProfileModel.id.in_(vip_ids)))
+            ).scalars().all()
+        } if vip_ids else {}
+        people = {
+            item.id: item
+            for item in (
+                await auth.db.execute(select(CrmPersonModel).where(CrmPersonModel.id.in_(person_ids)))
+            ).scalars().all()
+        } if person_ids else {}
+        contracts = {
+            item.id: item
+            for item in (
+                await auth.db.execute(
+                    select(CrmContractModel)
+                    .options(selectinload(CrmContractModel.receipts), selectinload(CrmContractModel.items))
+                    .where(CrmContractModel.id.in_(contract_ids))
+                )
+            ).scalars().all()
+        } if contract_ids else {}
+        stores = {
+            item.id: item
+            for item in (
+                await auth.db.execute(select(DeptModel).where(DeptModel.id.in_(store_ids)))
+            ).scalars().all()
+        } if store_ids else {}
+
+        user_ids: set[int | None] = set()
+        for case in cases:
+            contract = contracts.get(case.contract_id)
+            user_ids.update(
+                {
+                    contract.owner_user_id if contract else None,
+                    case.owner_matchmaker_id,
+                    case.assigned_by,
+                    case.close_requested_by,
+                    case.close_reviewed_by,
+                }
+            )
+        users = await cls._user_names(auth.db, user_ids)
+
+        deep_counts = {
+            row[0]: row[1]
+            for row in (
+                await auth.db.execute(
+                    select(DeepInterviewModel.service_case_id, func.count(DeepInterviewModel.id))
+                    .where(
+                        DeepInterviewModel.service_case_id.in_(case_ids),
+                        DeepInterviewModel.is_deleted == False,
+                        DeepInterviewModel.interview_status == "active",
+                    )
+                    .group_by(DeepInterviewModel.service_case_id)
+                )
+            ).all()
+        } if case_ids else {}
+        usage_counts = {
+            row[0]: row[1]
+            for row in (
+                await auth.db.execute(
+                    select(EntitlementUsageLogModel.service_case_id, func.count(EntitlementUsageLogModel.id))
+                    .where(
+                        EntitlementUsageLogModel.service_case_id.in_(case_ids),
+                        EntitlementUsageLogModel.is_deleted == False,
+                    )
+                    .group_by(EntitlementUsageLogModel.service_case_id)
+                )
+            ).all()
+        } if case_ids else {}
+
+        return {
+            "vips": vips,
+            "people": people,
+            "contracts": contracts,
+            "stores": stores,
+            "users": users,
+            "deep_counts": deep_counts,
+            "usage_counts": usage_counts,
+            "entitlement_summaries": await cls._entitlement_summary_map(auth.db, case_ids),
+        }
+
+    @classmethod
+    async def _case_out(cls, auth: AuthSchema, case: ServiceCaseModel, batch_context: dict[str, Any] | None = None) -> dict:
+        batch_context = batch_context or {}
+        vip = batch_context.get("vips", {}).get(case.vip_id) if batch_context else None
+        if vip is None:
+            vip = await auth.db.get(CrmVipProfileModel, case.vip_id)
+        person = batch_context.get("people", {}).get(case.person_id) if batch_context else None
+        if person is None:
+            person = await auth.db.get(CrmPersonModel, case.person_id)
+        contract = batch_context.get("contracts", {}).get(case.contract_id) if batch_context else None
+        if contract is None:
+            contract = await auth.db.get(
+                CrmContractModel,
+                case.contract_id,
+                options=[selectinload(CrmContractModel.receipts), selectinload(CrmContractModel.items)],
+            )
+        store = batch_context.get("stores", {}).get(case.store_id) if batch_context else None
+        if store is None:
+            store = await auth.db.get(DeptModel, case.store_id)
         received_amount, pending_amount, payment_status = cls._payment_summary(contract) if contract else (Decimal("0.00"), Decimal("0.00"), "unpaid")
-        users = await cls._user_names(
-            auth.db,
-            {
-                contract.owner_user_id if contract else None,
-                case.owner_matchmaker_id,
-                case.assigned_by,
-                case.close_requested_by,
-                case.close_reviewed_by,
-            },
-        )
+        users = batch_context.get("users") if batch_context else None
+        if users is None:
+            users = await cls._user_names(
+                auth.db,
+                {
+                    contract.owner_user_id if contract else None,
+                    case.owner_matchmaker_id,
+                    case.assigned_by,
+                    case.close_requested_by,
+                    case.close_reviewed_by,
+                },
+            )
         mobile = person.primary_mobile if person else None
         if not cls._has_permission(auth, "service:vip:view_phone"):
             mobile = cls._mask_mobile(mobile)
@@ -364,8 +484,15 @@ class VipService:
             remaining_days = (vip.ended_at.date() - date.today()).days
         elif contract and contract.end_date:
             remaining_days = (contract.end_date - date.today()).days
-        deep_count = (await auth.db.execute(select(func.count(DeepInterviewModel.id)).where(DeepInterviewModel.service_case_id == case.id, DeepInterviewModel.is_deleted == False, DeepInterviewModel.interview_status == "active"))).scalar() or 0
-        usage_count = (await auth.db.execute(select(func.count(EntitlementUsageLogModel.id)).where(EntitlementUsageLogModel.service_case_id == case.id, EntitlementUsageLogModel.is_deleted == False))).scalar() or 0
+        deep_count = batch_context.get("deep_counts", {}).get(case.id) if batch_context else None
+        if deep_count is None:
+            deep_count = (await auth.db.execute(select(func.count(DeepInterviewModel.id)).where(DeepInterviewModel.service_case_id == case.id, DeepInterviewModel.is_deleted == False, DeepInterviewModel.interview_status == "active"))).scalar() or 0
+        usage_count = batch_context.get("usage_counts", {}).get(case.id) if batch_context else None
+        if usage_count is None:
+            usage_count = (await auth.db.execute(select(func.count(EntitlementUsageLogModel.id)).where(EntitlementUsageLogModel.service_case_id == case.id, EntitlementUsageLogModel.is_deleted == False))).scalar() or 0
+        entitlement_summary = batch_context.get("entitlement_summaries", {}).get(case.id) if batch_context else None
+        if entitlement_summary is None:
+            entitlement_summary = await cls._entitlement_summary(auth.db, case.id)
         vip_status = vip.vip_status if vip else case.case_status
         return {
             "id": case.id,
@@ -442,7 +569,7 @@ class VipService:
             "store_name": store.name if store else None,
             "waiting_hours": waiting_hours,
             "remaining_days": remaining_days,
-            "entitlement_summary": await cls._entitlement_summary(auth.db, case.id),
+            "entitlement_summary": entitlement_summary,
             "deep_interview_count": deep_count,
             "usage_count": usage_count,
         }
@@ -499,8 +626,23 @@ class VipService:
             if search.ended_end:
                 conditions.append(CrmVipProfileModel.ended_at <= datetime.combine(search.ended_end, time.max))
             if search.keyword:
-                like = f"%{search.keyword}%"
-                conditions.append(or_(CrmPersonModel.name.like(like), CrmPersonModel.primary_mobile.like(like), CrmPersonModel.display_no.like(like), CrmContractModel.contract_no.like(like), CrmContractModel.contract_name.like(like)))
+                keyword = search.keyword.strip()
+                like = f"%{keyword}%"
+                conditions.append(
+                    or_(
+                        CrmPersonModel.name.like(like),
+                        CrmPersonModel.primary_mobile == keyword,
+                        CrmPersonModel.primary_mobile.like(f"{keyword}%"),
+                        CrmPersonModel.primary_mobile.like(like),
+                        CrmPersonModel.display_no == keyword,
+                        CrmPersonModel.display_no.like(f"{keyword}%"),
+                        CrmPersonModel.display_no.like(like),
+                        CrmContractModel.contract_no == keyword,
+                        CrmContractModel.contract_no.like(f"{keyword}%"),
+                        CrmContractModel.contract_no.like(like),
+                        CrmContractModel.contract_name.like(like),
+                    )
+                )
         base = (
             select(ServiceCaseModel)
             .join(CrmPersonModel, ServiceCaseModel.person_id == CrmPersonModel.id)
@@ -520,12 +662,13 @@ class VipService:
         offset = (page_no - 1) * page_size
         result = await auth.db.execute(base.order_by(ServiceCaseModel.created_time.desc(), ServiceCaseModel.id.desc()).offset(offset).limit(page_size))
         cases = result.scalars().all()
+        batch_context = await cls._case_batch_context(auth, cases)
         return {
             "page_no": page_no,
             "page_size": page_size,
             "total": total,
             "has_next": offset + page_size < total,
-            "items": [await cls._case_out(auth, case) for case in cases],
+            "items": [await cls._case_out(auth, case, batch_context) for case in cases],
         }
 
     @classmethod
@@ -2113,7 +2256,11 @@ class VipService:
             )
         else:
             conditions.append(CrmPersonModel.brand_id == case.brand_id)
-        if data.keyword:
+        has_precise_identity_filter = any(
+            value is not None and value != ""
+            for value in [data.person_id, data.display_no, data.mobile, data.name]
+        )
+        if data.keyword and not has_precise_identity_filter:
             like = f"%{data.keyword.strip()}%"
             conditions.append(or_(CrmPersonModel.name.like(like), CrmPersonModel.primary_mobile.like(like), CrmPersonModel.display_no.like(like), cast(CrmPersonModel.id, String).like(like)))
         exact_fields = [
@@ -2322,7 +2469,6 @@ class VipService:
         contact_unmasked = bool(
             (backup and backup.contact_unmasked_after_approval)
             or own_service_count
-            or cls._is_brand_admin(auth)
         )
         request_scope = "store" if store_id and store_id == case.store_id else "brand"
         preference_payload = None
@@ -2524,7 +2670,7 @@ class VipService:
                     }
                     for item in join_requests
                 ],
-                "miniprogram_user": PersonCenterService._model_out(maps["mp_user"].get(person_id), ["mobile", "nickname", "registered_at", "last_login_at", "is_invisible", "allow_user_wall"]),
+                "miniprogram_user": cls._miniprogram_user_out(maps["mp_user"].get(person_id), contact_unmasked),
                 "subscription": PersonCenterService._model_out(maps["subscription"].get(person_id), ["plan_id", "started_at", "expired_at", "total_quota", "used_quota", "subscription_status", "last_unlock_at"]),
                 "certification": PersonCenterService._model_out(application, ["level_code", "level_name", "application_status", "paid_at", "approved_at"]) if application else {"certification_level": person.certification_level, "certification_summary": person.certification_summary},
                 "partner_preference": PersonCenterService._model_out(preference, ["profile_summary", "strictness_level", "is_final", "version_no", "source_type"]) if preference else None,
@@ -2554,6 +2700,16 @@ class VipService:
         channel_code = data.get("source_channel_code")
         if channel_code:
             data["source_channel_name"] = channel_names.get(channel_code)
+        return data
+
+    @classmethod
+    def _miniprogram_user_out(cls, user: Any | None, contact_unmasked: bool) -> dict[str, Any] | None:
+        data = PersonCenterService._model_out(
+            user,
+            ["mobile", "nickname", "registered_at", "last_login_at", "is_invisible", "allow_user_wall"],
+        )
+        if data and data.get("mobile") and not contact_unmasked:
+            data["mobile"] = cls._mask_mobile(str(data["mobile"]))
         return data
 
     @classmethod
@@ -3944,10 +4100,40 @@ class CandidateService:
         return matchmaker.id
 
     @classmethod
-    async def _candidate_out(cls, auth: AuthSchema, item: BackupPoolItemModel) -> dict:
-        person = await auth.db.get(CrmPersonModel, item.person_id)
-        store = await auth.db.get(DeptModel, item.store_id) if item.store_id else None
-        users = await VipService._user_names(auth.db, {item.matchmaker_id})
+    async def _candidate_batch_context(cls, auth: AuthSchema, items: list[BackupPoolItemModel]) -> dict[str, Any]:
+        person_ids = {item.person_id for item in items}
+        store_ids = {item.store_id for item in items if item.store_id}
+        matchmaker_ids = {item.matchmaker_id for item in items}
+        people = {
+            item.id: item
+            for item in (
+                await auth.db.execute(select(CrmPersonModel).where(CrmPersonModel.id.in_(person_ids)))
+            ).scalars().all()
+        } if person_ids else {}
+        stores = {
+            item.id: item
+            for item in (
+                await auth.db.execute(select(DeptModel).where(DeptModel.id.in_(store_ids)))
+            ).scalars().all()
+        } if store_ids else {}
+        return {
+            "people": people,
+            "stores": stores,
+            "users": await VipService._user_names(auth.db, matchmaker_ids),
+        }
+
+    @classmethod
+    async def _candidate_out(cls, auth: AuthSchema, item: BackupPoolItemModel, batch_context: dict[str, Any] | None = None) -> dict:
+        batch_context = batch_context or {}
+        person = batch_context.get("people", {}).get(item.person_id) if batch_context else None
+        if person is None:
+            person = await auth.db.get(CrmPersonModel, item.person_id)
+        store = batch_context.get("stores", {}).get(item.store_id) if batch_context else None
+        if store is None and item.store_id:
+            store = await auth.db.get(DeptModel, item.store_id)
+        users = batch_context.get("users") if batch_context else None
+        if users is None:
+            users = await VipService._user_names(auth.db, {item.matchmaker_id})
         can_view_phone = bool(
             auth.user
             and (
@@ -4296,7 +4482,11 @@ class CandidateService:
                     ),
                 )
             )
-        if data.keyword:
+        has_precise_identity_filter = any(
+            value is not None and value != ""
+            for value in [data.person_id, data.display_no, data.mobile, data.name]
+        )
+        if data.keyword and not has_precise_identity_filter:
             like = f"%{data.keyword.strip()}%"
             conditions.append(or_(CrmPersonModel.name.like(like), CrmPersonModel.primary_mobile.like(like), CrmPersonModel.display_no.like(like), cast(CrmPersonModel.id, String).like(like)))
         exact_fields = [
@@ -4531,34 +4721,80 @@ class CandidateService:
         if search and search.source_type:
             conditions.append(BackupPoolItemModel.source_type == search.source_type)
         if search and search.keyword:
-            like = f"%{search.keyword}%"
-            conditions.append(or_(CrmPersonModel.name.like(like), CrmPersonModel.primary_mobile.like(like), CrmPersonModel.display_no.like(like)))
+            keyword = search.keyword.strip()
+            like = f"%{keyword}%"
+            conditions.append(
+                or_(
+                    CrmPersonModel.name.like(like),
+                    CrmPersonModel.primary_mobile == keyword,
+                    CrmPersonModel.primary_mobile.like(f"{keyword}%"),
+                    CrmPersonModel.primary_mobile.like(like),
+                    CrmPersonModel.display_no == keyword,
+                    CrmPersonModel.display_no.like(f"{keyword}%"),
+                    CrmPersonModel.display_no.like(like),
+                )
+            )
         base = select(BackupPoolItemModel).join(CrmPersonModel, BackupPoolItemModel.person_id == CrmPersonModel.id).where(*conditions)
         total = (await auth.db.execute(select(func.count(BackupPoolItemModel.id)).join(CrmPersonModel, BackupPoolItemModel.person_id == CrmPersonModel.id).where(*conditions))).scalar() or 0
         offset = (page_no - 1) * page_size
         result = await auth.db.execute(base.order_by(BackupPoolItemModel.created_time.desc(), BackupPoolItemModel.id.desc()).offset(offset).limit(page_size))
-        items = [await cls._candidate_out(auth, item) for item in result.scalars().all()]
+        rows = result.scalars().all()
+        batch_context = await cls._candidate_batch_context(auth, rows)
+        items = [await cls._candidate_out(auth, item, batch_context) for item in rows]
         return {"page_no": page_no, "page_size": page_size, "total": total, "has_next": offset + page_size < total, "items": items}
 
     @classmethod
-    async def detail_service(cls, auth: AuthSchema, item_id: int) -> dict:
-        item = await auth.db.get(BackupPoolItemModel, item_id)
-        if not item or item.is_deleted:
-            raise CustomException(msg="备选人不存在")
+    async def detail_service(cls, auth: AuthSchema, item_id: int, by_person: bool = False, scope: str | None = None, matchmaker_id: int | None = None) -> dict:
         if not auth.user:
             raise CustomException(msg="未登录", code=10403, status_code=403)
-        matchmaker = await auth.db.get(UserModel, item.matchmaker_id)
-        has_access = (
-            VipService._is_brand_admin(auth)
-            or auth.user.id == item.matchmaker_id
-            or (VipService._is_store_mgr(auth) and matchmaker and matchmaker.dept_id == auth.user.dept_id)
-        )
-        if not has_access:
-            raise CustomException(msg="无权查看该备选人", code=10403, status_code=403)
-        person = await auth.db.get(CrmPersonModel, item.person_id)
+        item: BackupPoolItemModel | None = None
+        target_matchmaker_id = matchmaker_id
+        if by_person:
+            person = await auth.db.get(CrmPersonModel, item_id)
+            if not VipService._has_permission(auth, "service:candidate:discover"):
+                raise CustomException(msg="无权查看候选发现详情", code=10403, status_code=403)
+            if target_matchmaker_id or VipService._is_matchmaker(auth):
+                target_matchmaker_id = await cls._resolve_matchmaker_id(auth, target_matchmaker_id)
+            if target_matchmaker_id:
+                item_result = await auth.db.execute(
+                    select(BackupPoolItemModel).where(
+                        BackupPoolItemModel.matchmaker_id == target_matchmaker_id,
+                        BackupPoolItemModel.person_id == item_id,
+                        BackupPoolItemModel.is_deleted == False,
+                    )
+                )
+                item = item_result.scalars().first()
+        else:
+            item = await auth.db.get(BackupPoolItemModel, item_id)
+            if not item or item.is_deleted:
+                if not VipService._has_permission(auth, "service:candidate:discover"):
+                    raise CustomException(msg="备选人不存在")
+                person = await auth.db.get(CrmPersonModel, item_id)
+                if target_matchmaker_id or VipService._is_matchmaker(auth):
+                    target_matchmaker_id = await cls._resolve_matchmaker_id(auth, target_matchmaker_id)
+                if target_matchmaker_id:
+                    item_result = await auth.db.execute(
+                        select(BackupPoolItemModel).where(
+                            BackupPoolItemModel.matchmaker_id == target_matchmaker_id,
+                            BackupPoolItemModel.person_id == item_id,
+                            BackupPoolItemModel.is_deleted == False,
+                        )
+                    )
+                    item = item_result.scalars().first()
+            else:
+                target_matchmaker_id = item.matchmaker_id
+                matchmaker = await auth.db.get(UserModel, item.matchmaker_id)
+                has_access = (
+                    VipService._is_brand_admin(auth)
+                    or auth.user.id == item.matchmaker_id
+                    or (VipService._is_store_mgr(auth) and matchmaker and matchmaker.dept_id == auth.user.dept_id)
+                )
+                if not has_access:
+                    raise CustomException(msg="无权查看该备选人", code=10403, status_code=403)
+                person = await auth.db.get(CrmPersonModel, item.person_id)
         if not person or person.is_deleted:
             raise CustomException(msg="备选人员不存在")
-        store_id = item.store_id
+        store_id = item.store_id if item else None
         if not store_id:
             store_id = (await cls._person_store_map(auth, [person.id])).get(person.id)
         dept_names = await cls._dept_names(auth, {store_id} if store_id else set())
@@ -4569,10 +4805,28 @@ class CandidateService:
             )
         )
         can_view_phone = bool(
-            (auth.user.id == item.matchmaker_id and item.contact_unmasked_after_approval)
-            or VipService._has_permission(auth, "service:candidate:view_phone")
-            or VipService._is_brand_admin(auth)
+            item
+            and item.contact_unmasked_after_approval
+            and (
+                auth.user.id == item.matchmaker_id
+                or VipService._is_brand_admin(auth)
+                or (
+                    VipService._is_store_mgr(auth)
+                    and item.store_id
+                    and item.store_id == auth.user.dept_id
+                )
+            )
         )
+        pending_request = None
+        if target_matchmaker_id:
+            pending_request = await auth.db.scalar(
+                select(CandidateJoinRequestModel).where(
+                    CandidateJoinRequestModel.request_matchmaker_id == target_matchmaker_id,
+                    CandidateJoinRequestModel.person_id == person.id,
+                    CandidateJoinRequestModel.review_status == "pending",
+                    CandidateJoinRequestModel.is_deleted == False,
+                )
+            )
         preference_payload = None
         if preference:
             preference_payload = {
@@ -4647,15 +4901,15 @@ class CandidateService:
             "partner_preference": preference_payload,
             "person_center": person_center,
             "timeline": timeline,
-            "candidate": await cls._candidate_out(auth, item),
+            "candidate": await cls._candidate_out(auth, item) if item else None,
             "backup": {
-                "in_backup": True,
-                "backup_item_id": item.id,
+                "in_backup": bool(item),
+                "backup_item_id": item.id if item else None,
                 "contact_unmasked": can_view_phone,
-                "pending_request": False,
-                "pending_request_id": None,
-                "request_scope": "store",
-                "unlock_method": "backup_approved" if can_view_phone else "join_request",
+                "pending_request": bool(pending_request),
+                "pending_request_id": pending_request.id if pending_request else None,
+                "request_scope": scope or ("store" if store_id and auth.user.dept_id == store_id else "brand"),
+                "unlock_method": "backup_approved" if can_view_phone else ("pending_review" if pending_request else "join_request"),
             },
         }
 

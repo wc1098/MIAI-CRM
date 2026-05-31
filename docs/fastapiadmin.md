@@ -36,8 +36,8 @@
 FastapiAdmin
 ├─ backend               # 后端工程 (FastAPI + Python)
 ├─ frontend              # Web前端工程 (Vue3 + Element Plus)
-├─ devops                # 部署配置
-├─ docker-compose.yaml   # Docker编排文件
+├─ database              # 本地数据库 Docker Compose
+├─ deploy.sh             # 原框架部署脚本，当前需按本项目重新改造
 ├─ deploy.sh             # 一键部署脚本
 ├─ LICENSE               # 开源协议
 |─ README.en.md          # 英文文档
@@ -209,7 +209,7 @@ chmod +x deploy.sh
 > **注意**：
 > - 首次部署时会自动拉取代码并构建镜像
 > - 前端使用本地构建的 dist 目录，如需更新前端请先本地构建并提交到仓库
-> - 确保 `devops/nginx/ssl/` 目录包含 SSL 证书文件（如使用 HTTPS）
+> - 当前仓库已移除原 `devops/` 目录，后端 Dockerfile 已放到 `backend/Dockerfile`，生产 Docker Compose 与 Nginx 需要按当前项目重新设计。
 
 ## 🛠️ 二开教程
 

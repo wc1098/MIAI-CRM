@@ -22,6 +22,60 @@ class Jinja2TemplateUtil:
     """
 
     @classmethod
+    def _current_sqlalchemy_mapping(cls) -> dict[str, str]:
+        """
+        根据当前数据库类型获取 SQLAlchemy 类型映射。
+
+        ``GenConstant.DB_TO_SQLALCHEMY`` 在模块导入时按配置固化，测试和工具运行时可能临时
+        切换数据库类型，因此这里按当前 ``settings.DATABASE_TYPE`` 动态选择映射。
+        """
+        if settings.DATABASE_TYPE == "postgres":
+            return GenConstant.DB_TO_SQLALCHEMY
+        return {
+            "tinyint": "SmallInteger",
+            "smallint": "SmallInteger",
+            "mediumint": "Integer",
+            "int": "Integer",
+            "integer": "Integer",
+            "bigint": "BigInteger",
+            "float": "Float",
+            "double": "Float",
+            "decimal": "DECIMAL",
+            "bit": "Integer",
+            "numeric": "Numeric",
+            "date": "Date",
+            "time": "Time",
+            "datetime": "DateTime",
+            "timestamp": "TIMESTAMP",
+            "year": "Integer",
+            "char": "CHAR",
+            "varchar": "String",
+            "tinytext": "Text",
+            "text": "Text",
+            "mediumtext": "Text",
+            "longtext": "Text",
+            "binary": "BINARY",
+            "varbinary": "VARBINARY",
+            "tinyblob": "LargeBinary",
+            "blob": "LargeBinary",
+            "mediumblob": "LargeBinary",
+            "longblob": "LargeBinary",
+            "enum": "Enum",
+            "set": "String",
+            "json": "JSON",
+            "geometry": "Geometry",
+            "point": "Geometry",
+            "linestring": "Geometry",
+            "polygon": "Geometry",
+            "multipoint": "Geometry",
+            "multilinestring": "Geometry",
+            "multipolygon": "Geometry",
+            "geometrycollection": "Geometry",
+            "bool": "Boolean",
+            "uuid": "String",
+        }
+
+    @classmethod
     def normalize_db_column_type_for_mapping(cls, column_type: str | None) -> str:
         """
         与 ``GenUtils.get_db_type`` 一致地去掉 COLLATE / UNSIGNED，便于与 ``DB_TO_SQLALCHEMY`` 键匹配。
@@ -728,9 +782,11 @@ class Jinja2TemplateUtil:
             if ct_lower.startswith("tinyint(1)"):
                 return "Boolean"
 
+        type_mapping = cls._current_sqlalchemy_mapping()
+
         # 首先尝试匹配完整类型（包括括号）
         sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(
-            GenConstant.DB_TO_SQLALCHEMY, column_type
+            type_mapping, column_type
         )
         
         # 特殊处理PostgreSQL类型
@@ -759,7 +815,7 @@ class Jinja2TemplateUtil:
             if col_type.lower() == "character":
                 col_type = "char"
             sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(
-                GenConstant.DB_TO_SQLALCHEMY, col_type
+                type_mapping, col_type
             )
             # 如果是字符串类型且包含括号参数，保持原参数
             if sqlalchemy_type in ["String", "CHAR"]:
@@ -774,7 +830,7 @@ class Jinja2TemplateUtil:
             if col_type.lower() == "character":
                 col_type = "char"
             sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(
-                GenConstant.DB_TO_SQLALCHEMY, col_type
+                type_mapping, col_type
             )
             # 如果是字符串类型且没有指定长度，使用column_length或默认255
             if sqlalchemy_type in ["String", "CHAR"]:

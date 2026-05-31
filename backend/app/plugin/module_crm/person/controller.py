@@ -9,11 +9,12 @@ from app.core.base_params import PaginationQueryParam
 from app.core.dependencies import AuthPermission
 from app.core.router_class import OperationLogRoute
 
+from .insight_service import PersonInsightService
 from .schema import (
+    PersonDetailOutSchema,
     PersonInterviewOutSchema,
     PersonInterviewSaveSchema,
     PersonInterviewVoidSchema,
-    PersonDetailOutSchema,
     PersonListOutSchema,
     PersonProfileInsightOutSchema,
     PersonProfileInsightSaveSchema,
@@ -25,7 +26,6 @@ from .schema import (
     SensitiveLogOutSchema,
     SensitiveViewSchema,
 )
-from .insight_service import PersonInsightService
 from .service import PersonCenterService
 
 PersonRouter = APIRouter(route_class=OperationLogRoute, prefix="/person", tags=["用户资源中心"])

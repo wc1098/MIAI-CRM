@@ -105,7 +105,7 @@ class SubscriptionService:
     def _sync_int_param(cls, key: str, default: int, min_value: int = 1, max_value: int | None = None) -> int:
         try:
             settings = get_settings()
-            engine = create_engine(settings.SYNC_DB_URI, poolclass=NullPool)
+            engine = create_engine(settings.DB_URI, poolclass=NullPool)
             with engine.connect() as conn:
                 value = conn.execute(
                     text(

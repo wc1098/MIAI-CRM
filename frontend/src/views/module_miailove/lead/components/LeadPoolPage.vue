@@ -28,7 +28,79 @@
         <el-form-item>
           <el-button type="primary" icon="Search" @click="fetchList">查询</el-button>
           <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+          <el-button link type="primary" :icon="advancedVisible ? 'ArrowUp' : 'ArrowDown'" @click="advancedVisible = !advancedVisible">
+            {{ advancedVisible ? "收起筛选" : "更多筛选" }}
+          </el-button>
         </el-form-item>
+        <div v-show="advancedVisible" class="advanced-filter">
+          <el-form-item label="性别">
+            <el-select v-model="query.gender" clearable placeholder="全部" style="width: 120px">
+              <el-option label="男" value="0" />
+              <el-option label="女" value="1" />
+              <el-option label="未知" value="2" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="年龄">
+            <div class="range-inputs">
+              <el-input v-model.number="query.age_min" type="number" min="18" max="100" placeholder="最小" />
+              <span>-</span>
+              <el-input v-model.number="query.age_max" type="number" min="18" max="100" placeholder="最大" />
+            </div>
+          </el-form-item>
+          <el-form-item label="身高">
+            <div class="range-inputs">
+              <el-input v-model.number="query.height_min_cm" type="number" min="80" max="260" placeholder="最小" />
+              <span>-</span>
+              <el-input v-model.number="query.height_max_cm" type="number" min="80" max="260" placeholder="最大" />
+            </div>
+          </el-form-item>
+          <el-form-item label="民族">
+            <el-select v-model="query.ethnicity" clearable filterable placeholder="全部" style="width: 160px">
+              <el-option v-for="item in dictOptions.ethnicity" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="职业">
+            <el-select v-model="query.occupation_codes" multiple collapse-tags collapse-tags-tooltip clearable filterable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.occupation" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="收入">
+            <el-select v-model="query.annual_income" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.annualIncome" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="婚况">
+            <el-select v-model="query.marital_status" clearable placeholder="全部" style="width: 160px">
+              <el-option v-for="item in dictOptions.maritalStatus" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="学历">
+            <el-select v-model="query.education" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.education" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="单位类型">
+            <el-select v-model="query.unit_type" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.unitType" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="住房情况">
+            <el-select v-model="query.house_status" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.houseStatus" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="购车情况">
+            <el-select v-model="query.car_status" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 220px">
+              <el-option v-for="item in dictOptions.carStatus" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="籍贯">
+            <el-cascader v-model="queryHometownValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 220px" @change="syncQueryAddressFields" />
+          </el-form-item>
+          <el-form-item label="常驻地">
+            <el-cascader v-model="queryResidenceValue" :options="addressOptions" clearable filterable :props="addressProps" style="width: 220px" @change="syncQueryAddressFields" />
+          </el-form-item>
+        </div>
       </el-form>
     </el-card>
 
@@ -612,10 +684,21 @@
     </el-dialog>
 
     <el-dialog v-model="importVisible" title="批量导入线索" width="620px">
-      <el-alert type="info" show-icon :closable="false" title="请按模板填写，手机号重复会跳过并返回失败原因。" />
+      <el-alert type="info" show-icon :closable="false">
+        <template #title>
+          <div class="import-notes">
+            <div>请先下载模板并保留表头，示例行可删除或替换。</div>
+            <div>必填字段：手机号、姓名、性别；手机号重复会跳过并返回失败原因。</div>
+            <div>民族、职业、年收入、婚况、学历、房产、购车等字段请使用模板下拉值；系统也兼容字典键值。</div>
+            <div>归属门店可填门店名称/编码/ID；归属人可填账号/姓名/手机号/ID，且必须属于目标门店。</div>
+            <div>照片URL需填写已上传或公网可访问链接，多个链接可用逗号、分号或换行分隔。</div>
+            <div>同步小程序填“是”时，需补齐微信号、出生日期、身高、民族、职业、年收入、婚况、学历、籍贯、常驻地、房产、购车和照片。</div>
+          </div>
+        </template>
+      </el-alert>
       <div class="import-actions">
         <el-button icon="Download" @click="downloadTemplate">下载模板</el-button>
-        <el-upload :auto-upload="false" :limit="1" accept=".xlsx,.xls" :on-change="handleFileChange">
+        <el-upload class="import-upload" :auto-upload="false" :limit="1" accept=".xlsx,.xls" :on-change="handleFileChange">
           <el-button type="primary" icon="Upload">选择文件</el-button>
         </el-upload>
       </div>
@@ -722,7 +805,10 @@ const photoPreviewUrls = ref<string[]>([]);
 const photoPreviewIndex = ref(0);
 const hometownValue = ref<string[]>([]);
 const residenceValue = ref<string[]>([]);
+const queryHometownValue = ref<string[]>([]);
+const queryResidenceValue = ref<string[]>([]);
 const ruleStoreId = ref<number>();
+const advancedVisible = ref(false);
 
 const query = reactive<LeadPageQuery>({
   page_no: 1,
@@ -872,7 +958,7 @@ function miniprogramRequiredMissing(photoUrls: string[]) {
     ["出生日期", form.birth_date],
     ["身高", form.height_cm],
     ["民族", form.ethnicity],
-    ["职业", form.occupation],
+    ["职业", form.occupation_code || form.occupation],
     ["年收入", form.annual_income],
     ["婚况", form.marital_status],
     ["学历", form.education],
@@ -947,7 +1033,7 @@ function fillForm(data: LeadDetail) {
 async function fetchList() {
   loading.value = true;
   try {
-    const res = await LeadAPI.listLead(props.view, query);
+    const res = await LeadAPI.listLead(props.view, cleanQuery());
     rows.value = res.data.data.items || [];
     total.value = res.data.data.total || 0;
   } finally {
@@ -955,8 +1041,43 @@ async function fetchList() {
   }
 }
 
+function cleanQuery(): LeadPageQuery {
+  const next = { ...query };
+  Object.entries(next).forEach(([key, value]) => {
+    if (value === "" || value === undefined || value === null || (Array.isArray(value) && !value.length)) {
+      delete (next as Record<string, unknown>)[key];
+    }
+  });
+  return next;
+}
+
 function resetQuery() {
-  Object.assign(query, { page_no: 1, page_size: query.page_size, keyword: undefined, lead_type: undefined, source_channel_code: undefined, store_id: undefined, owner_sales_id: undefined });
+  Object.assign(query, {
+    page_no: 1,
+    page_size: query.page_size,
+    keyword: undefined,
+    lead_type: undefined,
+    source_channel_code: undefined,
+    store_id: undefined,
+    owner_sales_id: undefined,
+    gender: undefined,
+    age_min: undefined,
+    age_max: undefined,
+    height_min_cm: undefined,
+    height_max_cm: undefined,
+    ethnicity: undefined,
+    occupation_codes: [],
+    annual_income: [],
+    marital_status: undefined,
+    education: [],
+    unit_type: [],
+    house_status: [],
+    car_status: [],
+    hometown: undefined,
+    residence: undefined,
+  });
+  queryHometownValue.value = [];
+  queryResidenceValue.value = [];
   fetchList();
 }
 
@@ -1178,6 +1299,11 @@ function splitAddress(value?: string) {
 function syncAddressFields() {
   form.hometown = hometownValue.value.join("/") || undefined;
   form.residence = residenceValue.value.join("/") || undefined;
+}
+
+function syncQueryAddressFields() {
+  query.hometown = queryHometownValue.value.join("/") || undefined;
+  query.residence = queryResidenceValue.value.join("/") || undefined;
 }
 
 let optionsPromise: Promise<void> | null = null;
@@ -1592,6 +1718,24 @@ onMounted(() => {
   border-radius: 8px;
 }
 
+.advanced-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  width: 100%;
+  padding-top: 4px;
+}
+
+.range-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.range-inputs :deep(.el-input) {
+  width: 104px;
+}
+
 .toolbar,
 .toolbar-actions {
   display: flex;
@@ -1804,6 +1948,26 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   margin: 16px 0;
+}
+
+.import-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.6;
+}
+
+.import-upload {
+  display: inline-flex;
+  align-items: center;
+}
+
+.import-upload :deep(.el-upload) {
+  display: inline-flex;
+}
+
+.import-upload :deep(.el-upload-list) {
+  margin: 0 0 0 12px;
 }
 
 .label-with-tip {

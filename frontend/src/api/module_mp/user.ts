@@ -260,10 +260,15 @@ export interface MpActionRecord {
   id: number;
   action_type: string;
   viewer_user_id?: number;
+  viewer_display_no?: string;
+  viewer_name?: string;
+  viewer_nickname?: string;
+  viewer_mobile?: string;
   target_user_id?: number;
   target_display_no?: string;
   target_name?: string;
   target_nickname?: string;
+  target_mobile?: string;
   occurred_at?: string;
   payload?: Record<string, unknown>;
 }

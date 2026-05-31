@@ -22,10 +22,10 @@ from app.plugin.module_crm.lead.model import (
     CrmLeadProfileModel,
     CrmPersonModel,
 )
+from app.plugin.module_crm.person.model import PersonProfileInsightModel
 from app.plugin.module_crm.preference.model import PersonPartnerPreferenceModel
 from app.plugin.module_mp.auth.model import MiniProgramUserModel, SourceEventModel
 from app.plugin.module_profile_ai.model import PersonAiProfileModel
-from app.plugin.module_crm.person.model import PersonProfileInsightModel
 from app.plugin.module_service.vip.model import (
     BackupPoolItemModel,
     CandidateJoinRequestModel,
@@ -656,6 +656,9 @@ class PersonCenterService:
         sensitive_count = await auth.db.scalar(select(func.count(CertificationSensitiveAccessLogModel.id)).where(CertificationSensitiveAccessLogModel.person_id == person_id, CertificationSensitiveAccessLogModel.is_deleted == False)) or 0
         preference = maps["preference"].get(person_id)
         ai_profile = maps["ai_profile"].get(person_id)
+        miniprogram_user = cls._model_out(maps["mp_user"].get(person_id), ["mobile", "nickname", "registered_at", "last_login_at", "is_invisible", "allow_user_wall"])
+        if miniprogram_user and miniprogram_user.get("mobile"):
+            miniprogram_user["mobile"] = cls._mask_mobile(str(miniprogram_user["mobile"]))
         return {
             "person": cls._person_brief(person),
             "relations": {
@@ -691,7 +694,7 @@ class PersonCenterService:
                     }
                     for item in join_requests
                 ],
-                "miniprogram_user": cls._model_out(maps["mp_user"].get(person_id), ["mobile", "nickname", "registered_at", "last_login_at", "is_invisible", "allow_user_wall"]),
+                "miniprogram_user": miniprogram_user,
                 "subscription": cls._model_out(maps["subscription"].get(person_id), ["plan_id", "started_at", "expired_at", "total_quota", "used_quota", "subscription_status", "last_unlock_at"]),
                 "certification": cls._model_out(application, ["level_code", "level_name", "application_status", "paid_at", "approved_at"]) if application else {"certification_level": person.certification_level, "certification_summary": person.certification_summary},
                 "partner_preference": cls._model_out(preference, ["profile_summary", "strictness_level", "is_final", "version_no", "source_type"]) if preference else None,

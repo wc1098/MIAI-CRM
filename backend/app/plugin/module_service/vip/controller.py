@@ -843,9 +843,12 @@ async def candidate_list_controller(
 )
 async def candidate_detail_controller(
     id: Annotated[int, Path(description="备选库条目ID")],
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:candidate:detail"]))],
+    auth: Annotated[AuthSchema, Depends(AuthPermission(["service:candidate:detail", "service:candidate:discover"]))],
+    by_person: Annotated[bool, Query(description="是否按Person ID查询")] = False,
+    scope: Annotated[str | None, Query(description="候选发现范围")] = None,
+    matchmaker_id: Annotated[int | None, Query(description="目标红娘ID")] = None,
 ) -> JSONResponse:
-    result_dict = await CandidateService.detail_service(auth=auth, item_id=id)
+    result_dict = await CandidateService.detail_service(auth=auth, item_id=id, by_person=by_person, scope=scope, matchmaker_id=matchmaker_id)
     return SuccessResponse(data=result_dict, msg="查询备选人详情成功")
 
 

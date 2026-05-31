@@ -1,398 +1,358 @@
-# FastApiAdmin - Backend
+# 觅AI婚恋数字门店后端
 
-一个基于 FastAPI 框架构建企业级后端架构解决方案，为前端 Vue3 管理系统提供完整的 API 服务支持。
+`backend/` 是本项目后端工程，基于 FastAPIAdmin 框架继续二开，当前承担管理后台 API、CRM 业务、门店权限、云支付、智慧门店大屏、服务工作台等能力。
 
-> **和仓库根目录文档的关系**：**一键前后端启动、演示账号、Docker 部署、新手导航、Mermaid 架构图与默认端口（5180 / 8001 等）** 请以仓库根目录 [**README.md**](../README.md)（英文 [**README.en.md**](../README.en.md)）为准；**本文档**侧重 `backend/` 目录结构、迁移命令与开发约定。
+## 技术栈
 
-与 **`env/.env.dev.example`** 对齐时：**`SERVER_PORT=8001`**（本机 **`http://127.0.0.1:8001`**），**`ROOT_PATH=/api/v1`**，Swagger **`/docs`**；前端开发端口见 **`../frontend/.env.development.example`** 中的 **`VITE_APP_PORT=5180`**、`VITE_API_BASE_URL=http://127.0.0.1:8001`。
+| 类型 | 技术 |
+| --- | --- |
+| Web 框架 | FastAPI、Uvicorn |
+| ORM | SQLAlchemy 2.x |
+| 数据校验 | Pydantic 2.x |
+| 数据库迁移 | Alembic |
+| 数据库 | PostgreSQL，兼容保留 MySQL/SQLite 框架能力 |
+| 缓存 | Redis |
+| 任务调度 | APScheduler |
+| CLI | Typer |
 
-## 🚀 项目特性
+## 默认本地配置
 
-- **现代技术栈**: FastAPI + SQLAlchemy 2.0 + Pydantic 2.x
-- **多数据库支持**: MySQL、PostgreSQL、SQLite
-- **异步架构**: 支持高并发异步数据库操作
-- **权限管理**: 完整的 RBAC 权限控制体系
-- **任务调度**: 基于 APScheduler 的定时任务系统
-- **日志监控**: 完整的操作日志和系统监控
-- **代码生成**: 智能化代码生成工具
-- **AI 集成**: 支持 OpenAI 大模型调用
-- **云存储**: 支持阿里云 OSS 对象存储
-
-## 🏗️ 系统架构
-
-### 技术栈
-
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| FastAPI | 0.115.2 | 现代 Web 框架 |
-| SQLAlchemy | 2.0.36 | ORM 框架 |
-| Alembic | 1.15.1 | 数据库迁移工具 |
-| Pydantic | 2.x | 数据验证与序列化 |
-| APScheduler | 3.11.0 | 定时任务调度 |
-| Redis | 5.2.1 | 缓存与会话存储 |
-| Uvicorn | 0.30.6 | ASGI 服务器 |
-| Python | 3.10+ | 运行环境 |
-
-### 架构设计
+默认开发环境配置文件为：
 
 ```txt
-📦 分层架构 (MVC)
-├── 🎯 Controller   # 控制器层 - 处理HTTP请求
-├── 🏢 Service      # 业务层 - 核心业务逻辑
-├── 💾 CRUD         # 数据访问层 - 数据库操作
-└── 📊 Model        # 模型层 - 数据模型定义
+backend/env/.env.dev
 ```
 
-## 📁 项目结构
+当前本地常用配置：
+
+| 配置 | 默认值 |
+| --- | --- |
+| `SERVER_HOST` | `localhost` |
+| `SERVER_PORT` | `8000` |
+| `ROOT_PATH` | `/api/v1` |
+| `DATABASE_TYPE` | `postgres` |
+| `DATABASE_PORT` | `5432` |
+| `DATABASE_NAME` | `miaicrm` |
+| `REDIS_PORT` | `6379` |
+
+Swagger 默认访问：
 
 ```txt
-FastapiAdmin/backend/
-├── 📁 app/                     # 项目核心代码
-│   ├── 💾 alembic/             # 数据库迁移管理
-│   ├── 🌐 api/                 # API 接口模块
-│   │   └── v1/               # API v1 版本
-│   │       ├── module_system/  # 系统管理模块
-│   │       ├── module_monitor/ # 系统监控模块
-│   │       ├── module_ai/      # AI 功能模块
-│   │       └── module_*/       # 其他业务模块
-│   ├── 📄 common/              # 公共组件（常量、枚举、响应封装）
-│   ├── ⚙️ config/              # 项目配置文件
-│   ├── 💖 core/                # 核心模块（数据库、中间件、安全）
-│   ├── ⏰ module_task/         # 定时任务模块
-│   ├── 🔌 plugin/              # 插件模块
-│   ├── 📜 scripts/             # 初始化脚本和数据
-│   └── 🛠️ utils/               # 工具类（验证码、文件上传等）
-├── 🌍 env/                     # 环境配置文件
-├── 📄 logs/                    # 日志输出目录
-├── 📊 sql/                     # SQL 初始化脚本
-├── 📷 static/                  # 静态资源文件
-├── 🚀 main.py                  # 项目启动入口
-├── 📄 alembic.ini              # Alembic 迁移配置
-├── 📎 requirements.txt         # Python 依赖包
-└── 📝 README.md                # 项目说明文档
+http://127.0.0.1:8000/docs
 ```
 
-### 模块设计
-
-每个业务模块采用统一的分层结构：
+## 目录结构
 
 ```txt
-module_*/
-├── controller.py    # 控制器 - HTTP 请求处理
-├── service.py       # 服务层 - 业务逻辑处理
-├── crud.py          # 数据层 - 数据库操作
-├── model.py         # ORM 模型 - 数据库表定义
-├── schema.py        # Pydantic 模型 - 数据验证
-└── param.py         # 参数模型 - 请求参数
+backend/
+├── app/
+│   ├── api/v1/                    # 框架内置 API 模块
+│   │   ├── module_system/          # 系统管理：用户、角色、菜单、门店、字典、参数等
+│   │   ├── module_monitor/         # 缓存、在线用户、资源、服务器监控
+│   │   ├── module_common/          # 文件、健康检查
+│   │   └── module_application/     # 应用门户等
+│   ├── plugin/                     # 二开插件与业务模块
+│   │   ├── module_cloudpay/         # 云支付
+│   │   ├── module_crm/              # CRM 业务
+│   │   ├── module_screen/           # 智慧门店大屏
+│   │   └── module_service/          # 服务工作台
+│   ├── core/                       # 数据库、依赖、权限、路由类、插件发现
+│   ├── scripts/                    # 初始化、权限矩阵、参数、内置数据
+│   ├── common/                     # 统一响应、枚举、常量
+│   ├── config/                     # 配置加载
+│   └── utils/                      # 上传、存储配置、工具函数
+├── env/                            # 环境配置
+├── logs/                           # 日志
+├── static/                         # 静态资源和本地上传文件
+├── tests/                          # 测试
+├── main.py                         # Typer CLI 与应用入口
+├── alembic.ini
+├── pyproject.toml
+└── requirements.txt
 ```
 
-**分包理念**（按业务竖切 vs 按技术层次分包、设计初心）见仓库根目录 [**README.md**](../README.md#packaging-philosophy) **「分包理念：两种组织方式与本项目选择」**。
+## 业务模块组织方式
 
-## 🚀 快速开始
+业务模块按纵向切片组织，通常包含：
 
-### 环境要求
+```txt
+controller.py  # HTTP 路由处理
+service.py     # 业务逻辑
+crud.py        # 数据访问
+model.py       # SQLAlchemy ORM 模型
+schema.py      # Pydantic 请求/响应模型
+param.py       # 可选查询参数模型
+```
 
-- **Python**: 3.10+
-- **数据库**: MySQL 8.0+ / PostgreSQL 13+ / SQLite 3.x（连接串在 `env/.env.dev`）
-- **Redis**: 与 `.env.dev` 中配置一致（多数场景为必需）
+新增模块优先跟随现有模块模式，不轻易引入新的抽象风格。
 
-### 第一次在本机跑起来（ checklist ）
+## 插件路由规则
 
-1. 复制 `env/.env.dev.example` → `env/.env.dev`，填写数据库、Redis 等（先在 DB 中建好空库）。
-2. 在 **`backend/` 目录下** 安装依赖：推荐 **`uv sync`**；或 `pip install -r requirements.txt`。
-3. **启动**：`uv run main.py run --env=dev`（或 `python main.py run --env=dev`）。**首次启动会自动初始化数据库表与基础数据**，一般**无需**先执行 `upgrade`。接口文档示例：`http://127.0.0.1:8001/docs`（端口见 `.env.dev` 中 `SERVER_PORT`）。
+动态插件路由由 `app/core/discover.py` 发现。
 
-### 数据库迁移命令（模型变更时使用）
+规则：
 
-日常**首次启动不必手动执行**；当你**修改了 ORM 模型**并需用 Alembic 管理结构变更时再使用：
+- 插件模块必须放在 `backend/app/plugin/` 下。
+- 顶级插件目录必须命名为 `module_*`，例如 `module_crm`。
+- 控制器文件名必须是 `controller.py`。
+- 每个 `controller.py` 应定义一个或多个顶层 `APIRouter`。
+- 从 `module_*` 到 `controller.py` 的目录都应是合法 Python 包/import 路径。
+- 顶级目录会通过移除 `module_` 映射到 HTTP 路由前缀。
+
+示例：
+
+```txt
+backend/app/plugin/module_cloudpay/trade/controller.py -> /cloudpay
+backend/app/plugin/module_crm/channel/controller.py -> /crm
+```
+
+控制器常用导入：
+
+```python
+from fastapi import APIRouter, Depends
+from app.common.response import SuccessResponse
+from app.core.router_class import OperationLogRoute
+from app.core.dependencies import AuthPermission
+from app.api.v1.module_system.auth.schema import AuthSchema
+```
+
+## 常用命令
+
+Windows 本地优先使用已有虚拟环境：
+
+```powershell
+cd backend
+.\.venv3.13\Scripts\python.exe main.py run --env=dev
+```
+
+通用启动：
 
 ```bash
-# 生成迁移文件（模型变更后）
-python main.py revision --env=dev
-# 应用迁移
-python main.py upgrade --env=dev
-
-# 使用 uv 时
-uv run main.py revision --env=dev
-uv run main.py upgrade --env=dev
-```
-
-### 安装依赖与启动服务
-
-```bash
-# 虚拟环境（可选）
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-
-# 依赖：推荐 uv（与 pyproject.toml 一致）
+cd backend
 uv sync
-
-# 或 pip
-# pip install -r requirements.txt
-
-# 开发环境
 uv run main.py run --env=dev
-# 或 python main.py run --env=dev
-
-# 生产环境示例
-# uv run main.py run --env=prod
 ```
 
-### 代码格式化（ruff）
+或：
 
 ```bash
-ruff check
-ruff check --fix
-ruff check --watch
+cd backend
+pip install -r requirements.txt
+python main.py run --env=dev
+```
 
-# 使用 uv 时
+数据库迁移：
+
+```bash
+cd backend
+python main.py revision --env=dev
+python main.py upgrade --env=dev
+```
+
+生产环境示例：
+
+```bash
+cd backend
+python main.py upgrade --env=prod
+python main.py sync-permissions --env=prod
+python main.py run --env=prod
+```
+
+## Docker 镜像
+
+后端镜像文件位于：
+
+```txt
+backend/Dockerfile
+```
+
+从后端目录构建：
+
+```bash
+cd backend
+docker build -t miailove-backend .
+```
+
+容器默认执行：
+
+```bash
+python main.py run --env=prod
+```
+
+镜像使用 `python:3.13-slim`，与当前本地 `backend/.venv3.13` 开发环境保持一致，减少开发环境和容器运行环境差异。
+
+迁移和权限同步不放在 Dockerfile 构建阶段，应在部署流程或 compose 初始化步骤中执行：
+
+```bash
+python main.py upgrade --env=prod
+python main.py sync-permissions --env=prod
+```
+
+生产运行时需要提供 `backend/env/.env.prod`，或通过容器环境变量注入数据库、Redis、密钥等配置。
+
+## Docker Compose
+
+根目录 `docker-compose.yml` 只编排后端服务：
+
+- `backend`：基于 `backend/Dockerfile` 构建
+
+PostgreSQL 和 Redis 仍按现有方式单独运行。后端容器默认通过 `host.docker.internal` 访问宿主机的 `5432` 和 `6379`。
+
+从仓库根目录启动：
+
+```bash
+docker compose up -d --build
+```
+
+查看状态和日志：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+```
+
+停止：
+
+```bash
+docker compose down
+```
+
+后端容器会挂载：
+
+```txt
+backend/env/.env.prod -> /app/env/.env.prod
+```
+
+因此本地运行前请确认 `backend/env/.env.prod` 存在。该文件已被 `.gitignore` 排除，生产部署时需要按实际密码和密钥修改。
+
+## 权限、参数和内置数据同步
+
+婚恋业务权限基座通过以下命令幂等同步：
+
+```powershell
+cd backend
+.\.venv3.13\Scripts\python.exe main.py sync-permissions --env=dev
+```
+
+该命令会执行：
+
+- 权限矩阵静态校验。
+- 系统参数静态校验。
+- CRM 渠道静态校验。
+- 菜单、角色、岗位、角色授权同步。
+- 系统参数同步。
+- CRM 内置渠道同步。
+
+内置岗位数据来自：
+
+```txt
+backend/app/scripts/data/sys_position.json
+```
+
+CRM 内置渠道数据来自：
+
+```txt
+backend/app/scripts/data/crm_channel.json
+```
+
+## 当前关键业务权限
+
+```txt
+crm:person:view_phone
+crm:lead:sales:query
+service:vip:assign
+screen:device:bind
+report:business:export_full
+finance:payment:pay
+finance:payment:query
+finance:payment:refund
+crm:channel:query
+```
+
+受保护接口继续使用 `AuthPermission`，权限码必须与菜单/按钮权限保持一致。
+
+## 云支付
+
+云支付模块位于：
+
+```txt
+backend/app/plugin/module_cloudpay/
+```
+
+交易接口前缀：
+
+```txt
+/api/v1/cloudpay/trade
+```
+
+接口：
+
+- `/pay`
+- `/precreate`
+- `/create`
+- `/query`
+- `/refund`
+- `/refund-query`
+
+异步通知：
+
+```txt
+/api/v1/cloudpay/notify/trade
+```
+
+云支付配置统一放在系统参数：
+
+```txt
+cloudpay.b_app_id
+cloudpay.private_key
+cloudpay.public_key
+```
+
+支付、预创建、小程序创建接口如果调用方未传 `notify_url`，后端会自动使用当前请求域名生成 `/api/v1/cloudpay/notify/trade` 并透传给云支付。
+
+## 资源存储
+
+统一上传入口：
+
+```txt
+backend/app/utils/upload_util.py
+```
+
+资源存储配置读取：
+
+```txt
+backend/app/utils/storage_config.py
+```
+
+配置统一放在系统参数，键名使用 `storage.*` 前缀。默认使用阿里云 OSS；如需临时回退本地存储，将 `storage.default_driver` 改为 `local`。
+
+## PostgreSQL 与 Alembic 注意事项
+
+- 本地 Alembic 如出现表已存在但版本未对齐，可先确认表结构已存在，再使用 `stamp` 对齐到对应 revision。
+- 当前本地库曾对齐到 `20260512_1000`。
+- Windows PowerShell 运行迁移前建议设置：
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'
+```
+
+- Alembic 模型自动发现需跳过 `.venv*` 目录，否则本地 `.venv3.13` 会被误扫进模型导入路径。
+
+## 代码检查
+
+Ruff 配置位于 `backend/pyproject.toml`。
+
+```bash
+cd backend
 uv run ruff check
 uv run ruff check --fix
-uv run ruff check --watch
 ```
 
-### 日期类型与 PostgreSQL（asyncpg）
+## 开发原则
 
-自定义 `DateStr` / `TimeStr` / `DateTimeStr`（`app/core/validator.py`）使用 **`PlainSerializer(..., when_used='json')`**：`model_dump(mode='python')` 供 ORM 使用原生类型；JSON / Redis 使用 `model_dump(mode='json')`。统一 HTTP 响应见 `app/common/response.py`。详见根目录 README。
-
-## 📜 相关链接
-
-- **FastAPI 官方文档**: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
-- **SQLAlchemy 文档**: [https://docs.sqlalchemy.org/](https://docs.sqlalchemy.org/)
-- **Pydantic 文档**: [https://pydantic-docs.helpmanual.io/](https://pydantic-docs.helpmanual.io/)
-
-## 💬 支持与反馈
-
-如果您在使用过程中遇到问题或有任何建议，请通过以下方式联系我们：
-
-- 🐛 **Bug 报告**: 请在 GitHub Issues 中提交
-- 💡 **功能建议**: 请在 GitHub Discussions 中讨论
-- 💬 **技术交流**: 欢迎参与项目讨论
-
----
-
-❤️ **感谢您的关注和支持！** 如果这个项目对您有帮助，请给我们一个 ⭐️ Star！
-
----
-
-## mysql 全类型测试表
-
-```sql
-CREATE TABLE `gen_all_types_demo` (
-  `tinyint_field` TINYINT NOT NULL COMMENT 'TINYINT类型',
-  `tinyint_unsigned_field` TINYINT UNSIGNED NOT NULL COMMENT 'TINYINT UNSIGNED类型',
-  `smallint_field` SMALLINT NOT NULL COMMENT 'SMALLINT类型',
-  `smallint_unsigned_field` SMALLINT UNSIGNED NOT NULL COMMENT 'SMALLINT UNSIGNED类型',
-  `mediumint_field` MEDIUMINT NOT NULL COMMENT 'MEDIUMINT类型',
-  `mediumint_unsigned_field` MEDIUMINT UNSIGNED NOT NULL COMMENT 'MEDIUMINT UNSIGNED类型',
-  `int_field` INT NOT NULL COMMENT 'INT类型',
-  `int_unsigned_field` INT UNSIGNED NOT NULL COMMENT 'INT UNSIGNED类型',
-  `bigint_field` BIGINT NOT NULL COMMENT 'BIGINT类型',
-  `bigint_unsigned_field` BIGINT UNSIGNED NOT NULL COMMENT 'BIGINT UNSIGNED类型',
-  `float_field` FLOAT NOT NULL COMMENT 'FLOAT类型',
-  `double_field` DOUBLE NOT NULL COMMENT 'DOUBLE类型',
-  `decimal_field` DECIMAL(10,2) NOT NULL COMMENT 'DECIMAL类型',
-  `decimal_unsigned_field` DECIMAL(10,2) UNSIGNED NOT NULL COMMENT 'DECIMAL UNSIGNED类型',
-  `numeric_field` NUMERIC(10,2) NOT NULL COMMENT 'NUMERIC类型',
-  `bit_field` BIT(8) NOT NULL COMMENT 'BIT类型',
-  `char_field` CHAR(32) NOT NULL COMMENT 'CHAR类型',
-  `varchar_field` VARCHAR(255) NOT NULL COMMENT 'VARCHAR类型',
-  `binary_field` BINARY(32) NOT NULL COMMENT 'BINARY类型',
-  `varbinary_field` VARBINARY(255) NOT NULL COMMENT 'VARBINARY类型',
-  `tinyblob_field` TINYBLOB COMMENT 'TINYBLOB类型',
-  `blob_field` BLOB COMMENT 'BLOB类型',
-  `mediumblob_field` MEDIUMBLOB COMMENT 'MEDIUMBLOB类型',
-  `longblob_field` LONGBLOB COMMENT 'LONGBLOB类型',
-  `tinytext_field` TINYTEXT COMMENT 'TINYTEXT类型',
-  `text_field` TEXT COMMENT 'TEXT类型',
-  `mediumtext_field` MEDIUMTEXT COMMENT 'MEDIUMTEXT类型',
-  `longtext_field` LONGTEXT COMMENT 'LONGTEXT类型',
-  `enum_field` ENUM('active','inactive','pending') NOT NULL DEFAULT 'pending' COMMENT 'ENUM类型',
-  `set_field` SET('read','write','execute') NOT NULL DEFAULT '' COMMENT 'SET类型',
-  `date_field` DATE NOT NULL COMMENT 'DATE类型',
-  `time_field` TIME NOT NULL COMMENT 'TIME类型',
-  `datetime_field` DATETIME NOT NULL COMMENT 'DATETIME类型',
-  `timestamp_field` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'TIMESTAMP类型',
-  `year_field` YEAR NOT NULL COMMENT 'YEAR类型',
-  `json_field` JSON COMMENT 'JSON类型',
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `uuid` VARCHAR(64) NOT NULL COMMENT 'UUID全局唯一标识',
-  `status` VARCHAR(10) NOT NULL DEFAULT '0' COMMENT '是否启用(0:启用 1:禁用)',
-  `description` TEXT COMMENT '备注/描述',
-  `created_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  `created_id` BIGINT DEFAULT NULL COMMENT '创建人ID',
-  `updated_id` BIGINT DEFAULT NULL COMMENT '更新人ID',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uuid` (`uuid`),
-  KEY `ix_gen_all_types_demo_created_id` (`created_id`),
-  KEY `ix_gen_all_types_demo_updated_id` (`updated_id`),
-  KEY `ix_gen_all_types_demo_status` (`status`),
-  KEY `ix_gen_all_types_demo_created_time` (`created_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='全类型测试表';
-```
-
-## postgresql 全类型测试表
-
-```sql
--- PostgreSQL 全类型测试表
-CREATE TABLE gen_all_types_demo (
-  -- 整数类型
-  smallint_field SMALLINT NOT NULL,
-  integer_field INTEGER NOT NULL,
-  bigint_field BIGINT NOT NULL,
-
-  -- 浮点类型
-  real_field REAL NOT NULL,
-  double_precision_field DOUBLE PRECISION NOT NULL,
-  numeric_field NUMERIC(10,2) NOT NULL,
-  decimal_field DECIMAL(10,2) NOT NULL,
-
-  -- 字符串类型
-  char_field CHAR(32) NOT NULL,
-  varchar_field VARCHAR(255) NOT NULL,
-  text_field TEXT NOT NULL,
-
-  -- 二进制类型
-  bytea_field BYTEA,
-
-  -- 日期时间类型
-  date_field DATE NOT NULL,
-  time_field TIME NOT NULL,
-  time_with_tz_field TIMESTAMP WITH TIME ZONE NOT NULL,
-  time_without_tz_field TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-  timestamp_field TIMESTAMP NOT NULL,
-  timestamp_with_tz_field TIMESTAMP WITH TIME ZONE NOT NULL,
-  timestamp_without_tz_field TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-  interval_field INTERVAL,
-
-  -- 布尔类型
-  boolean_field BOOLEAN NOT NULL,
-
-  -- JSON类型
-  json_field JSON,
-  jsonb_field JSONB,
-
-  -- 其他类型
-  uuid_field UUID,
-  inet_field INET,
-  cidr_field CIDR,
-  macaddr_field MACADDR,
-
-  -- 几何类型
-  point_field POINT,
-  line_field LINE,
-  lseg_field LSEG,
-  box_field BOX,
-  path_field PATH,
-  polygon_field POLYGON,
-  circle_field CIRCLE,
-
-  -- 位类型
-  bit_field BIT(8) NOT NULL,
-  bit_varying_field VARBIT(8) NOT NULL,
-
-  -- 文本搜索类型
-  tsvector_field TSVECTOR,
-  tsquery_field TSQUERY,
-
-  -- XML类型
-  xml_field XML,
-
-  -- 数组类型
-  array_field INTEGER[],
-
-  -- 范围类型
-  range_field INT4RANGE,
-
-  -- 货币类型
-  money_field MONEY,
-
-  -- 对象标识符类型
-  oid_field OID,
-  regproc_field REGPROC,
-  regclass_field REGCLASS,
-  regtype_field REGTYPE,
-  regrole_field REGROLE,
-  regnamespace_field REGNAMESPACE,
-
-  -- 常用字段
-  id BIGSERIAL PRIMARY KEY,
-  uuid VARCHAR(64) NOT NULL UNIQUE,
-  status VARCHAR(10) NOT NULL DEFAULT '0',
-  description TEXT,
-  created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_id BIGINT,
-  updated_id BIGINT
-);
-
-```
-
-## mysql类型
-
-INT
-VARCHAR
-CHAR
-DATETIME
-TIMESTAMP
-DATE
-BIT
-FLOAT
-DOUBLE
-DECIMAL
-BIGINT
-TEXT
-JSON
-BLOB
-BINARY
-ENUM
-SET
-TINYINT
-SMALLINT
-MEDIUMINT
-TIME
-YEAR
-VARBINARY
-TINYBLOB
-MEDIUMBLOB
-LONGBLOB
-TINYTEXT
-MEDIUMTEXT
-LONGTEXT
-GEOMETRY
-POINT
-LINESTRING
-POLYGON
-MULTIPOINT
-MULTILINESTRING
-MULTIPOLYGON
-GEOMETRYCOLLECTION
-
-## pg类型
-
-INTEGER
-VARCHAR
-CHAR
-TIMESTAMP
-DATE
-BOOLEAN
-FLOAT
-TEXT
-JSON
-BLOB
-SMALLINT
-BIGINT
-REAL
-DOUBLE PRECISION
-BYTEA
-XML
-UUID
-ARRAY
-NUMERIC
-MONEY
-INTERVAL
-CIDR
-INET
-MACADDR
+- 优先在 `backend/app/plugin/` 做二开业务。
+- 后端 API 保持现有统一响应结构。
+- 结构性模型变更使用 Alembic 迁移。
+- 保持纵向切片模块组织。
+- 新增接口按需接入操作日志和权限校验。
+- 不要回滚与当前任务无关的本地改动。

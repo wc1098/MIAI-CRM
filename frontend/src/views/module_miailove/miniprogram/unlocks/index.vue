@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container">
+  <div class="app-container mp-admin-page">
     <el-card shadow="never">
       <template #header>
         <div class="toolbar">
@@ -22,7 +22,7 @@
         <el-button type="primary" @click="load">查询</el-button>
       </div>
 
-      <el-table :data="rows" border>
+      <el-table v-loading="loading" :data="rows" border stripe row-key="id" empty-text="暂无解锁记录">
         <el-table-column label="解锁人" min-width="190">
           <template #default="{ row }">
             <div>{{ row.viewer_name || row.viewer_nickname || "-" }}</div>
@@ -65,6 +65,17 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="query.page_no"
+          v-model:page-size="query.page_size"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="load"
+          @current-change="load"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="viewVisible" title="手机号查看明细" width="640px">
@@ -85,12 +96,20 @@ import MpUserAPI, { type MpContactViewRecord, type MpUnlockRecord, type MpUnlock
 
 const query = reactive<MpUnlockRecordQuery>({ page_no: 1, page_size: 20, keyword: "", unlock_status: "" });
 const rows = ref<MpUnlockRecord[]>([]);
+const total = ref(0);
+const loading = ref(false);
 const viewRows = ref<MpContactViewRecord[]>([]);
 const viewVisible = ref(false);
 
 async function load() {
-  const unlockRes = await MpUserAPI.listUnlockRecords(query);
-  rows.value = unlockRes.data.data.items || [];
+  loading.value = true;
+  try {
+    const unlockRes = await MpUserAPI.listUnlockRecords(query);
+    rows.value = unlockRes.data.data.items || [];
+    total.value = unlockRes.data.data.total || 0;
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function openViews(row: MpUnlockRecord) {

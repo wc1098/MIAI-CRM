@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container">
+  <div class="app-container mp-admin-page">
     <el-card shadow="never">
       <template #header>
         <div class="toolbar">

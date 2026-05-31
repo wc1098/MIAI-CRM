@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container mp-user-page">
+  <div class="app-container mp-admin-page mp-user-page">
     <el-card shadow="never" class="filter-card">
       <el-form :model="query" inline>
         <el-form-item label="关键词">

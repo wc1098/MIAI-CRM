@@ -13,10 +13,11 @@ const CandidateAPI = {
       params: query,
     });
   },
-  detailCandidate(id: number) {
+  detailCandidate(id: number, query?: { by_person?: boolean; scope?: "store" | "brand"; matchmaker_id?: number }) {
     return request<ApiResponse<CandidateDetail>>({
       url: `${API_PATH}/detail/${id}`,
       method: "get",
+      params: query,
     });
   },
   searchPerson(query?: { keyword?: string; limit?: number }) {

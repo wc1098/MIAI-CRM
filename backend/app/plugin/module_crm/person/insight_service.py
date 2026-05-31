@@ -9,7 +9,11 @@ from app.core.exceptions import CustomException
 from app.plugin.module_crm.customer.model import CrmCustomerProfileModel
 from app.plugin.module_crm.lead.model import CrmLeadProfileModel, CrmPersonModel
 from app.plugin.module_match.service import MatchProfileService
-from app.plugin.module_service.vip.model import BackupPoolItemModel, DeepInterviewModel, ServiceCaseModel
+from app.plugin.module_service.vip.model import (
+    BackupPoolItemModel,
+    DeepInterviewModel,
+    ServiceCaseModel,
+)
 
 from .model import PersonProfileInsightModel
 from .schema import (

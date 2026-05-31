@@ -55,11 +55,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
         from app.plugin.module_match.service import MatchProfileService
         from app.plugin.module_profile_ai.service import PersonAiProfileService
         from app.plugin.module_subscription.service import SubscriptionService
+        from app.scripts.system_cleanup import SystemRecordCleanupService
 
         LeadService.register_scheduler()
         PersonAiProfileService.register_scheduler()
         MatchProfileService.register_scheduler()
         SubscriptionService.register_scheduler()
+        SystemRecordCleanupService.register_scheduler()
         log.info("✅ 定时任务调度器初始化完成")
         await FastAPILimiter.init(
             redis=app.state.redis,

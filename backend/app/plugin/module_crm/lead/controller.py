@@ -291,7 +291,7 @@ async def set_store_rule_controller(
 async def download_template_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["crm:lead:import"], check_data_scope=False))],
 ) -> StreamingResponse:
-    result = await LeadService.download_template_service()
+    result = await LeadService.download_template_service(auth=auth)
     return StreamResponse(
         data=bytes2file_response(result),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

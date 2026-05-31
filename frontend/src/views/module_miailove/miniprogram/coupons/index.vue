@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container">
+  <div class="app-container mp-admin-page">
     <el-card shadow="never" class="filter-card">
       <el-form :model="query" inline>
         <el-form-item label="关键词">
@@ -122,12 +122,4 @@ onMounted(fetchList);
 </script>
 
 <style scoped>
-.filter-card {
-  margin-bottom: 12px;
-}
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
 </style>

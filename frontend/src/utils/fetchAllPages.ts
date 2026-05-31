@@ -20,11 +20,21 @@ export async function fetchAllPages<T>(options: {
   query[pageNoKey] = 1;
   query[pageSizeKey] = pageSize;
   const all: T[] = [];
+  const startedAt = performance.now();
+  let pageCount = 0;
   while (true) {
     const { total, list } = await options.fetchPage(query);
+    pageCount += 1;
     all.push(...list);
     if (all.length >= total || list.length === 0) break;
     query[pageNoKey] = (query[pageNoKey] as number) + 1;
   }
+  const elapsedMs = Math.round(performance.now() - startedAt);
+  console.info("[export] fetchAllPages", {
+    total: all.length,
+    pageSize,
+    pageCount,
+    elapsedMs,
+  });
   return all;
 }

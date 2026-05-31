@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container">
+  <div class="app-container mp-admin-page">
     <el-card shadow="never" class="filter-card">
       <template #header>
         <div class="toolbar">
@@ -160,7 +160,6 @@ async function rebuildVector() {
 </script>
 
 <style scoped>
-.filter-card,
 .status-card {
   margin-bottom: 12px;
 }
@@ -184,10 +183,5 @@ async function rebuildVector() {
 }
 .tag {
   margin: 2px 4px 2px 0;
-}
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
 }
 </style>

@@ -507,42 +507,59 @@ onMounted(reloadAll);
   width: 100%;
   min-width: 0;
   margin-bottom: 16px;
+  overflow: hidden;
+  background: var(--el-bg-color);
+
+  .el-card__header {
+    padding: 16px 18px;
+    background: linear-gradient(180deg, var(--el-fill-color-extra-light), var(--el-bg-color));
+    border-bottom-color: var(--el-border-color-lighter);
+  }
 
   .el-card__body {
-    padding: 12px;
+    padding: 14px 16px 16px;
   }
 }
 
-.task-card__body {
+:deep(.task-card__body) {
   min-height: 260px;
 }
 
-.task-list {
+:deep(.task-list) {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.task-list--drawer {
+:deep(.task-list--drawer) {
   gap: 10px;
 }
 
-.task-item {
+:deep(.task-item) {
   width: 100%;
-  padding: 12px;
+  padding: 12px 14px;
   text-align: left;
   cursor: pointer;
-  background: var(--el-fill-color-blank);
+  background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
 
   &:hover {
     border-color: var(--el-color-primary-light-5);
+    box-shadow: 0 6px 18px rgb(15 23 42 / 8%);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    border-color: var(--el-color-primary);
+    outline: none;
   }
 }
 
-.task-item__main,
-.task-item__meta {
+:deep(.task-item__main),
+:deep(.task-item__meta) {
   display: flex;
   gap: 8px;
   align-items: flex-start;
@@ -550,7 +567,7 @@ onMounted(reloadAll);
   min-width: 0;
 }
 
-.task-item__title {
+:deep(.task-item__title) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -560,7 +577,7 @@ onMounted(reloadAll);
   white-space: nowrap;
 }
 
-.task-item__name {
+:deep(.task-item__name) {
   margin-top: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -569,20 +586,20 @@ onMounted(reloadAll);
   white-space: nowrap;
 }
 
-.task-item__meta {
+:deep(.task-item__meta) {
   flex-wrap: wrap;
   margin-top: 8px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
 
-.task-item__action {
+:deep(.task-item__action) {
   margin-top: 8px;
   font-size: 12px;
   color: var(--el-color-primary);
 }
 
-.task-more {
+:deep(.task-more) {
   width: 100%;
   padding: 10px 12px;
   margin-top: 10px;
