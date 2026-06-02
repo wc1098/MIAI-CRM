@@ -11,7 +11,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.common.enums import PermissionFilterStrategy
 from app.core.base_model import ModelMixin, UserMixin
@@ -191,3 +191,57 @@ class ScreenPromoCacheReportModel(ModelMixin):
     downloaded_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="已下载字节")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True, comment="错误信息")
     reported_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now, index=True, comment="上报时间")
+
+
+class ScreenActivityConfigModel(ModelMixin, UserMixin):
+    """活动大屏配置"""
+
+    __tablename__: str = "screen_activity_config"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_screen_activity_config_event"),
+        UniqueConstraint("checkin_scene", name="uq_screen_activity_config_scene"),
+        {"comment": "活动大屏配置表"},
+    )
+    __loader_options__: list[str] = ["event", "created_by", "updated_by", "deleted_by"]
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    store_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_dept.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="门店ID")
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="活动ID")
+    screen_name: Mapped[str | None] = mapped_column(String(128), nullable=True, comment="大屏名称")
+    title: Mapped[str | None] = mapped_column(String(128), nullable=True, comment="兼容字段:大屏标题")
+    subtitle: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="兼容字段:大屏副标题")
+    background_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="背景图URL")
+    theme_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, comment="画面配置")
+    module_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, comment="功能模块配置")
+    enabled: Mapped[bool] = mapped_column(default=True, nullable=False, index=True, comment="是否启用")
+    current_scene: Mapped[str] = mapped_column(String(32), nullable=False, default="blank", index=True, comment="当前场景:blank/checkin")
+    show_qrcode: Mapped[bool] = mapped_column(default=True, nullable=False, comment="是否显示二维码")
+    qrcode_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="小程序码URL")
+    qrcode_file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="小程序码文件路径")
+    qrcode_page: Mapped[str] = mapped_column(String(255), nullable=False, default="pages/activity/checkin/index", comment="小程序码页面")
+    checkin_scene: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="扫码签到场景值")
+    qrcode_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="二维码生成时间")
+    last_command: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, comment="最近遥控命令")
+    last_command_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="最近遥控时间")
+
+    event: Mapped[Any] = relationship("EventModel", lazy="selectin")
+
+
+class ScreenActivityBarrageModel(ModelMixin):
+    """活动大屏普通弹幕记录"""
+
+    __tablename__: str = "screen_activity_barrage"
+    __table_args__: dict[str, str] = {"comment": "活动大屏普通弹幕记录表"}
+
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True, comment="品牌ID")
+    store_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_dept.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="门店ID")
+    activity_id: Mapped[int] = mapped_column(Integer, ForeignKey("screen_activity_config.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="活动大屏ID")
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="活动ID")
+    mp_user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("mini_program_user.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="小程序用户ID")
+    person_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("crm_person.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="人员ID")
+    nickname: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="展示昵称")
+    avatar_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="头像URL")
+    content: Mapped[str] = mapped_column(String(200), nullable=False, comment="弹幕内容")
+    display_status: Mapped[str] = mapped_column(String(32), nullable=False, default="displayed", index=True, comment="展示状态")
+    displayed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="展示时间")

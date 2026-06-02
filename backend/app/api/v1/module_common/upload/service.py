@@ -8,8 +8,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
+import aiofiles
+from fastapi import UploadFile
+
+from app.config.setting import settings
 from app.core.exceptions import CustomException
 from app.utils.aliyun_oss_util import AliyunOSSUtil
 from app.utils.storage_config import StorageConfig
@@ -31,6 +35,7 @@ class UploadSceneConfig:
 
 IMAGE_MIME_TYPES = ("image/jpeg", "image/png", "image/webp")
 VIDEO_MIME_TYPES = ("video/mp4",)
+AUDIO_MIME_TYPES = ("audio/mpeg", "audio/mp3")
 SCENE_CONFIG: dict[str, UploadSceneConfig] = {
     "mp_register_photo": UploadSceneConfig("mp/register-photo", 4 * 1024 * 1024, IMAGE_MIME_TYPES),
     "certification_material": UploadSceneConfig("certification/material", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
@@ -40,12 +45,15 @@ SCENE_CONFIG: dict[str, UploadSceneConfig] = {
     "common_image": UploadSceneConfig("common/image", 6 * 1024 * 1024, IMAGE_MIME_TYPES),
     "screen_promo_image": UploadSceneConfig("screen/promo-image", 12 * 1024 * 1024, IMAGE_MIME_TYPES),
     "screen_promo_video": UploadSceneConfig("screen/promo-video", 5 * 1024 * 1024 * 1024, VIDEO_MIME_TYPES),
+    "screen_activity_music": UploadSceneConfig("screen/activity-music", 100 * 1024 * 1024, AUDIO_MIME_TYPES),
 }
 CONTENT_TYPE_EXTENSIONS = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp",
     "video/mp4": ".mp4",
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
 }
 
 
@@ -70,7 +78,7 @@ class CommonUploadService:
     def _safe_stem(filename: str) -> str:
         stem = filename.rsplit(".", 1)[0] if "." in filename else filename
         stem = re.sub(r"[^a-zA-Z0-9_\-\u4e00-\u9fa5]", "", stem.strip())
-        return (stem[:40] or "image").strip("_-") or "image"
+        return (stem[:40] or "file").strip("_-") or "file"
 
     @classmethod
     def _object_key(cls, object_prefix: str, scene: str, filename: str, content_type: str) -> str:
@@ -83,10 +91,14 @@ class CommonUploadService:
         clean_prefix = object_prefix.strip().strip("/")
         return str(PurePosixPath(clean_prefix, scene_config.prefix, date_path, file_name))
 
+    @staticmethod
+    def _content_type(content_type: str | None) -> str:
+        return (content_type or "").split(";", 1)[0].strip().lower()
+
     @classmethod
     async def create_oss_policy(cls, data: OssPolicyRequestSchema) -> OssPolicyResponseSchema:
         scene_config = cls._scene(data.scene)
-        content_type = (data.content_type or "").split(";", 1)[0].strip().lower()
+        content_type = cls._content_type(data.content_type)
         if content_type not in scene_config.mime_types:
             raise CustomException(msg="上传文件类型不符合当前场景要求")
         if data.size and data.size > scene_config.max_size:
@@ -149,4 +161,47 @@ class CommonUploadService:
             object_key=object_key,
             content_type=None,
             scene=data.scene,
+        )
+
+    @classmethod
+    async def upload_file(cls, scene: str, file: UploadFile, base_url: str) -> UploadConfirmResponseSchema:
+        scene_config = cls._scene(scene)
+        if not file or not file.filename:
+            raise CustomException(msg="请选择要上传的文件")
+
+        content_type = cls._content_type(file.content_type)
+        if content_type not in scene_config.mime_types:
+            raise CustomException(msg="上传文件类型不符合当前场景要求")
+
+        content = await file.read()
+        if not content:
+            raise CustomException(msg="上传文件不能为空")
+        if len(content) > scene_config.max_size:
+            raise CustomException(msg=f"文件超过上传限制，最大 {scene_config.max_size // 1024 // 1024}MB")
+
+        storage_driver = await StorageConfig.get_storage_driver()
+        if storage_driver == "aliyun_oss":
+            config = await StorageConfig.get_aliyun_oss_config()
+            object_key = cls._object_key(config.object_prefix, scene, file.filename, content_type)
+            file_url = await AliyunOSSUtil.upload_bytes(config=config, object_key=object_key, content=content, content_type=content_type)
+        elif storage_driver == "local":
+            object_key = cls._object_key("", scene, file.filename, content_type)
+            file_path = settings.UPLOAD_FILE_PATH.joinpath(object_key)
+            if not file_path.resolve().is_relative_to(settings.UPLOAD_FILE_PATH.resolve()):
+                raise CustomException(msg="上传文件路径非法")
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            async with aiofiles.open(file_path, "wb") as f:
+                await f.write(content)
+            file_url = urljoin(base_url, str(file_path).replace("\\", "/"))
+        else:
+            raise CustomException(msg=f"不支持的资源存储类型: {storage_driver}")
+
+        return UploadConfirmResponseSchema(
+            file_name=object_key.rsplit("/", 1)[-1],
+            origin_name=file.filename,
+            file_path=object_key,
+            file_url=file_url,
+            object_key=object_key,
+            content_type=content_type,
+            scene=scene,
         )

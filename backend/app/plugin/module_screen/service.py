@@ -2,6 +2,7 @@ import hashlib
 import json
 import secrets
 import string
+from copy import deepcopy
 from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin
@@ -12,8 +13,10 @@ from redis.asyncio.client import Redis
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.v1.module_system.auth.schema import AuthSchema
+from app.api.v1.module_system.dept.model import DeptModel
 from app.api.v1.module_system.dict.model import DictDataModel
 from app.api.v1.module_system.params.model import ParamsModel
 from app.config.setting import settings
@@ -21,6 +24,7 @@ from app.core.exceptions import CustomException
 from app.plugin.module_certification.service import CertificationService
 from app.plugin.module_crm.lead.model import CrmPersonModel
 from app.plugin.module_crm.person.model import PersonProfileInsightModel
+from app.plugin.module_event.model import EventModel, EventParticipantModel, EventRegistrationModel
 from app.plugin.module_mp.auth.model import MiniProgramUserModel
 from app.plugin.module_profile_ai.model import PersonAiProfileModel
 from app.plugin.module_profile_ai.service import MIAI_IMPRESSION
@@ -28,6 +32,8 @@ from app.utils.aliyun_oss_util import AliyunOSSUtil
 from app.utils.storage_config import StorageConfig
 
 from .model import (
+    ScreenActivityBarrageModel,
+    ScreenActivityConfigModel,
     ScreenDeviceModel,
     ScreenPromoCacheReportModel,
     ScreenPromoConfigModel,
@@ -39,6 +45,14 @@ from .model import (
     ScreenUserWallRecordModel,
 )
 from .schema import (
+    ScreenActivityBarrageSettingsSchema,
+    ScreenActivityCheckinWallSettingsSchema,
+    ScreenActivityCommandSchema,
+    ScreenActivityConfigSchema,
+    ScreenActivityDominateSettingsSchema,
+    ScreenActivityMusicSettingsSchema,
+    ScreenActivityQrcodeSettingsSchema,
+    ScreenActivityQueryParam,
     ScreenDeviceBindSchema,
     ScreenDeviceBootstrapSchema,
     ScreenDeviceHeartbeatSchema,
@@ -63,8 +77,62 @@ CRM_DICT_MAP = {
 }
 
 MINI_PROFILE_PAGE = "pages/plaza/detail/index"
+MINI_ACTIVITY_CHECKIN_PAGE = "pages/activity/checkin/index"
 PENDING_DEVICE_CODE_TTL_SECONDS = 600
 PENDING_DEVICE_CODE_PREFIX = "screen:pending_device:"
+DEFAULT_ACTIVITY_MODULE_CONFIG = {
+    "checkin_wall": {"enabled": True, "settings": {}},
+    "barrage": {"enabled": False, "settings": {"max_length": 50, "duration_seconds": 16, "need_review": False}},
+    "dominate": {
+        "enabled": False,
+        "settings": {
+            "durations": [20, 45, 90, 180, 300, 600],
+            "default_duration": 20,
+            "price": 20,
+            "max_length": 20,
+            "allow_image": True,
+            "need_review": False,
+            "templates": [],
+        },
+    },
+    "gift": {"enabled": False, "settings": {}},
+    "welfare": {"enabled": False, "settings": {}},
+    "music": {"enabled": False, "settings": {}},
+    "activity_qrcode": {"enabled": True, "settings": {}},
+    "lottery": {"enabled": False, "placeholder": True, "settings": {}},
+    "game": {"enabled": False, "placeholder": True, "settings": {}},
+    "message_wall": {"enabled": False, "placeholder": True, "settings": {}},
+}
+DEFAULT_ACTIVITY_THEME_CONFIG = {
+    "backgrounds": [],
+    "active_background_id": "",
+    "mobile_background_url": "",
+    "welcome_message": "欢迎来到觅爱互动大厅，倡导文明用语，共建快乐活动现场！",
+    "show_people_count": False,
+}
+DEFAULT_ACTIVITY_BARRAGE_SETTINGS = {"max_length": 50, "duration_seconds": 16, "size": "medium", "need_review": False}
+DEFAULT_ACTIVITY_DOMINATE_SETTINGS = {"max_length": 20, "duration_seconds": 8, "need_review": False}
+DEFAULT_ACTIVITY_QRCODE_SETTINGS = {"position": "3", "size": "medium"}
+DEFAULT_ACTIVITY_CHECKIN_WALL_SETTINGS = {"title": "签到墙", "show_count": True, "show_avatar": True, "show_nickname": True, "list_size": "medium"}
+DEFAULT_ACTIVITY_MUSIC_SETTINGS = {
+    "volume": 60,
+    "play_mode": "list_loop",
+    "categories": [
+        {"id": "cat_warmup", "name": "暖场"},
+        {"id": "cat_romantic", "name": "浪漫"},
+        {"id": "cat_interaction", "name": "互动"},
+        {"id": "cat_ending", "name": "结束"},
+    ],
+    "tracks": [],
+}
+ACTIVITY_BARRAGE_SETTINGS_PARAM_KEY = "screen.activity.plugin.barrage.settings"
+ACTIVITY_DOMINATE_SETTINGS_PARAM_KEY = "screen.activity.plugin.dominate.settings"
+ACTIVITY_QRCODE_SETTINGS_PARAM_KEY = "screen.activity.plugin.qrcode.settings"
+ACTIVITY_CHECKIN_WALL_SETTINGS_PARAM_KEY = "screen.activity.plugin.checkin_wall.settings"
+ACTIVITY_MUSIC_SETTINGS_PARAM_KEY = "screen.activity.plugin.music.settings"
+CONTROL_TOKEN_TTL_SECONDS = 24 * 60 * 60
+CONTROL_TOKEN_PREFIX = "screen:activity_control:"
+CONTROL_TOKEN_ACTIVITY_PREFIX = "screen:activity_control_by_activity:"
 
 
 class ScreenService:
@@ -103,6 +171,299 @@ class ScreenService:
             )
         )
         return value or None
+
+    @classmethod
+    def _normalize_barrage_settings(cls, value: dict[str, Any] | None) -> dict[str, Any]:
+        config = {**DEFAULT_ACTIVITY_BARRAGE_SETTINGS, **(value or {})}
+        config["max_length"] = min(max(int(config.get("max_length") or 50), 1), 100)
+        config["duration_seconds"] = min(max(int(config.get("duration_seconds") or 16), 8), 60)
+        size = str(config.get("size") or "medium").lower()
+        config["size"] = size if size in {"large", "medium", "small"} else "medium"
+        config["need_review"] = bool(config.get("need_review"))
+        return config
+
+    @classmethod
+    async def activity_barrage_settings(cls, db: AsyncSession) -> dict[str, Any]:
+        raw = await cls._param(db, ACTIVITY_BARRAGE_SETTINGS_PARAM_KEY)
+        try:
+            data = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            data = {}
+        return cls._normalize_barrage_settings(data)
+
+    @classmethod
+    async def update_activity_barrage_settings(cls, auth: AuthSchema, data: ScreenActivityBarrageSettingsSchema) -> dict[str, Any]:
+        settings_value = cls._normalize_barrage_settings(data.model_dump())
+        value = json.dumps(settings_value, ensure_ascii=False)
+        param = await auth.db.scalar(select(ParamsModel).where(ParamsModel.config_key == ACTIVITY_BARRAGE_SETTINGS_PARAM_KEY, ParamsModel.is_deleted == False))
+        if param is None:
+            param = ParamsModel(
+                config_name="活动大屏普通弹幕设置",
+                config_key=ACTIVITY_BARRAGE_SETTINGS_PARAM_KEY,
+                config_value=value,
+                config_type=True,
+                status="0",
+                description="活动大屏普通弹幕插件全局配置",
+            )
+            param.created_id = auth.user.id if auth.user else None
+            auth.db.add(param)
+        else:
+            param.config_name = "活动大屏普通弹幕设置"
+            param.config_value = value
+            param.config_type = True
+            param.status = "0"
+            param.description = "活动大屏普通弹幕插件全局配置"
+            param.updated_id = auth.user.id if auth.user else None
+        await auth.db.flush()
+        return settings_value
+
+    @classmethod
+    def _normalize_dominate_settings(cls, value: dict[str, Any] | None) -> dict[str, Any]:
+        config = {**DEFAULT_ACTIVITY_DOMINATE_SETTINGS, **(value or {})}
+        config["max_length"] = min(max(int(config.get("max_length") or 20), 1), 60)
+        config["duration_seconds"] = min(max(int(config.get("duration_seconds") or 8), 3), 30)
+        config["need_review"] = bool(config.get("need_review"))
+        return config
+
+    @classmethod
+    async def activity_dominate_settings(cls, db: AsyncSession) -> dict[str, Any]:
+        raw = await cls._param(db, ACTIVITY_DOMINATE_SETTINGS_PARAM_KEY)
+        try:
+            data = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            data = {}
+        return cls._normalize_dominate_settings(data)
+
+    @classmethod
+    async def update_activity_dominate_settings(cls, auth: AuthSchema, data: ScreenActivityDominateSettingsSchema) -> dict[str, Any]:
+        settings_value = cls._normalize_dominate_settings(data.model_dump())
+        value = json.dumps(settings_value, ensure_ascii=False)
+        param = await auth.db.scalar(select(ParamsModel).where(ParamsModel.config_key == ACTIVITY_DOMINATE_SETTINGS_PARAM_KEY, ParamsModel.is_deleted == False))
+        if param is None:
+            param = ParamsModel(
+                config_name="活动大屏头像霸屏设置",
+                config_key=ACTIVITY_DOMINATE_SETTINGS_PARAM_KEY,
+                config_value=value,
+                config_type=True,
+                status="0",
+                description="活动大屏头像霸屏插件全局配置",
+            )
+            param.created_id = auth.user.id if auth.user else None
+            auth.db.add(param)
+        else:
+            param.config_name = "活动大屏头像霸屏设置"
+            param.config_value = value
+            param.config_type = True
+            param.status = "0"
+            param.description = "活动大屏头像霸屏插件全局配置"
+            param.updated_id = auth.user.id if auth.user else None
+        await auth.db.flush()
+        return settings_value
+
+    @classmethod
+    def _apply_dominate_settings(cls, config: dict[str, Any], dominate_settings: dict[str, Any]) -> dict[str, Any]:
+        module_config = deepcopy(config.get("module_config") or {})
+        dominate_config = {**(module_config.get("dominate") or {"enabled": False, "settings": {}})}
+        dominate_config["settings"] = cls._normalize_dominate_settings(dominate_settings)
+        module_config["dominate"] = dominate_config
+        config["module_config"] = module_config
+        return config
+
+    @classmethod
+    def _normalize_qrcode_settings(cls, value: dict[str, Any] | None) -> dict[str, Any]:
+        config = {**DEFAULT_ACTIVITY_QRCODE_SETTINGS, **(value or {})}
+        position = str(config.get("position") or "3")
+        size = str(config.get("size") or "medium").lower()
+        config["position"] = position if position in {"1", "2", "3", "4", "5", "6", "7", "8", "9"} else "3"
+        config["size"] = size if size in {"large", "medium", "small"} else "medium"
+        return config
+
+    @classmethod
+    async def activity_qrcode_settings(cls, db: AsyncSession) -> dict[str, Any]:
+        raw = await cls._param(db, ACTIVITY_QRCODE_SETTINGS_PARAM_KEY)
+        try:
+            data = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            data = {}
+        return cls._normalize_qrcode_settings(data)
+
+    @classmethod
+    async def update_activity_qrcode_settings(cls, auth: AuthSchema, data: ScreenActivityQrcodeSettingsSchema) -> dict[str, Any]:
+        settings_value = cls._normalize_qrcode_settings(data.model_dump())
+        value = json.dumps(settings_value, ensure_ascii=False)
+        param = await auth.db.scalar(select(ParamsModel).where(ParamsModel.config_key == ACTIVITY_QRCODE_SETTINGS_PARAM_KEY, ParamsModel.is_deleted == False))
+        if param is None:
+            param = ParamsModel(
+                config_name="活动大屏签到二维码设置",
+                config_key=ACTIVITY_QRCODE_SETTINGS_PARAM_KEY,
+                config_value=value,
+                config_type=True,
+                status="0",
+                description="活动大屏签到二维码插件全局配置",
+            )
+            param.created_id = auth.user.id if auth.user else None
+            auth.db.add(param)
+        else:
+            param.config_name = "活动大屏签到二维码设置"
+            param.config_value = value
+            param.config_type = True
+            param.status = "0"
+            param.description = "活动大屏签到二维码插件全局配置"
+            param.updated_id = auth.user.id if auth.user else None
+        await auth.db.flush()
+        return settings_value
+
+    @classmethod
+    def _apply_qrcode_settings(cls, config: dict[str, Any], qrcode_settings: dict[str, Any]) -> dict[str, Any]:
+        module_config = deepcopy(config.get("module_config") or {})
+        qrcode_config = {**(module_config.get("activity_qrcode") or {"enabled": True, "settings": {}})}
+        qrcode_config["settings"] = cls._normalize_qrcode_settings(qrcode_settings)
+        module_config["activity_qrcode"] = qrcode_config
+        config["module_config"] = module_config
+        return config
+
+    @classmethod
+    def _normalize_checkin_wall_settings(cls, value: dict[str, Any] | None) -> dict[str, Any]:
+        config = {**DEFAULT_ACTIVITY_CHECKIN_WALL_SETTINGS, **(value or {})}
+        title = str(config.get("title") or "签到墙").strip()
+        list_size = str(config.get("list_size") or "medium").lower()
+        config["title"] = title[:64] or "签到墙"
+        config["show_count"] = bool(config.get("show_count"))
+        config["show_avatar"] = bool(config.get("show_avatar"))
+        config["show_nickname"] = bool(config.get("show_nickname"))
+        config["list_size"] = list_size if list_size in {"large", "medium", "small"} else "medium"
+        return config
+
+    @classmethod
+    async def activity_checkin_wall_settings(cls, db: AsyncSession) -> dict[str, Any]:
+        raw = await cls._param(db, ACTIVITY_CHECKIN_WALL_SETTINGS_PARAM_KEY)
+        try:
+            data = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            data = {}
+        return cls._normalize_checkin_wall_settings(data)
+
+    @classmethod
+    async def update_activity_checkin_wall_settings(cls, auth: AuthSchema, data: ScreenActivityCheckinWallSettingsSchema) -> dict[str, Any]:
+        settings_value = cls._normalize_checkin_wall_settings(data.model_dump())
+        value = json.dumps(settings_value, ensure_ascii=False)
+        param = await auth.db.scalar(select(ParamsModel).where(ParamsModel.config_key == ACTIVITY_CHECKIN_WALL_SETTINGS_PARAM_KEY, ParamsModel.is_deleted == False))
+        if param is None:
+            param = ParamsModel(
+                config_name="活动大屏签到墙设置",
+                config_key=ACTIVITY_CHECKIN_WALL_SETTINGS_PARAM_KEY,
+                config_value=value,
+                config_type=True,
+                status="0",
+                description="活动大屏签到墙插件全局配置",
+            )
+            param.created_id = auth.user.id if auth.user else None
+            auth.db.add(param)
+        else:
+            param.config_name = "活动大屏签到墙设置"
+            param.config_value = value
+            param.config_type = True
+            param.status = "0"
+            param.description = "活动大屏签到墙插件全局配置"
+            param.updated_id = auth.user.id if auth.user else None
+        await auth.db.flush()
+        return settings_value
+
+    @classmethod
+    def _apply_checkin_wall_settings(cls, config: dict[str, Any], checkin_wall_settings: dict[str, Any]) -> dict[str, Any]:
+        module_config = deepcopy(config.get("module_config") or {})
+        wall_config = {**(module_config.get("checkin_wall") or {"enabled": True, "settings": {}})}
+        wall_config["settings"] = cls._normalize_checkin_wall_settings(checkin_wall_settings)
+        module_config["checkin_wall"] = wall_config
+        config["module_config"] = module_config
+        return config
+
+    @classmethod
+    def _normalize_music_settings(cls, value: dict[str, Any] | None) -> dict[str, Any]:
+        config = deepcopy(DEFAULT_ACTIVITY_MUSIC_SETTINGS)
+        if value:
+            config.update(value)
+        mode = str(config.get("play_mode") or "list_loop").lower()
+        config["volume"] = min(max(int(config.get("volume") or 60), 0), 100)
+        config["play_mode"] = mode if mode in {"list_loop", "single_loop", "random"} else "list_loop"
+        categories = []
+        seen_categories = set()
+        for item in config.get("categories") or []:
+            category_id = str(item.get("id") or "").strip()
+            name = str(item.get("name") or "").strip()
+            if not category_id or not name or category_id in seen_categories:
+                continue
+            seen_categories.add(category_id)
+            categories.append({"id": category_id[:64], "name": name[:32]})
+        config["categories"] = categories or deepcopy(DEFAULT_ACTIVITY_MUSIC_SETTINGS["categories"])
+        category_ids = {item["id"] for item in config["categories"]}
+        tracks = []
+        seen_tracks = set()
+        for index, item in enumerate(config.get("tracks") or []):
+            track_id = str(item.get("id") or "").strip()
+            url = str(item.get("url") or "").strip()
+            if not track_id or not url or track_id in seen_tracks:
+                continue
+            category_id = str(item.get("category_id") or "").strip()
+            seen_tracks.add(track_id)
+            tracks.append(
+                {
+                    "id": track_id[:64],
+                    "name": (str(item.get("name") or item.get("file_name") or "未命名音乐").strip()[:64] or "未命名音乐"),
+                    "url": url[:1000],
+                    "file_name": str(item.get("file_name") or "").strip()[:255],
+                    "category_id": category_id if category_id in category_ids else "",
+                    "enabled": item.get("enabled") is not False,
+                    "sort": int(item.get("sort") if item.get("sort") is not None else index + 1),
+                }
+            )
+        config["tracks"] = sorted(tracks, key=lambda row: row["sort"])
+        return config
+
+    @classmethod
+    async def activity_music_settings(cls, db: AsyncSession) -> dict[str, Any]:
+        raw = await cls._param(db, ACTIVITY_MUSIC_SETTINGS_PARAM_KEY)
+        try:
+            data = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            data = {}
+        return cls._normalize_music_settings(data)
+
+    @classmethod
+    async def update_activity_music_settings(cls, auth: AuthSchema, data: ScreenActivityMusicSettingsSchema) -> dict[str, Any]:
+        settings_value = cls._normalize_music_settings(data.model_dump())
+        value = json.dumps(settings_value, ensure_ascii=False)
+        param = await auth.db.scalar(select(ParamsModel).where(ParamsModel.config_key == ACTIVITY_MUSIC_SETTINGS_PARAM_KEY, ParamsModel.is_deleted == False))
+        if param is None:
+            param = ParamsModel(config_name="活动大屏背景音乐设置", config_key=ACTIVITY_MUSIC_SETTINGS_PARAM_KEY, config_value=value, config_type=True, status="0", description="活动大屏背景音乐插件全局配置")
+            param.created_id = auth.user.id if auth.user else None
+            auth.db.add(param)
+        else:
+            param.config_name = "活动大屏背景音乐设置"
+            param.config_value = value
+            param.config_type = True
+            param.status = "0"
+            param.description = "活动大屏背景音乐插件全局配置"
+            param.updated_id = auth.user.id if auth.user else None
+        await auth.db.flush()
+        return settings_value
+
+    @classmethod
+    def _apply_music_settings(cls, config: dict[str, Any], music_settings: dict[str, Any]) -> dict[str, Any]:
+        module_config = deepcopy(config.get("module_config") or {})
+        music_config = {**(module_config.get("music") or {"enabled": False, "settings": {}})}
+        music_config["settings"] = cls._normalize_music_settings(music_settings)
+        module_config["music"] = music_config
+        config["module_config"] = module_config
+        return config
+
+    @classmethod
+    async def _apply_activity_plugin_settings(cls, db: AsyncSession, config: dict[str, Any]) -> dict[str, Any]:
+        config = cls._apply_qrcode_settings(config, await cls.activity_qrcode_settings(db))
+        config = cls._apply_checkin_wall_settings(config, await cls.activity_checkin_wall_settings(db))
+        config = cls._apply_dominate_settings(config, await cls.activity_dominate_settings(db))
+        config = cls._apply_music_settings(config, await cls.activity_music_settings(db))
+        return config
 
     @classmethod
     async def _dict_labels(cls, db: AsyncSession) -> dict[str, dict[str, str]]:
@@ -955,3 +1316,582 @@ class ScreenService:
         db.add(row)
         await db.flush()
         return {"id": row.id}
+
+    @staticmethod
+    def _new_activity_scene() -> str:
+        return f"as{secrets.token_hex(10)}"
+
+    @staticmethod
+    def _activity_theme_config(value: dict[str, Any] | None) -> dict[str, Any]:
+        config = deepcopy(DEFAULT_ACTIVITY_THEME_CONFIG)
+        config.update(value or {})
+        backgrounds = config.get("backgrounds")
+        config["backgrounds"] = backgrounds if isinstance(backgrounds, list) else []
+        config["show_people_count"] = bool(config.get("show_people_count"))
+        return config
+
+    @staticmethod
+    def _activity_module_config(value: dict[str, Any] | None) -> dict[str, Any]:
+        config = deepcopy(DEFAULT_ACTIVITY_MODULE_CONFIG)
+        for key, item in (value or {}).items():
+            if isinstance(item, dict):
+                base = config.get(key, {"enabled": False, "settings": {}})
+                merged = {**base, **item}
+                merged["settings"] = {**(base.get("settings") or {}), **(item.get("settings") or {})}
+                config[key] = merged
+        return config
+
+    @staticmethod
+    def _active_background(theme_config: dict[str, Any]) -> dict[str, Any] | None:
+        active_id = str(theme_config.get("active_background_id") or "")
+        backgrounds = theme_config.get("backgrounds") or []
+        if active_id:
+            for item in backgrounds:
+                if str(item.get("id") or "") == active_id:
+                    return item
+        return backgrounds[0] if backgrounds else None
+
+    @classmethod
+    async def _generate_activity_qrcode(cls, db: AsyncSession, row: ScreenActivityConfigModel, user_id: int | None = None) -> None:
+        access_token = await cls._wechat_access_token(db)
+        async with httpx.AsyncClient(timeout=settings.HTTPX_DEFAULT_TIMEOUT) as client:
+            response = await client.post(
+                "https://api.weixin.qq.com/wxa/getwxacodeunlimit",
+                params={"access_token": access_token},
+                json={"scene": row.checkin_scene, "page": MINI_ACTIVITY_CHECKIN_PAGE, "check_path": False},
+            )
+        content_type = response.headers.get("content-type", "")
+        if "application/json" in content_type:
+            payload = response.json()
+            raise CustomException(msg=f"生成活动签到小程序码失败: {payload.get('errmsg')}", data=payload)
+        file_url, file_path = await cls._upload_qrcode_bytes(response.content, f"screen_activity_{row.id}_{row.checkin_scene}.png")
+        row.qrcode_url = file_url
+        row.qrcode_file_path = file_path
+        row.qrcode_generated_at = datetime.now()
+        row.updated_id = user_id
+
+    @classmethod
+    async def _activity_by_id(cls, db: AsyncSession, activity_id: int) -> ScreenActivityConfigModel:
+        row = await db.scalar(
+            select(ScreenActivityConfigModel)
+            .where(ScreenActivityConfigModel.id == activity_id, ScreenActivityConfigModel.is_deleted == False)
+            .options(selectinload(ScreenActivityConfigModel.event).selectinload(EventModel.store))
+        )
+        if not row:
+            raise CustomException(msg="活动大屏不存在")
+        return row
+
+    @classmethod
+    async def _activity_by_scene(cls, db: AsyncSession, scene: str) -> ScreenActivityConfigModel:
+        row = await db.scalar(
+            select(ScreenActivityConfigModel)
+            .where(
+                ScreenActivityConfigModel.checkin_scene == scene,
+                ScreenActivityConfigModel.enabled == True,
+                ScreenActivityConfigModel.status == "0",
+                ScreenActivityConfigModel.is_deleted == False,
+            )
+            .options(selectinload(ScreenActivityConfigModel.event).selectinload(EventModel.store))
+        )
+        if not row or not row.event or row.event.is_deleted or row.event.event_status not in {"published", "finished"}:
+            raise CustomException(msg="签到二维码无效或活动未发布")
+        return row
+
+    @classmethod
+    async def _activity_by_event(cls, db: AsyncSession, event_id: int) -> ScreenActivityConfigModel:
+        row = await db.scalar(
+            select(ScreenActivityConfigModel)
+            .where(
+                ScreenActivityConfigModel.event_id == event_id,
+                ScreenActivityConfigModel.enabled == True,
+                ScreenActivityConfigModel.status == "0",
+                ScreenActivityConfigModel.is_deleted == False,
+            )
+            .options(selectinload(ScreenActivityConfigModel.event).selectinload(EventModel.store))
+        )
+        if not row or not row.event or row.event.is_deleted or row.event.event_status not in {"published", "finished"}:
+            raise CustomException(msg="活动大屏未启用")
+        return row
+
+    @classmethod
+    def _event_brief(cls, event: EventModel | None) -> dict[str, Any] | None:
+        if not event:
+            return None
+        return {
+            "id": event.id,
+            "title": event.title,
+            "subtitle": event.subtitle,
+            "event_type": event.event_type,
+            "cover_url": event.cover_url,
+            "location": event.location,
+            "store_id": event.store_id,
+            "store_name": event.store.name if event.store else None,
+            "start_time": event.start_time,
+            "end_time": event.end_time,
+            "register_deadline": event.register_deadline,
+            "event_status": event.event_status,
+        }
+
+    @classmethod
+    async def _activity_counts(cls, db: AsyncSession, event_ids: list[int]) -> dict[int, dict[str, int]]:
+        if not event_ids:
+            return {}
+        registered_rows = (
+            await db.execute(
+                select(EventRegistrationModel.event_id, func.count(EventRegistrationModel.id))
+                .where(
+                    EventRegistrationModel.event_id.in_(event_ids),
+                    EventRegistrationModel.registration_status.in_(["registered", "checked_in"]),
+                    EventRegistrationModel.is_deleted == False,
+                )
+                .group_by(EventRegistrationModel.event_id)
+            )
+        ).all()
+        participant_rows = (
+            await db.execute(
+                select(EventParticipantModel.event_id, func.count(EventParticipantModel.id))
+                .where(
+                    EventParticipantModel.event_id.in_(event_ids),
+                    EventParticipantModel.participant_status == "checked_in",
+                    EventParticipantModel.is_deleted == False,
+                )
+                .group_by(EventParticipantModel.event_id)
+            )
+        ).all()
+        data = {event_id: {"registered_count": 0, "checkin_count": 0} for event_id in event_ids}
+        for event_id, count in registered_rows:
+            data[event_id]["registered_count"] = count
+        for event_id, count in participant_rows:
+            data[event_id]["checkin_count"] = count
+        return data
+
+    @classmethod
+    def _activity_out(cls, row: ScreenActivityConfigModel, counts: dict[str, int] | None = None, online: bool = False) -> dict[str, Any]:
+        counts = counts or {"registered_count": 0, "checkin_count": 0}
+        theme_config = cls._activity_theme_config(row.theme_config)
+        module_config = cls._activity_module_config(row.module_config)
+        active_background = cls._active_background(theme_config)
+        return {
+            "id": row.id,
+            "brand_id": row.brand_id,
+            "store_id": row.store_id,
+            "event_id": row.event_id,
+            "event": cls._event_brief(row.event),
+            "screen_name": row.screen_name or row.title or (row.event.title if row.event else ""),
+            "title": row.event.title if row.event else row.title or "",
+            "subtitle": row.event.subtitle if row.event else row.subtitle or "",
+            "background_url": row.background_url,
+            "active_background": active_background,
+            "theme_config": theme_config,
+            "module_config": module_config,
+            "enabled": row.enabled,
+            "current_scene": "blank" if row.current_scene == "home" else row.current_scene,
+            "show_qrcode": row.show_qrcode,
+            "qrcode_url": row.qrcode_url,
+            "qrcode_page": row.qrcode_page,
+            "checkin_scene": row.checkin_scene,
+            "qrcode_generated_at": row.qrcode_generated_at,
+            "last_command": row.last_command or {},
+            "last_command_at": row.last_command_at,
+            "status": row.status,
+            "registered_count": counts.get("registered_count", 0),
+            "checkin_count": counts.get("checkin_count", 0),
+            "online": online,
+            "created_time": row.created_time,
+            "updated_time": row.updated_time,
+        }
+
+    @classmethod
+    async def page_activities(cls, auth: AuthSchema, page_no: int, page_size: int, search: ScreenActivityQueryParam) -> dict[str, Any]:
+        conditions: list[Any] = [ScreenActivityConfigModel.is_deleted == False]
+        if search.enabled is not None:
+            conditions.append(ScreenActivityConfigModel.enabled == search.enabled)
+        stmt = select(ScreenActivityConfigModel).join(EventModel, ScreenActivityConfigModel.event_id == EventModel.id).outerjoin(DeptModel, EventModel.store_id == DeptModel.id)
+        if search.keyword:
+            like = f"%{search.keyword}%"
+            conditions.append(or_(ScreenActivityConfigModel.screen_name.ilike(like), EventModel.title.ilike(like), DeptModel.name.ilike(like)))
+        total = await auth.db.scalar(select(func.count(ScreenActivityConfigModel.id)).select_from(ScreenActivityConfigModel).join(EventModel, ScreenActivityConfigModel.event_id == EventModel.id).outerjoin(DeptModel, EventModel.store_id == DeptModel.id).where(*conditions)) or 0
+        rows = (
+            await auth.db.execute(
+                stmt.where(*conditions)
+                .options(selectinload(ScreenActivityConfigModel.event).selectinload(EventModel.store))
+                .order_by(ScreenActivityConfigModel.updated_time.desc(), ScreenActivityConfigModel.id.desc())
+                .offset((page_no - 1) * page_size)
+                .limit(page_size)
+            )
+        ).scalars().all()
+        counts = await cls._activity_counts(auth.db, [row.event_id for row in rows])
+        return {
+            "page_no": page_no,
+            "page_size": page_size,
+            "total": total,
+            "has_next": page_no * page_size < total,
+            "items": [cls._activity_out(row, counts.get(row.event_id)) for row in rows],
+        }
+
+    @classmethod
+    async def _event_for_activity(cls, db: AsyncSession, event_id: int) -> EventModel:
+        row = await db.scalar(
+            select(EventModel)
+            .where(EventModel.id == event_id, EventModel.is_deleted == False)
+            .options(selectinload(EventModel.store))
+        )
+        if not row:
+            raise CustomException(msg="活动不存在")
+        return row
+
+    @classmethod
+    async def create_activity(cls, auth: AuthSchema, data: ScreenActivityConfigSchema) -> dict[str, Any]:
+        event = await cls._event_for_activity(auth.db, data.event_id)
+        exists = await auth.db.scalar(select(ScreenActivityConfigModel.id).where(ScreenActivityConfigModel.event_id == data.event_id, ScreenActivityConfigModel.is_deleted == False))
+        if exists:
+            raise CustomException(msg="该活动已创建活动大屏")
+        payload = data.model_dump()
+        payload.pop("event_id", None)
+        row = ScreenActivityConfigModel(
+            brand_id=event.brand_id,
+            store_id=event.store_id,
+            event_id=event.id,
+            checkin_scene=cls._new_activity_scene(),
+            qrcode_page=MINI_ACTIVITY_CHECKIN_PAGE,
+            screen_name=payload.pop("screen_name", None) or event.title,
+            module_config=cls._activity_module_config(payload.pop("module_config", None)),
+            theme_config=cls._activity_theme_config(payload.pop("theme_config", None)),
+            current_scene=payload.pop("current_scene", "blank") or "blank",
+            **payload,
+        )
+        row.created_id = auth.user.id if auth.user else None
+        auth.db.add(row)
+        await auth.db.flush()
+        await cls._generate_activity_qrcode(auth.db, row, auth.user.id if auth.user else None)
+        await auth.db.flush()
+        row.event = event
+        return cls._activity_out(row)
+
+    @classmethod
+    async def update_activity(cls, auth: AuthSchema, activity_id: int, data: ScreenActivityConfigSchema) -> dict[str, Any]:
+        row = await cls._activity_by_id(auth.db, activity_id)
+        event = await cls._event_for_activity(auth.db, data.event_id)
+        if event.id != row.event_id:
+            exists = await auth.db.scalar(select(ScreenActivityConfigModel.id).where(ScreenActivityConfigModel.event_id == event.id, ScreenActivityConfigModel.is_deleted == False))
+            if exists:
+                raise CustomException(msg="该活动已创建活动大屏")
+        payload = data.model_dump()
+        payload["screen_name"] = payload.get("screen_name") or event.title
+        payload["module_config"] = cls._activity_module_config(payload.get("module_config"))
+        payload["theme_config"] = cls._activity_theme_config(payload.get("theme_config"))
+        for key, value in payload.items():
+            setattr(row, key, value)
+        row.store_id = event.store_id
+        row.updated_id = auth.user.id if auth.user else None
+        await auth.db.flush()
+        row.event = event
+        return cls._activity_out(row, (await cls._activity_counts(auth.db, [row.event_id])).get(row.event_id))
+
+    @classmethod
+    async def delete_activity(cls, auth: AuthSchema, activity_id: int) -> dict[str, Any]:
+        row = await cls._activity_by_id(auth.db, activity_id)
+        row.is_deleted = True
+        row.deleted_time = datetime.now()
+        row.deleted_id = auth.user.id if auth.user else None
+        await auth.db.flush()
+        return {"id": activity_id}
+
+    @classmethod
+    async def detail_activity(cls, db: AsyncSession, activity_id: int) -> dict[str, Any]:
+        row = await cls._activity_by_id(db, activity_id)
+        counts = await cls._activity_counts(db, [row.event_id])
+        return await cls._apply_activity_plugin_settings(db, cls._activity_out(row, counts.get(row.event_id)))
+
+    @classmethod
+    async def regenerate_activity_qrcode(cls, auth: AuthSchema, activity_id: int) -> dict[str, Any]:
+        row = await cls._activity_by_id(auth.db, activity_id)
+        row.checkin_scene = cls._new_activity_scene()
+        row.qrcode_page = MINI_ACTIVITY_CHECKIN_PAGE
+        await cls._generate_activity_qrcode(auth.db, row, auth.user.id if auth.user else None)
+        await auth.db.flush()
+        return cls._activity_out(row, (await cls._activity_counts(auth.db, [row.event_id])).get(row.event_id))
+
+    @classmethod
+    async def activity_participants(cls, db: AsyncSession, activity_id: int, limit: int = 30) -> dict[str, Any]:
+        row = await cls._activity_by_id(db, activity_id)
+        participants = (
+            await db.execute(
+                select(EventParticipantModel)
+                .where(
+                    EventParticipantModel.event_id == row.event_id,
+                    EventParticipantModel.participant_status == "checked_in",
+                    EventParticipantModel.is_deleted == False,
+                )
+                .options(selectinload(EventParticipantModel.mp_user), selectinload(EventParticipantModel.person))
+                .order_by(EventParticipantModel.checked_in_at.desc(), EventParticipantModel.id.desc())
+                .limit(limit)
+            )
+        ).scalars().all()
+        items = []
+        for item in participants:
+            snapshot = item.profile_snapshot or {}
+            photos = snapshot.get("photo_urls") or []
+            items.append(
+                {
+                    "id": item.id,
+                    "onsite_no": item.onsite_no,
+                    "display_nickname": item.display_nickname or snapshot.get("name") or "现场嘉宾",
+                    "gender": item.gender_snapshot,
+                    "avatar_url": (photos[0] if photos else None) or (item.mp_user.avatar_url if item.mp_user else None),
+                    "checkin_type": item.checkin_type,
+                    "checked_in_at": item.checked_in_at,
+                }
+            )
+        counts = await cls._activity_counts(db, [row.event_id])
+        return {"items": items, "counts": counts.get(row.event_id, {"registered_count": 0, "checkin_count": 0})}
+
+    @staticmethod
+    def _barrage_out(row: ScreenActivityBarrageModel, settings: dict[str, Any] | None = None) -> dict[str, Any]:
+        settings = settings or DEFAULT_ACTIVITY_BARRAGE_SETTINGS
+        return {
+            "id": row.id,
+            "activity_id": row.activity_id,
+            "event_id": row.event_id,
+            "mp_user_id": row.mp_user_id,
+            "nickname": row.nickname,
+            "avatar_url": row.avatar_url,
+            "content": row.content,
+            "display_status": row.display_status,
+            "displayed_at": row.displayed_at,
+            "created_time": row.created_time,
+            "duration_seconds": settings["duration_seconds"],
+            "size": settings["size"],
+        }
+
+    @classmethod
+    async def activity_barrages(cls, db: AsyncSession, activity_id: int, limit: int = 30) -> dict[str, Any]:
+        await cls._activity_by_id(db, activity_id)
+        rows = (
+            await db.execute(
+                select(ScreenActivityBarrageModel)
+                .where(
+                    ScreenActivityBarrageModel.activity_id == activity_id,
+                    ScreenActivityBarrageModel.display_status == "displayed",
+                    ScreenActivityBarrageModel.is_deleted == False,
+                )
+                .order_by(ScreenActivityBarrageModel.id.desc())
+                .limit(limit)
+            )
+        ).scalars().all()
+        settings = await cls.activity_barrage_settings(db)
+        return {"items": [cls._barrage_out(row, settings) for row in reversed(rows)]}
+
+    @classmethod
+    async def create_barrage(cls, db: AsyncSession, event_id: int, user_id: int, content: str) -> dict[str, Any]:
+        activity = await cls._activity_by_event(db, event_id)
+        module_config = cls._activity_module_config(activity.module_config)
+        barrage_config = module_config.get("barrage") or {}
+        if barrage_config.get("enabled") is not True:
+            raise CustomException(msg="现场弹幕暂未开启")
+        settings_config = await cls.activity_barrage_settings(db)
+        max_length = int(settings_config.get("max_length") or 50)
+        clean = " ".join(content.strip().split())
+        if not clean:
+            raise CustomException(msg="请输入弹幕内容")
+        if len(clean) > max_length:
+            raise CustomException(msg=f"弹幕内容不能超过{max_length}个字")
+        user = await db.scalar(
+            select(MiniProgramUserModel)
+            .where(MiniProgramUserModel.id == user_id, MiniProgramUserModel.is_deleted == False)
+            .options(selectinload(MiniProgramUserModel.person))
+        )
+        if not user:
+            raise CustomException(msg="用户不存在")
+        person = user.person if user.person and not user.person.is_deleted else None
+        photos = (person.photo_urls or []) if person else []
+        row = ScreenActivityBarrageModel(
+            brand_id=activity.brand_id,
+            store_id=activity.store_id,
+            activity_id=activity.id,
+            event_id=activity.event_id,
+            mp_user_id=user.id,
+            person_id=user.person_id,
+            nickname=cls._display_name(user, person) if person else user.nickname or "现场嘉宾",
+            avatar_url=user.avatar_url or (photos[0] if photos else None),
+            content=clean,
+            display_status="displayed",
+            displayed_at=datetime.now(),
+        )
+        db.add(row)
+        await db.flush()
+        return cls._barrage_out(row, settings_config)
+
+    @classmethod
+    async def player_activity_list(cls, db: AsyncSession, device: ScreenDeviceModel) -> dict[str, Any]:
+        rows = (
+            await db.execute(
+                select(ScreenActivityConfigModel)
+                .join(EventModel, ScreenActivityConfigModel.event_id == EventModel.id)
+                .where(
+                    ScreenActivityConfigModel.enabled == True,
+                    ScreenActivityConfigModel.status == "0",
+                    ScreenActivityConfigModel.is_deleted == False,
+                    EventModel.is_deleted == False,
+                    EventModel.event_status.in_(["published", "finished"]),
+                )
+                .options(selectinload(ScreenActivityConfigModel.event).selectinload(EventModel.store))
+                .order_by(EventModel.start_time.desc(), ScreenActivityConfigModel.id.desc())
+            )
+        ).scalars().all()
+        counts = await cls._activity_counts(db, [row.event_id for row in rows])
+        device.last_sync_at = datetime.now()
+        await db.flush()
+        return {"items": [cls._activity_out(row, counts.get(row.event_id)) for row in rows]}
+
+    @classmethod
+    async def player_activity_detail(cls, db: AsyncSession, device: ScreenDeviceModel, activity_id: int) -> dict[str, Any]:
+        row = await cls._activity_by_id(db, activity_id)
+        if not row.enabled or row.status != "0" or not row.event or row.event.event_status not in {"published", "finished"}:
+            raise CustomException(msg="活动大屏未启用")
+        device.last_sync_at = datetime.now()
+        await db.flush()
+        config = await cls._apply_activity_plugin_settings(db, cls._activity_out(row, (await cls._activity_counts(db, [row.event_id])).get(row.event_id)))
+        return {
+            "config": config,
+            "participants": (await cls.activity_participants(db, row.id, 30))["items"],
+            "barrages": (await cls.activity_barrages(db, row.id, 30))["items"],
+        }
+
+    @classmethod
+    async def activity_command(cls, auth: AuthSchema, activity_id: int, data: ScreenActivityCommandSchema) -> dict[str, Any]:
+        row = await cls._activity_by_id(auth.db, activity_id)
+        if data.command == "set_scene":
+            value = str(data.value or "").strip().lower()
+            if value not in {"blank", "checkin"}:
+                raise CustomException(msg="场景只支持空白舞台或签到墙")
+            row.current_scene = value
+        elif data.command == "set_background":
+            value = data.value if isinstance(data.value, dict) else {}
+            background_id = str(value.get("background_id") or "")
+            theme_config = cls._activity_theme_config(row.theme_config)
+            if background_id and not any(str(item.get("id") or "") == background_id for item in theme_config["backgrounds"]):
+                raise CustomException(msg="背景不存在")
+            theme_config["active_background_id"] = background_id
+            row.theme_config = theme_config
+            active = cls._active_background(theme_config)
+            row.background_url = active.get("url") if active and active.get("type") == "image" else None
+        elif data.command == "toggle_module":
+            value = data.value if isinstance(data.value, dict) else {}
+            key = str(value.get("key") or "").strip()
+            if not key:
+                raise CustomException(msg="模块标识不能为空")
+            module_config = cls._activity_module_config(row.module_config)
+            module_config.setdefault(key, {"enabled": False, "settings": {}})
+            module_config[key]["enabled"] = bool(value.get("enabled"))
+            row.module_config = module_config
+        elif data.command == "toggle_people_count":
+            theme_config = cls._activity_theme_config(row.theme_config)
+            theme_config["show_people_count"] = bool(data.value)
+            row.theme_config = theme_config
+        elif data.command == "toggle_qrcode":
+            row.show_qrcode = bool(data.value)
+        elif data.command == "clear_screen":
+            row.current_scene = "blank"
+        elif data.command == "dominate_play":
+            module_config = cls._activity_module_config(row.module_config)
+            if module_config.get("dominate", {}).get("enabled") is not True:
+                raise CustomException(msg="当前活动未开启霸屏")
+            settings = await cls.activity_dominate_settings(auth.db)
+            value = data.value if isinstance(data.value, dict) else {}
+            content = str(value.get("content") or "").strip()
+            if not content:
+                raise CustomException(msg="霸屏内容不能为空")
+            max_length = int(settings["max_length"])
+            data.value = {
+                "id": cls._new_token()[:12],
+                "nickname": (str(value.get("nickname") or "现场嘉宾").strip()[:24] or "现场嘉宾"),
+                "avatar_url": str(value.get("avatar_url") or "").strip()[:1000],
+                "content": content[:max_length],
+                "duration_seconds": int(settings["duration_seconds"]),
+                "created_at": datetime.now().isoformat(),
+            }
+        row.last_command = data.model_dump()
+        row.last_command_at = datetime.now()
+        row.updated_id = auth.user.id if auth.user else None
+        await auth.db.flush()
+        return await cls._apply_activity_plugin_settings(auth.db, cls._activity_out(row, (await cls._activity_counts(auth.db, [row.event_id])).get(row.event_id)))
+
+    @classmethod
+    async def create_activity_control_token(cls, auth: AuthSchema, redis: Redis, activity_id: int, origin: str) -> dict[str, Any]:
+        await cls._activity_by_id(auth.db, activity_id)
+        token = cls._new_token()
+        payload = {
+            "activity_id": activity_id,
+            "user_id": auth.user.id if auth.user else None,
+            "created_at": datetime.now().isoformat(),
+        }
+        await redis.setex(f"{CONTROL_TOKEN_PREFIX}{token}", CONTROL_TOKEN_TTL_SECONDS, json.dumps(payload, ensure_ascii=False))
+        await redis.setex(f"{CONTROL_TOKEN_ACTIVITY_PREFIX}{activity_id}", CONTROL_TOKEN_TTL_SECONDS, token)
+        return {
+            "token": token,
+            "expires_in": CONTROL_TOKEN_TTL_SECONDS,
+            "control_url": f"{origin.rstrip('/')}/#/screen/activity-control?token={token}",
+        }
+
+    @classmethod
+    async def verify_activity_control_token(cls, db: AsyncSession, redis: Redis, token: str) -> dict[str, Any]:
+        if not token:
+            raise CustomException(msg="活动控制台未授权", code=10401, status_code=401)
+        raw = await redis.get(f"{CONTROL_TOKEN_PREFIX}{token}")
+        if not raw:
+            raise CustomException(msg="活动控制台授权已失效", code=10401, status_code=401)
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        payload = json.loads(raw)
+        activity_id = int(payload.get("activity_id") or 0)
+        if not activity_id:
+            raise CustomException(msg="活动控制台授权无效", code=10401, status_code=401)
+        await cls._activity_by_id(db, activity_id)
+        payload["activity_id"] = activity_id
+        return payload
+
+    @classmethod
+    async def control_activity_detail(cls, db: AsyncSession, redis: Redis, token: str) -> dict[str, Any]:
+        payload = await cls.verify_activity_control_token(db, redis, token)
+        activity_id = payload["activity_id"]
+        return {
+            "config": await cls.detail_activity(db, activity_id),
+            "participants": await cls.activity_participants(db, activity_id),
+        }
+
+    @classmethod
+    async def control_activity_command(cls, db: AsyncSession, redis: Redis, token: str, data: ScreenActivityCommandSchema) -> dict[str, Any]:
+        payload = await cls.verify_activity_control_token(db, redis, token)
+        auth = AuthSchema(db=db, user=None, check_data_scope=False)
+        return await cls.activity_command(auth, payload["activity_id"], data)
+
+    @classmethod
+    async def checkin_scene_context(cls, db: AsyncSession, scene: str, user_id: int | None = None) -> dict[str, Any]:
+        row = await cls._activity_by_scene(db, scene)
+        registration = None
+        participant = None
+        if user_id:
+            user = await db.scalar(select(MiniProgramUserModel).where(MiniProgramUserModel.id == user_id, MiniProgramUserModel.is_deleted == False))
+            if user:
+                registration = await db.scalar(
+                    select(EventRegistrationModel).where(
+                        EventRegistrationModel.event_id == row.event_id,
+                        EventRegistrationModel.mp_user_id == user.id,
+                        EventRegistrationModel.is_deleted == False,
+                    )
+                )
+                participant = await db.scalar(
+                    select(EventParticipantModel).where(
+                        EventParticipantModel.event_id == row.event_id,
+                        EventParticipantModel.mp_user_id == user.id,
+                        EventParticipantModel.is_deleted == False,
+                    )
+                )
+        return {
+            "activity_screen": cls._activity_out(row, (await cls._activity_counts(db, [row.event_id])).get(row.event_id)),
+            "event": cls._event_brief(row.event),
+            "registration": {"id": registration.id, "registration_status": registration.registration_status, "registration_no": registration.registration_no} if registration else None,
+            "participant": {"id": participant.id, "onsite_no": participant.onsite_no, "participant_status": participant.participant_status} if participant else None,
+            "can_checkin": not participant,
+        }

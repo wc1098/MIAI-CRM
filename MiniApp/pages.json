@@ -73,6 +73,18 @@
 			}
 		},
 		{
+			"path": "pages/activity/checkin/index",
+			"style": {
+				"navigationBarTitleText": "扫码签到"
+			}
+		},
+		{
+			"path": "pages/activity/live/index",
+			"style": {
+				"navigationBarTitleText": "互动大厅"
+			}
+		},
+		{
 			"path": "pages/certification/index",
 			"style": {
 				"navigationBarTitleText": "认证",

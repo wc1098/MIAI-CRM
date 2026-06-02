@@ -10,3 +10,7 @@ class MpEventRegisterSchema(BaseModel):
 class MpEventCheckinSchema(BaseModel):
     registration_id: int | None = Field(default=None, ge=1)
     payload: dict | None = None
+
+
+class MpEventBarrageSchema(BaseModel):
+    content: str = Field(..., min_length=1, max_length=50)

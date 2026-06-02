@@ -97,7 +97,7 @@
 						<text v-if="myRegistration.registration_no" class="ticket-desc">报名编号：{{ myRegistration.registration_no }}</text>
 						<text v-if="myRegistration.payment_expire_at" class="ticket-desc">支付截止：{{ myRegistration.payment_expire_at }}</text>
 					</view>
-					<button class="small-btn" @tap="checkin">现场签到</button>
+					<button class="small-btn" @tap="scanCheckin">扫码签到</button>
 				</view>
 			</view>
 			<view class="section">
@@ -118,7 +118,7 @@
 </template>
 
 <script>
-import { checkinEvent, continueEventPay, eventDetail, myEventRegistration, registerEvent } from '../../../api/mpEvent.js'
+import { continueEventPay, eventDetail, myEventRegistration, registerEvent } from '../../../api/mpEvent.js'
 import { getToken } from '../../../utils/storage.js'
 import { ensureMpSession, ensureRegisteredSession } from '../../../utils/mpSession.js'
 import { ossImage, ossPreview } from '../../../utils/ossImage.js'
@@ -403,15 +403,29 @@ export default {
 				})
 			})
 		},
-		async checkin() {
+		async scanCheckin() {
 			if (!(await this.ensureRegistered())) return
-			try {
-				await checkinEvent(this.id, { registration_id: this.myRegistration ? this.myRegistration.id : undefined, payload: { scene: 'activity_detail' } })
-				uni.showToast({ title: '签到成功', icon: 'success' })
-				await this.fetchDetail()
-			} catch (error) {
-				uni.showToast({ title: error.message || '签到失败', icon: 'none' })
-			}
+			uni.scanCode({
+				onlyFromCamera: true,
+				success: (res) => {
+					const scene = this.extractCheckinScene(res.result || res.path || '')
+					if (!scene) {
+						uni.showToast({ title: '请扫描活动大屏签到码', icon: 'none' })
+						return
+					}
+					uni.navigateTo({ url: `/pages/activity/checkin/index?scene=${encodeURIComponent(scene)}` })
+				},
+				fail: () => {
+					uni.showToast({ title: '未完成扫码', icon: 'none' })
+				},
+			})
+		},
+		extractCheckinScene(value) {
+			const text = decodeURIComponent(String(value || ''))
+			const sceneMatch = text.match(/[?&]scene=([^&#]+)/)
+			if (sceneMatch) return decodeURIComponent(sceneMatch[1])
+			const directMatch = text.match(/(?:^|[?&#/])as[0-9a-fA-F]{20}/)
+			return directMatch ? directMatch[0].replace(/^[?&#/]/, '') : ''
 		},
 		typeLabel(value) {
 			return { matchmaking: '相亲会', salon: '主题沙龙', outdoor: '户外活动', festival: '节日活动' }[value] || value || '活动'

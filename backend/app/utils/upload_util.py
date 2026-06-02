@@ -80,6 +80,8 @@ MIME_TYPE_MAPPING = {
     "text/plain": ".txt",
     "text/csv": ".csv",
     "video/mp4": ".mp4",
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
 }
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -209,6 +211,8 @@ class UploadUtil:
             return "application/zip"
         if content.startswith(b"%PDF"):
             return "application/pdf"
+        if content.startswith(b"ID3") or (len(content) > 2 and content[0] == 0xFF and (content[1] & 0xE0) == 0xE0):
+            return "audio/mpeg"
         if content.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
             return "application/msword"
         return None

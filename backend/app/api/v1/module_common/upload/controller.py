@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.common.response import ResponseSchema, SuccessResponse
@@ -33,3 +35,17 @@ async def oss_policy_controller(data: OssPolicyRequestSchema) -> JSONResponse:
 async def upload_confirm_controller(data: UploadConfirmRequestSchema) -> JSONResponse:
     result = await CommonUploadService.confirm_uploaded_object(data)
     return SuccessResponse(data=result, msg="确认上传成功")
+
+
+@UploadRouter.post(
+    "/direct",
+    summary="场景化后端上传",
+    response_model=ResponseSchema[UploadConfirmResponseSchema],
+)
+async def direct_upload_controller(
+    request: Request,
+    scene: Annotated[str, Form()],
+    file: Annotated[UploadFile, File()],
+) -> JSONResponse:
+    result = await CommonUploadService.upload_file(scene=scene, file=file, base_url=str(request.base_url))
+    return SuccessResponse(data=result, msg="上传文件成功")

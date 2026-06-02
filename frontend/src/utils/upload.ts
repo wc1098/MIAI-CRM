@@ -88,7 +88,16 @@ export async function uploadImageDirect(file: File, scene: UploadScene): Promise
   }
 }
 
-export async function uploadFileDirect(file: File, scene: UploadScene, onProgress?: (percent: number) => void): Promise<UploadConfirmResponse> {
+export async function uploadFileDirect(file: File, scene: UploadScene, onProgress?: (percent: number) => void, allowFallback = true): Promise<UploadConfirmResponse> {
+  if (!allowFallback) {
+    onProgress?.(1);
+    const body = new FormData();
+    body.append("scene", scene);
+    body.append("file", file);
+    const res = await CommonUploadAPI.directUpload(body, onProgress);
+    onProgress?.(100);
+    return res.data.data;
+  }
   try {
     onProgress?.(1);
     const policyRes = await CommonUploadAPI.ossPolicy({

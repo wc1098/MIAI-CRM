@@ -35,6 +35,18 @@ export const constantRoutes: RouteRecordRaw[] = [
     component: () => import("@/views/screen/promo-player.vue"),
   },
   {
+    path: "/screen/activity-player",
+    name: "ScreenActivityPlayer",
+    meta: { hidden: true, title: "活动大屏播放" },
+    component: () => import("@/views/screen/activity-player.vue"),
+  },
+  {
+    path: "/screen/activity-control",
+    name: "ScreenActivityControl",
+    meta: { hidden: true, title: "活动控制台" },
+    component: () => import("@/views/screen/activity-control.vue"),
+  },
+  {
     path: "/401",
     name: "401",
     meta: { hidden: true, title: "401" },

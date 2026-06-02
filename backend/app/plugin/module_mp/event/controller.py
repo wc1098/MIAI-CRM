@@ -8,7 +8,7 @@ from app.common.response import ResponseSchema, SuccessResponse
 from app.core.dependencies import db_getter
 from app.plugin.module_mp.auth.dependencies import get_current_mp_user_id, get_optional_mp_user_id
 
-from .schema import MpEventCheckinSchema, MpEventRegisterSchema
+from .schema import MpEventBarrageSchema, MpEventCheckinSchema, MpEventRegisterSchema
 from .service import MpEventService
 
 MpEventRouter = APIRouter(prefix="/event", tags=["小程序活动"])
@@ -76,3 +76,34 @@ async def event_checkin_controller(
 ) -> JSONResponse:
     result = await MpEventService.checkin_service(db=db, event_id=event_id, user_id=user_id, data=data)
     return SuccessResponse(data=result, msg="签到成功")
+
+
+@MpEventRouter.get("/checkin-scene/{scene}", summary="扫码签到上下文", response_model=ResponseSchema[dict])
+async def event_checkin_scene_controller(
+    scene: Annotated[str, Path(description="活动大屏签到场景值")],
+    db: Annotated[AsyncSession, Depends(db_getter)],
+    user_id: Annotated[int | None, Depends(get_optional_mp_user_id)],
+) -> JSONResponse:
+    result = await MpEventService.checkin_scene_context_service(db=db, scene=scene, user_id=user_id)
+    return SuccessResponse(data=result, msg="获取扫码签到信息成功")
+
+
+@MpEventRouter.post("/checkin-scan/{scene}", summary="扫码确认签到", response_model=ResponseSchema[dict])
+async def event_checkin_scan_controller(
+    scene: Annotated[str, Path(description="活动大屏签到场景值")],
+    db: Annotated[AsyncSession, Depends(db_getter)],
+    user_id: Annotated[int, Depends(get_current_mp_user_id)],
+) -> JSONResponse:
+    result = await MpEventService.checkin_scan_service(db=db, scene=scene, user_id=user_id)
+    return SuccessResponse(data=result, msg="签到成功")
+
+
+@MpEventRouter.post("/barrage/{event_id}", summary="发送活动弹幕", response_model=ResponseSchema[dict])
+async def event_barrage_controller(
+    event_id: Annotated[int, Path(description="活动ID")],
+    data: MpEventBarrageSchema,
+    db: Annotated[AsyncSession, Depends(db_getter)],
+    user_id: Annotated[int, Depends(get_current_mp_user_id)],
+) -> JSONResponse:
+    result = await MpEventService.barrage_service(db=db, event_id=event_id, user_id=user_id, data=data)
+    return SuccessResponse(data=result, msg="发送成功")

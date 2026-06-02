@@ -630,5 +630,45 @@
     "config_type": true,
     "status": "0",
     "description": "CRM线索无跟进自动回门店公海定时任务扫描间隔秒，修改后需重启后端服务生效"
+  },
+  {
+    "config_name": "活动大屏普通弹幕设置",
+    "config_key": "screen.activity.plugin.barrage.settings",
+    "config_value": "{\"max_length\":50,\"duration_seconds\":16,\"size\":\"medium\",\"need_review\":false}",
+    "config_type": true,
+    "status": "0",
+    "description": "活动大屏普通弹幕插件全局配置"
+  },
+  {
+    "config_name": "活动大屏签到二维码设置",
+    "config_key": "screen.activity.plugin.qrcode.settings",
+    "config_value": "{\"position\":\"3\",\"size\":\"medium\"}",
+    "config_type": true,
+    "status": "0",
+    "description": "活动大屏签到二维码插件全局配置"
+  },
+  {
+    "config_name": "活动大屏签到墙设置",
+    "config_key": "screen.activity.plugin.checkin_wall.settings",
+    "config_value": "{\"title\":\"签到墙\",\"show_count\":true,\"show_avatar\":true,\"show_nickname\":true,\"list_size\":\"medium\"}",
+    "config_type": true,
+    "status": "0",
+    "description": "活动大屏签到墙插件全局配置"
+  },
+  {
+    "config_name": "活动大屏头像霸屏设置",
+    "config_key": "screen.activity.plugin.dominate.settings",
+    "config_value": "{\"max_length\":20,\"duration_seconds\":8,\"need_review\":false}",
+    "config_type": true,
+    "status": "0",
+    "description": "活动大屏头像霸屏插件全局配置"
+  },
+  {
+    "config_name": "活动大屏背景音乐设置",
+    "config_key": "screen.activity.plugin.music.settings",
+    "config_value": "{\"volume\":60,\"play_mode\":\"list_loop\",\"categories\":[{\"id\":\"cat_warmup\",\"name\":\"暖场\"},{\"id\":\"cat_romantic\",\"name\":\"浪漫\"},{\"id\":\"cat_interaction\",\"name\":\"互动\"},{\"id\":\"cat_ending\",\"name\":\"结束\"}],\"tracks\":[]}",
+    "config_type": true,
+    "status": "0",
+    "description": "活动大屏背景音乐插件全局配置"
   }
 ]

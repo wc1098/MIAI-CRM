@@ -41,3 +41,24 @@ export function checkinEvent(id, data = {}) {
 		data,
 	})
 }
+
+export function checkinScene(scene) {
+	return request({
+		url: `/mp/event/checkin-scene/${scene}`,
+	})
+}
+
+export function checkinScan(scene) {
+	return request({
+		url: `/mp/event/checkin-scan/${scene}`,
+		method: 'POST',
+	})
+}
+
+export function sendEventBarrage(id, data = {}) {
+	return request({
+		url: `/mp/event/barrage/${id}`,
+		method: 'POST',
+		data,
+	})
+}

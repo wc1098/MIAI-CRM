@@ -125,6 +125,124 @@ class ScreenPromoRecordSchema(BaseModel):
     error_message: str | None = Field(default=None, max_length=2000)
 
 
+class ScreenActivityQueryParam:
+    def __init__(
+        self,
+        keyword: str | None = Query(None, description="活动名称/门店"),
+        enabled: bool | None = Query(None, description="启用状态"),
+    ) -> None:
+        self.keyword = keyword.strip() if keyword else None
+        self.enabled = enabled
+
+
+class ScreenActivityConfigSchema(BaseModel):
+    event_id: int = Field(..., ge=1, description="活动ID")
+    screen_name: str | None = Field(default=None, max_length=128, description="大屏名称")
+    title: str | None = Field(default=None, max_length=128, description="大屏标题")
+    subtitle: str | None = Field(default=None, max_length=255, description="大屏副标题")
+    background_url: str | None = Field(default=None, max_length=1000, description="背景图URL")
+    theme_config: dict[str, Any] = Field(default_factory=dict, description="画面配置")
+    module_config: dict[str, Any] = Field(default_factory=dict, description="功能模块配置")
+    enabled: bool = Field(default=True, description="是否启用")
+    current_scene: str = Field(default="blank", description="当前场景")
+    show_qrcode: bool = Field(default=True, description="是否显示二维码")
+    status: str = Field(default="0", description="状态")
+
+    @field_validator("current_scene")
+    @classmethod
+    def validate_current_scene(cls, value: str) -> str:
+        clean = value.strip().lower()
+        if clean not in {"blank", "checkin"}:
+            raise ValueError("当前场景只支持 blank/checkin")
+        return clean
+
+
+class ScreenActivityCommandSchema(BaseModel):
+    command: str = Field(..., max_length=32, description="命令")
+    value: Any | None = Field(default=None, description="命令值")
+
+    @field_validator("command")
+    @classmethod
+    def validate_command(cls, value: str) -> str:
+        clean = value.strip().lower()
+        if clean not in {"set_scene", "set_background", "toggle_module", "toggle_people_count", "toggle_qrcode", "refresh", "clear_screen", "music_play", "music_pause", "music_next", "music_prev", "music_set_volume", "music_set_track", "dominate_play"}:
+            raise ValueError("命令只支持活动大屏控制台命令")
+        return clean
+
+
+class ScreenActivityBarrageSettingsSchema(BaseModel):
+    max_length: int = Field(default=50, ge=1, le=100, description="弹幕最大字数")
+    duration_seconds: int = Field(default=16, ge=8, le=60, description="弹幕滚动秒数")
+    size: str = Field(default="medium", description="弹幕尺寸:large/medium/small")
+    need_review: bool = Field(default=False, description="是否需要审核")
+
+    @field_validator("size")
+    @classmethod
+    def validate_size(cls, value: str) -> str:
+        clean = str(value or "medium").strip().lower()
+        if clean not in {"large", "medium", "small"}:
+            raise ValueError("弹幕尺寸只支持 large/medium/small")
+        return clean
+
+
+class ScreenActivityDominateSettingsSchema(BaseModel):
+    max_length: int = Field(default=20, ge=1, le=60, description="霸屏最大字数")
+    duration_seconds: int = Field(default=8, ge=3, le=30, description="霸屏展示秒数")
+    need_review: bool = Field(default=False, description="是否需要审核")
+
+
+class ScreenActivityQrcodeSettingsSchema(BaseModel):
+    position: str = Field(default="3", description="二维码显示位置:1-9")
+    size: str = Field(default="medium", description="二维码大小:large/medium/small")
+
+    @field_validator("position")
+    @classmethod
+    def validate_position(cls, value: str) -> str:
+        clean = str(value or "3").strip()
+        if clean not in {"1", "2", "3", "4", "5", "6", "7", "8", "9"}:
+            raise ValueError("二维码位置只支持 1-9")
+        return clean
+
+    @field_validator("size")
+    @classmethod
+    def validate_size(cls, value: str) -> str:
+        clean = str(value or "medium").strip().lower()
+        if clean not in {"large", "medium", "small"}:
+            raise ValueError("二维码大小只支持 large/medium/small")
+        return clean
+
+
+class ScreenActivityCheckinWallSettingsSchema(BaseModel):
+    title: str = Field(default="签到墙", max_length=64, description="签到墙标题")
+    show_count: bool = Field(default=True, description="是否显示签到人数")
+    show_avatar: bool = Field(default=True, description="是否显示头像")
+    show_nickname: bool = Field(default=True, description="是否显示昵称")
+    list_size: str = Field(default="medium", description="列表大小:large/medium/small")
+
+    @field_validator("list_size")
+    @classmethod
+    def validate_list_size(cls, value: str) -> str:
+        clean = str(value or "medium").strip().lower()
+        if clean not in {"large", "medium", "small"}:
+            raise ValueError("列表大小只支持 large/medium/small")
+        return clean
+
+
+class ScreenActivityMusicSettingsSchema(BaseModel):
+    volume: int = Field(default=60, ge=0, le=100, description="默认音量")
+    play_mode: str = Field(default="list_loop", description="播放模式:list_loop/single_loop/random")
+    categories: list[dict[str, Any]] = Field(default_factory=list, description="音乐分类")
+    tracks: list[dict[str, Any]] = Field(default_factory=list, description="音乐列表")
+
+    @field_validator("play_mode")
+    @classmethod
+    def validate_play_mode(cls, value: str) -> str:
+        clean = str(value or "list_loop").strip().lower()
+        if clean not in {"list_loop", "single_loop", "random"}:
+            raise ValueError("播放模式只支持 list_loop/single_loop/random")
+        return clean
+
+
 class ScreenDeviceOutSchema(BaseModel):
     id: int
     brand_id: int

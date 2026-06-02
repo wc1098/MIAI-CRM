@@ -19,7 +19,7 @@ from app.plugin.module_mp.auth.model import MiniProgramUserModel, SourceEventMod
 from app.plugin.module_payment.core.model import PaymentOrderModel
 from app.plugin.module_payment.core.service import PaymentService
 
-from .schema import MpEventCheckinSchema, MpEventRegisterSchema
+from .schema import MpEventBarrageSchema, MpEventCheckinSchema, MpEventRegisterSchema
 
 MINIAPP_EVENT_CHANNEL = "MINIAPP_EVENT"
 EVENT_PAYMENT_EXPIRE_MINUTES = 24 * 60
@@ -583,3 +583,42 @@ class MpEventService:
         await cls._upsert_lead(db, user.person_id, source_event)
         await db.flush()
         return {"participant_id": participant.id, "onsite_no": participant.onsite_no, "participant_status": participant.participant_status}
+
+    @classmethod
+    async def checkin_scene_context_service(cls, db: AsyncSession, scene: str, user_id: int | None = None) -> dict:
+        from app.plugin.module_screen.service import ScreenService
+
+        return await ScreenService.checkin_scene_context(db, scene, user_id)
+
+    @classmethod
+    async def checkin_scan_service(cls, db: AsyncSession, scene: str, user_id: int) -> dict:
+        from app.plugin.module_screen.service import ScreenService
+        from app.plugin.module_screen.ws import activity_ws_manager
+
+        context = await ScreenService.checkin_scene_context(db, scene, user_id)
+        activity = context["activity_screen"]
+        registration = context.get("registration")
+        result = await cls.checkin_service(
+            db=db,
+            event_id=activity["event_id"],
+            user_id=user_id,
+            data=MpEventCheckinSchema(
+                registration_id=registration["id"] if registration else None,
+                payload={"scene": "activity_screen_qr", "activity_screen_id": activity["id"], "checkin_scene": scene},
+            ),
+        )
+        participants = await ScreenService.activity_participants(db, activity["id"], 12)
+        await activity_ws_manager.broadcast(
+            activity["id"],
+            {"type": "participant_checked_in", "payload": {"result": result, "participants": participants}},
+        )
+        return {**result, "activity_screen_id": activity["id"], "participants": participants}
+
+    @classmethod
+    async def barrage_service(cls, db: AsyncSession, event_id: int, user_id: int, data: MpEventBarrageSchema) -> dict:
+        from app.plugin.module_screen.service import ScreenService
+        from app.plugin.module_screen.ws import activity_ws_manager
+
+        result = await ScreenService.create_barrage(db, event_id=event_id, user_id=user_id, content=data.content)
+        await activity_ws_manager.broadcast(result["activity_id"], {"type": "barrage_created", "payload": result})
+        return result

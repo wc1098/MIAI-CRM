@@ -269,6 +269,7 @@ class MainActivity : Activity() {
         }
         row.addView(sceneButton("用户墙") { openUserWall() })
         row.addView(sceneButton("宣传大屏") { openPromo() })
+        row.addView(sceneButton("活动大屏") { openActivityScreen() })
         panel.addView(row)
         return panel
     }
@@ -357,6 +358,22 @@ class MainActivity : Activity() {
         } else {
             loadPromo()
         }
+    }
+
+    private fun openActivityScreen() {
+        currentScene = Scene.ACTIVITY
+        mainHandler.removeCallbacksAndMessages(null)
+        exoPlayer?.stop()
+        scenePanel.visibility = View.GONE
+        promoPanel.visibility = View.GONE
+        webView.visibility = View.VISIBLE
+        if (!isNetworkAvailable()) {
+            showStatus("活动大屏暂不可用", "网络不可用，请连接网络后按 OK 重试")
+            return
+        }
+        hideStatus()
+        webView.loadUrl(activityScreenUrl())
+        webView.requestFocus()
     }
 
     private fun loadPromo() {
@@ -868,6 +885,7 @@ class MainActivity : Activity() {
         when (currentScene) {
             Scene.USER_WALL -> openUserWall()
             Scene.PROMO -> loadPromo()
+            Scene.ACTIVITY -> openActivityScreen()
             Scene.SELECT -> showSceneSelect()
         }
     }
@@ -1053,6 +1071,8 @@ class MainActivity : Activity() {
 
     private fun userWallUrl(): String = "${serverUrl()}#/screen/player"
 
+    private fun activityScreenUrl(): String = "${serverUrl()}#/screen/activity-player"
+
     private fun apiBaseUrl(): String {
         val uri = Uri.parse(serverUrl())
         val basePath = uri.path.orEmpty().trimEnd('/')
@@ -1145,7 +1165,7 @@ class MainActivity : Activity() {
         Log.d(TAG, "$stage keyCode=$keyCode keyName=${KeyEvent.keyCodeToString(keyCode)} action=${event.action} repeat=${event.repeatCount} scanCode=${event.scanCode}")
     }
 
-    private enum class Scene { SELECT, USER_WALL, PROMO }
+    private enum class Scene { SELECT, USER_WALL, PROMO, ACTIVITY }
 
     private data class PromoConfig(
         val enabled: Boolean = true,

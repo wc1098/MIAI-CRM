@@ -181,6 +181,7 @@ class Settings(BaseSettings):
         ".svg",
         ".xls",
         ".xlsx",
+        ".mp3",
     ]
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 最大文件大小(10MB)
 
