@@ -14,12 +14,12 @@ services:
       DATABASE_HOST: host.docker.internal
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
-      DATABASE_PASSWORD: Anping520
-      DATABASE_NAME: miaicrm
+      DATABASE_PASSWORD: postgres
+      DATABASE_NAME: postgres
       REDIS_ENABLE: "true"
       REDIS_HOST: host.docker.internal
       REDIS_PORT: 6379
-      REDIS_PASSWORD: Anping520
+      REDIS_PASSWORD: postgres
       REDIS_DB_NAME: 1
     extra_hosts:
       - "host.docker.internal:host-gateway"
